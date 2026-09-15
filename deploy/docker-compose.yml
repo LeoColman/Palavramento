@@ -1,0 +1,44 @@
+# Palavramento no ritalee (Docker Swarm + caddy-docker-proxy). Deploy: deploy/publish.sh (ADR 0013).
+#   server   - Ktor na porta 8080, publicado pelo Caddy em https://${APP_HOST} (REST e WebSocket)
+#   postgres - contas, rodadas e resultados
+#
+# O Swarm ignora depends_on: o servidor reinicia até o Postgres responder.
+
+services:
+  server:
+    image: palavramento-server:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/palavramento
+      DATABASE_USER: palavramento
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+    deploy:
+      # Uma réplica só: o estado das rodadas em andamento vive em memória (ADR 0007).
+      replicas: 1
+      restart_policy: { condition: any, delay: 5s }
+      resources:
+        limits: { memory: 1536M }
+      labels:
+        caddy: "${APP_HOST}"
+        caddy.reverse_proxy: "{{upstreams 8080}}"
+    networks: [default, caddy]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: palavramento
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: palavramento
+    volumes:
+      - /root/manual-stacks/palavramento/pgdata:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy: { condition: any, delay: 10s }
+      resources:
+        limits: { memory: 1G }
+    networks: [default]
+
+networks:
+  default:
+  caddy:
+    external: true

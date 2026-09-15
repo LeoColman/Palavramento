@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Debug builds talk to a local development server over plain HTTP: BuildConfig.SERVER_URL comes from
-  the `palavramento.serverUrl` property (local.properties or -P), defaulting to http://10.0.2.2:8080,
-  the emulator's view of the host. That host can be any LAN address of the developer's machine, so
-  debug builds allow cleartext everywhere. Release builds do not ship this file and keep Android's
-  TLS-only default.
+  Debug builds may talk to a local development server over plain HTTP: BuildConfig.SERVER_URL comes
+  from the `palavramento.serverUrl` property (local.properties or -P) when it is set, e.g.
+  http://10.0.2.2:8080 from the emulator or any LAN address of the developer's machine, so debug
+  builds allow cleartext everywhere. The default is the production server over HTTPS. Release builds
+  do not ship this file and keep Android's TLS-only default.
 -->
 <network-security-config>
   <base-config cleartextTrafficPermitted="true" />

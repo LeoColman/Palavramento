@@ -23,4 +23,10 @@ dependencyResolutionManagement {
 
 rootProject.name = "palavramento"
 
-include(":domain", ":server", ":app")
+include(":domain", ":server")
+
+// The server's Docker build has no Android SDK (deploy/Dockerfile), so it passes
+// -Ppalavramento.skipApp=true and leaves the app module out of the build.
+if (providers.gradleProperty("palavramento.skipApp").orNull != "true") {
+  include(":app")
+}

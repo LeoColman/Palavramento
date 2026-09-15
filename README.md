@@ -48,11 +48,11 @@ do ambiente de implantação (proxy reverso), não do processo Ktor (ver ADR 000
 Os testes de integração do servidor (`./gradlew :server:test`) precisam de Docker: cada execução sobe
 seu próprio PostgreSQL via Testcontainers (compartilhado entre as specs, não o do `docker-compose`).
 
-## Jogando num aparelho físico
+## Apontando o app para outro servidor
 
-Por padrão o app de debug procura o servidor em `http://10.0.2.2:8080`, que é o computador visto de
-dentro do emulador. Num telefone na mesma rede Wi-Fi, aponte para o IP do computador em
-`local.properties` (arquivo por máquina, fora do git) ou com `-P`:
+Por padrão o app usa o servidor de produção, `https://palavramento.colman.com.br`. Para jogar contra
+um servidor local, defina `palavramento.serverUrl` em `local.properties` (arquivo por máquina, fora do
+git) ou com `-P`: `http://10.0.2.2:8080` no emulador, o IP do computador num telefone na mesma rede.
 
 ```properties
 palavramento.serverUrl=http://192.168.0.10:8080
@@ -63,6 +63,19 @@ palavramento.serverUrl=http://192.168.0.10:8080
 ```
 
 O build de debug aceita HTTP sem TLS para qualquer host; o de release continua exigindo TLS.
+
+## Deploy
+
+O servidor roda no `ritalee` (Docker Swarm, com o Caddy publicando o HTTPS), em
+`/root/manual-stacks/palavramento` (ADR 0013). Para publicar o commit atual:
+
+```bash
+deploy/publish.sh          # ou deploy/publish.sh <commit> para voltar a uma versão anterior
+```
+
+O script manda o código versionado para o servidor, que constrói a imagem e atualiza o stack. Os
+segredos (`POSTGRES_PASSWORD`, `JWT_SECRET`) ficam só no `.env` do servidor; o modelo está em
+`deploy/.env.example`.
 
 ## Licença
 

@@ -13,15 +13,15 @@ plugins {
 }
 
 /**
- * Server the app talks to. A real phone on the developer's network needs the machine's LAN address,
- * so it is set per machine: `palavramento.serverUrl` as a Gradle property (-P) or in the unversioned
- * `local.properties`. Defaults to the emulator's view of the host.
+ * Server the app talks to: the production server by default (ADR 0013). To play against a local
+ * server, set `palavramento.serverUrl` as a Gradle property (-P) or in the unversioned
+ * `local.properties`: `http://10.0.2.2:8080` from the emulator, the machine's LAN address from a phone.
  */
 val serverUrl: String = providers.gradleProperty("palavramento.serverUrl").orNull
   ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { file ->
     Properties().apply { file.inputStream().use { load(it) } }.getProperty("palavramento.serverUrl")
   }
-  ?: "http://10.0.2.2:8080"
+  ?: "https://palavramento.colman.com.br"
 
 android {
   namespace = "br.com.colman.palavramento"

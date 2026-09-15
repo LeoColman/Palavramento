@@ -6,6 +6,7 @@ package br.com.colman.palavramento.domain.generator
 import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.mutator.Mutator
+import br.com.colman.palavramento.domain.mutator.effectiveValueOf
 import br.com.colman.palavramento.domain.scoring.LetterValueTable
 import br.com.colman.palavramento.domain.solver.Solver
 import br.com.colman.palavramento.domain.solver.WordTier
@@ -45,7 +46,7 @@ class BoardGenerator(
       attempts++
       attemptsInBlock++
 
-      val board = drawBoard(random, size)
+      val board = drawBoard(random, size, mutator)
       val solution = solver.solve(board, mutator, commonCutoff)
       val commonWords = solution.count { it.tier == WordTier.Common }
       val totalWords = solution.size
@@ -66,10 +67,16 @@ class BoardGenerator(
     error("Board generation gave up after $attempts attempts (seed=$seed, size=$size)")
   }
 
-  private fun drawBoard(random: Random, size: Int): Board {
+  /**
+   * Tiles carry the values players see (dossier 3, step 2: "aplicar mutador"), so a
+   * [Mutator.ValuableLetter] is baked in here rather than only applied inside the solver. The
+   * override is idempotent, so the solver applying it again changes nothing.
+   */
+  private fun drawBoard(random: Random, size: Int, mutator: Mutator): Board {
     val tiles = List(size * size) {
       val letter = letterWeights.sample(random)
-      Tile(letter.toString(), letterValues.value(letter))
+      val base = Tile(letter.toString(), letterValues.value(letter))
+      Tile(base.letters, mutator.effectiveValueOf(base))
     }
     return Board(size, tiles)
   }

@@ -4,6 +4,7 @@
 package br.com.colman.palavramento.domain.generator
 
 import br.com.colman.palavramento.domain.lexicon.InMemoryLexicon
+import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.scoring.LetterValueTable
 import br.com.colman.palavramento.domain.solver.Solver
 import br.com.colman.palavramento.domain.solver.WordTier
@@ -88,6 +89,18 @@ class BoardGeneratorTest : FunSpec({
       (totalWords >= result.criteriaUsed.totalWordsMin) shouldBe true
       (maxScore in result.criteriaUsed.maxScoreRange) shouldBe true
     }
+  }
+
+  test("A valuable letter mutator is baked into the tile values players see") {
+    val result = generator().generate(
+      seed = 7,
+      size = 4,
+      mutator = Mutator.ValuableLetter('C', 10),
+      commonCutoff = Int.MAX_VALUE,
+      criteria = reachableCriteria(),
+    )
+    result.board.tiles.forEach { tile -> tile.value shouldBe if (tile.letters == "C") 10 else 1 }
+    result.board.tiles.any { it.letters == "C" } shouldBe true
   }
 
   test("Criteria relax when the original ones are not met within maxAttempts") {

@@ -23,8 +23,10 @@ contexto global do Koin é um singleton por JVM e quebraria testes que sobem vá
 Uma sala global (`GlobalRoomId = "global"`). O agendador mantém sempre duas rodadas prontas: a
 corrente e a próxima, ambas persistidas antes de começar (dossiê §3). Ao ativar uma rodada, o
 agendador tira uma foto de quem está conectado (`ConnectionRegistry`) e marca todos como
-participantes; só esse conjunto recebe `RoundStart` e só esse conjunto pode reconectar durante a
-rodada. Quem entra depois (não estava conectado na ativação) recebe `LobbyState` e espera a próxima.
+participantes; só esse conjunto recebe `RoundStart` na ativação e só esse conjunto pode reconectar
+durante a rodada. **A regra de quem entra depois de a rodada já estar ativa mudou: ver ADR 0010**
+(entrada tardia, decisão do dono do produto de 2026-09-15) para a regra vigente e a exceção de pouco
+tempo restante; esta ADR só continua descrevendo o estado no momento da ativação em si.
 
 `RoomScheduler` recebe um `GameClock` injetável. Em produção é `SystemGameClock` (relógio real); a
 espera até o próximo instante (`waitUntil`) usa `kotlinx.coroutines.delay` real de qualquer forma, então

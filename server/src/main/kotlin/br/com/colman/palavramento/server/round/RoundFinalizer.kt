@@ -41,8 +41,8 @@ class RoundFinalizer(
 
   suspend fun finalize(
     roundId: String,
-    startedAt: Instant,
     perPlayerFound: Map<String, List<FoundWord>>,
+    perPlayerEnteredAt: Map<String, Instant>,
   ): FinalizeResult {
     if (perPlayerFound.isEmpty()) return FinalizeResult(emptyList(), 0)
 
@@ -57,7 +57,10 @@ class RoundFinalizer(
       val playerId = rankedEntry.entry.playerId
       val words = perPlayerFound.getValue(playerId)
       val accepted = words.map { AcceptedWord(it.score, it.normalized.length, it.acceptedAt.toEpochMilli()) }
-      val stats = RoundStatsCalculator.compute(startedAt.toEpochMilli(), accepted, xpFormula = xpFormula)
+      // Measured from this player's own entry time (ADR 0010: a late joiner's secondsPerWord is
+      // never inflated by time elapsed before they joined), not the round's own startsAt.
+      val enteredAt = perPlayerEnteredAt.getValue(playerId)
+      val stats = RoundStatsCalculator.compute(enteredAt.toEpochMilli(), accepted, xpFormula = xpFormula)
       val bestWord = words.maxByOrNull { it.score }
       PlayerRoundOutcome(playerId, rankedEntry.entry.name, stats, rankedEntry.rank, bestWord)
     }
@@ -72,7 +75,8 @@ class RoundFinalizer(
             outcome.stats.points,
             outcome.stats.words,
             outcome.rank,
-            outcome.stats.xp
+            outcome.stats.xp,
+            perPlayerEnteredAt.getValue(outcome.playerId),
           ),
         )
         val player = players[outcome.playerId]

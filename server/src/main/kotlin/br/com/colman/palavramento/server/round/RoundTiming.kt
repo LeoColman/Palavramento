@@ -27,4 +27,13 @@ object RoundTiming {
   /** The latest instant a submission for a round ending at [endsAt] is still accepted (dossier §5.2). */
   fun lateSubmissionDeadline(endsAt: Instant, tolerance: Duration): Instant =
     endsAt.plusMillis(tolerance.inWholeMilliseconds)
+
+  /**
+   * Whether a not-yet-participant joining right at [now] still gets at least [minRemaining] of a
+   * round ending at [endsAt] (ADR 0010: late join). Exactly [minRemaining] left counts as allowed.
+   */
+  fun canLateJoin(now: Instant, endsAt: Instant, minRemaining: Duration): Boolean {
+    val remainingMillis = java.time.Duration.between(now, endsAt).toMillis()
+    return remainingMillis >= minRemaining.inWholeMilliseconds
+  }
 }

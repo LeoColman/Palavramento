@@ -35,6 +35,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import java.time.Instant
 
 /** `/players/me*` (dossier §6.1/§6.3/§6.4, `Rest.kt`). */
 class PlayerRoutesTest : FunSpec({
@@ -151,7 +152,7 @@ class PlayerRoutesTest : FunSpec({
       playerRepository.transaction {
         roundResultRepository.insert(
           this,
-          RoundResultRow(round, guest.playerId, score = 12, words = 1, rank = 1, xp = 2)
+          RoundResultRow(round, guest.playerId, score = 12, words = 1, rank = 1, xp = 2, enteredAt = Instant.now())
         )
       }
 

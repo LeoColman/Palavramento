@@ -41,11 +41,16 @@ data class ServerConfig(
   val commonCutoff: Int = Solver.DefaultCommonCutoff,
   val generationCriteria: GenerationCriteria = GenerationCriteria(),
   val leaderboardSize: Int = DefaultLeaderboardSize,
+  // Late join (ADR 0010, product decision 2026-09-15): below this much time left in the active
+  // round, a not-yet-participant keeps the old behavior (LobbyState, wait for the next round)
+  // instead of being let into the round already running.
+  val lateJoinMinRemaining: Duration = DefaultLateJoinMinRemainingSeconds.seconds,
 ) {
   companion object {
     private const val DefaultPort = 8080
     private const val DefaultRateLimit = 10
     private const val DefaultLeaderboardSize = 20
+    private const val DefaultLateJoinMinRemainingSeconds = 10
 
     /** Reads every variable below, falling back to the [ServerConfig] default when unset. */
     fun fromEnv(env: (String) -> String? = System::getenv): ServerConfig {
@@ -67,6 +72,7 @@ data class ServerConfig(
         commonCutoff = envInt(env, "COMMON_CUTOFF", defaults.commonCutoff),
         generationCriteria = defaults.generationCriteria,
         leaderboardSize = envInt(env, "LEADERBOARD_SIZE", defaults.leaderboardSize),
+        lateJoinMinRemaining = envSeconds(env, "LATE_JOIN_MIN_REMAINING_SECONDS", defaults.lateJoinMinRemaining),
       )
     }
 

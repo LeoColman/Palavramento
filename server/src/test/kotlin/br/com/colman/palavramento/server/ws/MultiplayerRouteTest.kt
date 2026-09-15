@@ -25,6 +25,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -161,9 +162,10 @@ class MultiplayerRouteTest : FunSpec({
     }
   }
 
-  test("joining mid-round waits for the next round instead of the one already in progress") {
+  test("mid-round join enters with the remaining time instead of waiting (ADR 0010)") {
     val roomId = testRoomId()
-    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+    val config =
+      testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds, lateJoinMinRemaining = 1.seconds)
 
     testApplication {
       application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
@@ -172,25 +174,106 @@ class MultiplayerRouteTest : FunSpec({
       val late = guestTokens(client, "Late")
       val roundStarted = CompletableDeferred<Unit>()
 
+      var earlyRoundId: String? = null
+      var earlyEndsAt: Long? = null
+      var lateRoundId: String? = null
+      var lateEndsAt: Long? = null
+      var lateEnd: ServerMessage.RoundEnd? = null
+      var lateLeaderboard: ServerMessage.Leaderboard? = null
+
       coroutineScope {
         launch {
           client.webSocket("/ws/multiplayer") {
             sendClientMessage(ClientMessage.JoinRoom(sessionToken = early.accessToken))
             nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
-            nextServerMessage().shouldBeInstanceOf<ServerMessage.RoundStart>()
+            val start = nextServerMessage() as ServerMessage.RoundStart
+            earlyRoundId = start.roundId
+            earlyEndsAt = start.endsAt
+            roundStarted.complete(Unit)
+            // Stay connected so the round has two participants at finish() too.
+            nextServerMessage().shouldBeInstanceOf<ServerMessage.RoundEnd>()
+            nextServerMessage().shouldBeInstanceOf<ServerMessage.Leaderboard>()
+          }
+        }
+
+        launch {
+          // Only once the round is confirmed active does the latecomer join it, with time to spare.
+          roundStarted.await()
+          client.webSocket("/ws/multiplayer") {
+            sendClientMessage(ClientMessage.JoinRoom(sessionToken = late.accessToken))
+            val start = nextServerMessage() as ServerMessage.RoundStart
+            lateRoundId = start.roundId
+            lateEndsAt = start.endsAt
+            start.alreadyFound shouldBe emptyList()
+            start.runningScore shouldBe 0
+            start.runningWords shouldBe 0
+
+            val word = RoundRepository(database).loadSolution(start.roundId).first()
+            sendClientMessage(ClientMessage.SubmitWord(start.roundId, word.path, System.currentTimeMillis()))
+            nextServerMessage().shouldBeInstanceOf<ServerMessage.WordAccepted>()
+
+            lateEnd = nextServerMessage() as ServerMessage.RoundEnd
+            lateLeaderboard = nextServerMessage() as ServerMessage.Leaderboard
+          }
+        }
+      }
+
+      // Same round, same real endsAt: the client can show the reduced remaining time.
+      lateRoundId shouldBe earlyRoundId
+      lateEndsAt shouldBe earlyEndsAt
+      val roundId = requireNotNull(lateRoundId)
+
+      requireNotNull(lateEnd).roundId shouldBe roundId
+      requireNotNull(lateLeaderboard).totalPlayers shouldBe 2
+
+      val results = RoundResultRepository(database).findByRound(roundId)
+      results shouldHaveSize 2
+      results.map { it.playerId } shouldContainExactlyInAnyOrder listOf(early.playerId, late.playerId)
+    }
+  }
+
+  test("joining with less than the threshold left waits for the next round (ADR 0010)") {
+    val roomId = testRoomId()
+    val config =
+      testServerConfig(roundDuration = 3.seconds, intermissionDuration = 3.seconds, lateJoinMinRemaining = 10.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val early = guestTokens(client, "Early")
+      val late = guestTokens(client, "Late")
+      val roundStarted = CompletableDeferred<Unit>()
+
+      var earlyRoundId: String? = null
+      var lateNextRoundId: String? = null
+
+      coroutineScope {
+        launch {
+          client.webSocket("/ws/multiplayer") {
+            sendClientMessage(ClientMessage.JoinRoom(sessionToken = early.accessToken))
+            nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+            val start = nextServerMessage() as ServerMessage.RoundStart
+            earlyRoundId = start.roundId
             roundStarted.complete(Unit)
           }
         }
 
         launch {
-          // Only once the round is confirmed active does the latecomer join it.
+          // A 3s round can never have 10s left once active: the latecomer always waits.
           roundStarted.await()
           client.webSocket("/ws/multiplayer") {
             sendClientMessage(ClientMessage.JoinRoom(sessionToken = late.accessToken))
+            // The JoinRoom response itself: not enough time left, so LobbyState (not RoundStart).
             nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+            // The round-end broadcast reaches every connected socket, participant or not.
+            nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+            val nextStart = nextServerMessage() as ServerMessage.RoundStart
+            lateNextRoundId = nextStart.roundId
           }
         }
       }
+
+      lateNextRoundId shouldNotBe earlyRoundId
     }
   }
 

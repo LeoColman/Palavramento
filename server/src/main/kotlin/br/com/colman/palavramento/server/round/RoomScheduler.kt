@@ -131,7 +131,14 @@ class RoomScheduler(
     }
   }
 
-  /** What a `JoinRoom` gets: `RoundStart` (fresh or reconnecting participant) or `LobbyState`. */
+  /**
+   * What a `JoinRoom` gets: `RoundStart` (fresh, reconnecting, or late-joining participant) or
+   * `LobbyState`. A player who is not yet a participant of the active round joins it immediately,
+   * with the round's real `startsAt`/`endsAt` and no words found, unless less than
+   * [ServerConfig.lateJoinMinRemaining] is left (ADR 0010: late join), in which case they keep the
+   * old behavior of waiting for the next round.
+   */
+  @Suppress("ReturnCount") // guard-clause style: each early return is one distinct outcome (ADR 0010).
   suspend fun join(playerId: String): JoinResult {
     val state = currentRoundState
     if (state != null && state.isParticipant(playerId)) {
@@ -140,6 +147,13 @@ class RoomScheduler(
       return JoinResult.Started(
         state.record.toRoundStartMessage(alreadyFound, snapshot.runningScore, snapshot.runningWords)
       )
+    }
+    if (state != null) {
+      val now = clock.now()
+      if (RoundTiming.canLateJoin(now, state.record.endsAt, config.lateJoinMinRemaining)) {
+        state.markParticipant(playerId, maxOf(state.record.startsAt, now))
+        return JoinResult.Started(state.record.toRoundStartMessage())
+      }
     }
     return JoinResult.Waiting(
       ServerMessage.LobbyState(nextRoundStartsAt.toEpochMilli(), connectionRegistry.connectedPlayerCount())
@@ -157,14 +171,18 @@ class RoomScheduler(
 
     val state = RoundState(generated) { accepted -> submissionRepository.insert(accepted) }
     val connectedIds = connectionRegistry.connectedPlayerIds()
-    connectedIds.forEach { state.markParticipant(it) }
+    // Present when the round starts: entry time is the round's own startsAt (ADR 0010).
+    connectedIds.forEach { state.markParticipant(it, generated.record.startsAt) }
 
     // Restart recovery (dossier phase 3 task: "persist as you go so a restart does not lose
     // accepted words"): every connection died with the old process, but the words are still in
-    // `submissions`, so a reconnecting participant's `join()` needs them back in memory.
+    // `submissions`, so a reconnecting participant's `join()` needs them back in memory. Their true
+    // entry time (possibly a late join, ADR 0010) is not recoverable from `submissions` alone, so
+    // this approximates it as the round's own startsAt; accepted debt, same shape as ADR 0007's
+    // finalization-crash gap, documented in RoundState.
     if (wasAlreadyActive) {
       submissionRepository.findByRound(generated.record.id).forEach { (playerId, words) ->
-        state.markParticipant(playerId)
+        state.markParticipant(playerId, generated.record.startsAt)
         state.playerState(playerId).restore(words)
       }
     }
@@ -182,7 +200,8 @@ class RoomScheduler(
     if (participantIds.isEmpty()) return
 
     val perPlayerFound = participantIds.associateWith { playerId -> state.playerState(playerId).snapshot().found }
-    val result = roundFinalizer.finalize(record.id, record.startsAt, perPlayerFound)
+    val perPlayerEnteredAt = participantIds.associateWith { state.entryTimeOf(it) ?: record.startsAt }
+    val result = roundFinalizer.finalize(record.id, perPlayerFound, perPlayerEnteredAt)
     val leaderboardRows = result.outcomes
       .sortedBy { it.rank }
       .take(config.leaderboardSize)

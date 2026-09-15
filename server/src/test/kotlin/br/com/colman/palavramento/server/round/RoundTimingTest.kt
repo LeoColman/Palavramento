@@ -42,6 +42,26 @@ class RoundTimingTest : FunSpec({
     RoundTiming.lateSubmissionDeadline(now, 500.milliseconds) shouldBe now.plusMillis(500)
   }
 
+  test("canLateJoin allows joining with more than the minimum remaining") {
+    val endsAt = now.plusSeconds(60)
+    RoundTiming.canLateJoin(now, endsAt, 10.seconds) shouldBe true
+  }
+
+  test("canLateJoin allows joining with exactly the minimum remaining (the boundary is allowed)") {
+    val endsAt = now.plusSeconds(10)
+    RoundTiming.canLateJoin(now, endsAt, 10.seconds) shouldBe true
+  }
+
+  test("canLateJoin refuses joining with one millisecond less than the minimum remaining") {
+    val endsAt = now.plusSeconds(10).minusMillis(1)
+    RoundTiming.canLateJoin(now, endsAt, 10.seconds) shouldBe false
+  }
+
+  test("canLateJoin refuses joining once the round has already ended") {
+    val endsAt = now.minusSeconds(1)
+    RoundTiming.canLateJoin(now, endsAt, 10.seconds) shouldBe false
+  }
+
   test("MutableGameClock only moves when advanced or set") {
     val clock = MutableGameClock(now)
     clock.now() shouldBe now

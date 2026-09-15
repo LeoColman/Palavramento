@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.domain.protocol.LifetimeStats
 import br.com.colman.palavramento.domain.protocol.PlayerProfile
+import br.com.colman.palavramento.ui.common.oneDecimal
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
 import org.koin.androidx.compose.koinViewModel
 
@@ -158,11 +159,11 @@ private fun StatsPanel(stats: LifetimeStats?, isGuest: Boolean, isLoading: Boole
       StatRow(stringResource(R.string.lobby_stat_best_game_score), stats?.bestGameScore?.toString() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_best_word), stats?.bestWord ?: empty)
       StatRow(stringResource(R.string.lobby_stat_games_completed), stats?.gamesCompleted?.toString() ?: empty)
-      StatRow(stringResource(R.string.lobby_stat_average_score), stats?.averageScore?.toString() ?: empty)
-      StatRow(stringResource(R.string.lobby_stat_average_words), stats?.averageWords?.toString() ?: empty)
+      StatRow(stringResource(R.string.lobby_stat_average_score), stats?.averageScore?.oneDecimal() ?: empty)
+      StatRow(stringResource(R.string.lobby_stat_average_words), stats?.averageWords?.oneDecimal() ?: empty)
       StatRow(
         stringResource(R.string.lobby_stat_average_points_per_word),
-        stats?.averagePointsPerWord?.toString() ?: empty,
+        stats?.averagePointsPerWord?.oneDecimal() ?: empty,
       )
       StatRow(stringResource(R.string.lobby_stat_best_rank), stats?.bestRank?.toString() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_games_played), stats?.gamesPlayed?.toString() ?: empty)

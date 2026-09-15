@@ -1,0 +1,42 @@
+# Built on top of detekt's default config (buildUponDefaultConfig = true in every module).
+# Any issue fails the build. Suppressions (@Suppress) must carry a comment saying why.
+
+config:
+  validation: true
+
+build:
+  maxIssues: 0
+
+naming:
+  TopLevelPropertyNaming:
+    constantPattern: "[A-Za-z][_A-Za-z0-9]*"
+  FunctionNaming:
+    ignoreAnnotated: [Composable]
+
+complexity:
+  LongParameterList:
+    ignoreAnnotated: [Composable]
+  TooManyFunctions:
+    thresholdInClasses: 12
+
+style:
+  MaxLineLength:
+    maxLineLength: 120
+  MagicNumber:
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotated: [Composable, Preview]
+  UnusedPrivateMember:
+    ignoreAnnotated: [Preview]
+  ForbiddenComment:
+    active: true
+
+formatting:
+  Indentation:
+    active: true
+    autoCorrect: true
+    indentSize: 2
+  NoWildcardImports:
+    active: true
+  MaximumLineLength:
+    maxLineLength: 120

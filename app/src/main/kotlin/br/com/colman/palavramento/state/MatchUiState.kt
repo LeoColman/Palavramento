@@ -68,8 +68,13 @@ sealed interface MatchUiState {
   ) : MatchUiState
 }
 
-/** Feedback for the last `SubmitWord` result (dossier 6.2: color + haptics on accept/reject). */
+/**
+ * Feedback for the last `SubmitWord` result (dossier 6.2: color + haptics on accept/reject).
+ * [path] is the server-echoed tile path (dossier 5.1: both `WordAccepted` and `WordRejected` carry
+ * it), used by the board (task brief 2) to flash exactly the tiles that were submitted, not just
+ * show a text line.
+ */
 sealed interface SubmissionFeedback {
-  data class Accepted(val word: String, val score: Int) : SubmissionFeedback
-  data class Rejected(val reason: RejectionReason) : SubmissionFeedback
+  data class Accepted(val word: String, val score: Int, val path: List<Int>) : SubmissionFeedback
+  data class Rejected(val reason: RejectionReason, val path: List<Int>) : SubmissionFeedback
 }

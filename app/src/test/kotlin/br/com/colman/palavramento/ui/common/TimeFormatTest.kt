@@ -34,4 +34,22 @@ class TimeFormatTest : FunSpec({
       formatCountdown(ms).matches(Regex("""\d{2}:\d{2}""")) shouldBe true
     }
   }
+
+  test("countdownDigits splits 01:13 into its four digits, in display order") {
+    countdownDigits(73_000) shouldBe listOf(0, 1, 1, 3)
+  }
+
+  test("countdownDigits always has exactly four digits, matching formatCountdown") {
+    checkAll(Arb.long(0L..5_999_000L)) { ms ->
+      countdownDigits(ms).joinToString("") shouldBe formatCountdown(ms).filter { it != ':' }
+    }
+  }
+
+  test("isCountdownUrgent is true only in the last ten seconds, not at exactly zero") {
+    isCountdownUrgent(10_000) shouldBe true
+    isCountdownUrgent(1) shouldBe true
+    isCountdownUrgent(0) shouldBe false
+    isCountdownUrgent(10_001) shouldBe false
+    isCountdownUrgent(-1) shouldBe false
+  }
 })

@@ -8,6 +8,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import br.com.colman.palavramento.ui.about.AboutScreen
 import br.com.colman.palavramento.ui.lobby.LobbyScreen
 import br.com.colman.palavramento.ui.room.RoomScreen
 
@@ -18,7 +19,13 @@ fun PalavramentoNavHost(navController: NavHostController = rememberNavController
       LobbyScreen(onPlayClicked = { navController.navigate(Routes.Room) })
     }
     composable(Routes.Room) {
-      RoomScreen(onLeaveRoom = { navController.popBackStack() })
+      RoomScreen(
+        onLeaveRoom = { navController.popBackStack() },
+        onOpenAbout = { navController.navigate(Routes.About) },
+      )
+    }
+    composable(Routes.About) {
+      AboutScreen(onBack = { navController.popBackStack() })
     }
   }
 }

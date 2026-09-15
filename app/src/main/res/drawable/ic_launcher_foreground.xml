@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blocky "P" (Palavramento) monogram, sized within the 66dp adaptive-icon safe zone of the
+     108x108 viewport, on the transparent layer over ic_launcher_background's orange tile fill -
+     the game's own tile style (task brief 7). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <path
+      android:fillColor="@color/ic_launcher_foreground_letter"
+      android:fillType="evenOdd"
+      android:pathData="M40,24 L78,24 L78,54 L58,54 L58,84 L40,84 Z M50,32 L68,32 L68,46 L50,46 Z"/>
+</vector>

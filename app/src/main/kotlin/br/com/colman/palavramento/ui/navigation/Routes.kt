@@ -7,4 +7,7 @@ package br.com.colman.palavramento.ui.navigation
 object Routes {
   const val Lobby = "lobby"
   const val Room = "room"
+
+  /** "Sobre" (task brief 6), reachable from the match settings sheet. */
+  const val About = "about"
 }

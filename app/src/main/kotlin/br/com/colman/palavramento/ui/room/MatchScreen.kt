@@ -3,6 +3,8 @@
 
 package br.com.colman.palavramento.ui.room
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -15,9 +17,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -30,15 +34,20 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.clock.ServerClock
 import br.com.colman.palavramento.domain.board.Rotation
 import br.com.colman.palavramento.state.MatchUiState
 import br.com.colman.palavramento.state.SubmissionFeedback
-import br.com.colman.palavramento.ui.common.formatCountdown
+import br.com.colman.palavramento.ui.common.FlipCountdown
+import br.com.colman.palavramento.ui.common.LargeDigitSize
+import br.com.colman.palavramento.ui.common.animationDurationMillis
 import br.com.colman.palavramento.ui.common.rememberRemainingMs
+import br.com.colman.palavramento.ui.settings.MatchSettingsSheet
+import br.com.colman.palavramento.ui.settings.SettingsViewModel
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
+import kotlinx.coroutines.launch
+import org.koin.androidx.compose.koinViewModel
 
 /** Match screen (dossie 6.2): header, countdown, score strip, board, gesture, feedback, Girar. */
 @Composable
@@ -47,18 +56,17 @@ fun MatchScreen(
   clock: ServerClock?,
   onSubmit: (roundId: String, path: List<Int>, clientTimestampMs: Long) -> Unit,
   onBack: () -> Unit,
+  onOpenAbout: () -> Unit = {},
+  settingsViewModel: SettingsViewModel = koinViewModel(),
 ) {
   val colors = PalavramentoColors.current
-  val haptics = LocalHapticFeedback.current
-  var rotation by remember { mutableStateOf(Rotation.Deg0) }
+  val hapticsEnabled by settingsViewModel.hapticsEnabled.collectAsState()
+  val rotationController = rememberRotationController()
+  var showSettings by remember { mutableStateOf(false) }
   val remainingMs = rememberRemainingMs(round.endsAt, clock)
   val currentRound = rememberUpdatedState(round)
 
-  LaunchedEffect(round.lastFeedback) {
-    val feedback = round.lastFeedback ?: return@LaunchedEffect
-    val type = if (feedback is SubmissionFeedback.Accepted) HapticFeedbackType.Confirm else HapticFeedbackType.Reject
-    haptics.performHapticFeedback(type)
-  }
+  PlayFeedbackHaptics(round.lastFeedback, hapticsEnabled)
 
   Column(
     Modifier
@@ -66,14 +74,8 @@ fun MatchScreen(
       .background(colors.matchPrimary)
       .padding(16.dp),
   ) {
-    MatchHeader(round.themeTitle, round.themeSubtitle, onBack)
-    Text(
-      formatCountdown(remainingMs),
-      color = colors.textPrimary,
-      fontSize = 48.sp,
-      fontWeight = FontWeight.Bold,
-      modifier = Modifier.padding(vertical = 8.dp),
-    )
+    MatchHeader(round.themeTitle, round.themeSubtitle, onBack, onOpenSettings = { showSettings = true })
+    FlipCountdown(remainingMs, digitSize = LargeDigitSize, modifier = Modifier.padding(vertical = 8.dp))
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
       Text(stringResource(R.string.match_points_format, round.runningScore, round.maxScore), color = colors.textPrimary)
       Text(stringResource(R.string.match_words_format, round.runningWords, round.maxWords), color = colors.textPrimary)
@@ -82,7 +84,10 @@ fun MatchScreen(
     BoardView(
       tiles = round.board,
       mutator = round.mutator,
-      rotation = rotation,
+      rotation = rotationController.rotation,
+      visualRotationDegrees = rotationController.visualDegrees,
+      feedback = round.lastFeedback,
+      hapticsEnabled = hapticsEnabled,
       onSubmit = { path ->
         val timestamp = clock?.nowMs() ?: System.currentTimeMillis()
         onSubmit(currentRound.value.roundId, path, timestamp)
@@ -92,17 +97,24 @@ fun MatchScreen(
 
     FeedbackRow(round.lastFeedback)
 
-    Button(
-      onClick = { rotation = rotation.rotatedClockwise() },
-      modifier = Modifier.padding(top = 16.dp),
-    ) {
+    Button(onClick = rotationController.rotate, modifier = Modifier.padding(top = 16.dp)) {
       Text(stringResource(R.string.match_rotate_button))
     }
+  }
+
+  if (showSettings) {
+    MatchSettingsSheet(
+      onDismiss = { showSettings = false },
+      onAboutClick = {
+        showSettings = false
+        onOpenAbout()
+      },
+    )
   }
 }
 
 @Composable
-private fun MatchHeader(themeTitle: String, themeSubtitle: String, onBack: () -> Unit) {
+private fun MatchHeader(themeTitle: String, themeSubtitle: String, onBack: () -> Unit, onOpenSettings: () -> Unit) {
   val colors = PalavramentoColors.current
   val backDescription = stringResource(R.string.match_back_content_description)
   val settingsDescription = stringResource(R.string.match_settings_content_description)
@@ -120,8 +132,10 @@ private fun MatchHeader(themeTitle: String, themeSubtitle: String, onBack: () ->
       Text(themeSubtitle, color = colors.textSecondary)
     }
     IconButton(
-      onClick = {},
-      modifier = Modifier.semantics { contentDescription = settingsDescription },
+      onClick = onOpenSettings,
+      modifier = Modifier
+        .testTag(MatchSettingsButtonTestTag)
+        .semantics { contentDescription = settingsDescription },
     ) {
       Text("*", color = colors.textPrimary)
     }
@@ -147,8 +161,61 @@ private fun FeedbackRow(feedback: SubmissionFeedback?) {
 /** Test tag for the back button, used by instrumented navigation tests. */
 const val MatchBackButtonTestTag = "matchBackButton"
 
+/** Test tag for the settings gear button, used by instrumented tests. */
+const val MatchSettingsButtonTestTag = "matchSettingsButton"
+
 /** Test tag for the last accept/reject feedback line, used by instrumented gesture tests. */
 const val MatchFeedbackTestTag = "matchFeedback"
+
+/** Plays the accept/reject haptic for [feedback] (task brief 3), gated by [hapticsEnabled]. */
+@Composable
+private fun PlayFeedbackHaptics(feedback: SubmissionFeedback?, hapticsEnabled: Boolean) {
+  val haptics = LocalHapticFeedback.current
+  LaunchedEffect(feedback) {
+    val current = feedback ?: return@LaunchedEffect
+    if (!hapticsEnabled) return@LaunchedEffect
+    val type = if (current is SubmissionFeedback.Accepted) HapticFeedbackType.Confirm else HapticFeedbackType.Reject
+    haptics.performHapticFeedback(type)
+  }
+}
+
+/**
+ * [rotation] (logical, fed to [BoardView]) and [visualDegrees] (cosmetic spin), plus the action to
+ * trigger one turn.
+ */
+private class RotationController(val rotation: Rotation, val visualDegrees: Float, val rotate: () -> Unit)
+
+/**
+ * Spins the board visually a full 90 degrees before flipping the logical [Rotation] (task brief 2):
+ * [BoardView]'s tile arrangement only snaps once the spin has already covered that same 90 degrees,
+ * so nothing jumps - a physical 90-degree turn of the grid is, by construction, the same picture as
+ * the index remap `logicalIndexAt` already does. An in-flight flag blocks overlapping taps instead
+ * of letting a second `animateTo` interrupt (and silently drop) the first one's pending flip.
+ */
+@Composable
+private fun rememberRotationController(): RotationController {
+  var rotation by remember { mutableStateOf(Rotation.Deg0) }
+  var rotating by remember { mutableStateOf(false) }
+  val visualRotation = remember { Animatable(0f) }
+  val scope = rememberCoroutineScope()
+  val durationMs = animationDurationMillis(RotationAnimationMillis)
+
+  fun rotate() {
+    if (rotating) return
+    rotating = true
+    scope.launch {
+      visualRotation.animateTo(visualRotation.value + RotationStepDegrees, tween(durationMs))
+      rotation = rotation.rotatedClockwise()
+      visualRotation.snapTo(0f)
+      rotating = false
+    }
+  }
+
+  return RotationController(rotation, visualRotation.value, ::rotate)
+}
+
+private const val RotationStepDegrees = 90f
+private const val RotationAnimationMillis = 300
 
 private fun Rotation.rotatedClockwise(): Rotation {
   val values = Rotation.entries

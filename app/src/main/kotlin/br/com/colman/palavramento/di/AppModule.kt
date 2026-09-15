@@ -15,11 +15,17 @@ import br.com.colman.palavramento.network.KtorRestApi
 import br.com.colman.palavramento.network.MultiplayerSession
 import br.com.colman.palavramento.network.MultiplayerTransport
 import br.com.colman.palavramento.network.RestApi
+import br.com.colman.palavramento.settings.DataStoreSettingsRepository
+import br.com.colman.palavramento.settings.SettingsRepository
 import kotlinx.coroutines.flow.first
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
 private val Context.authDataStore by preferencesDataStore("auth")
+
+// Its own file (task brief 3: "not in data/TokenRepository"), so a haptics toggle never collides
+// with the auth DataStore's file or gets caught up in phase 5's login/promotion changes there.
+private val Context.settingsDataStore by preferencesDataStore("settings")
 
 /**
  * Wires networking and persistence (task brief: Koin, `koin-android`). Kept apart from
@@ -31,6 +37,7 @@ val AppModule = module {
   single { HttpClientFactory.create() }
   single<RestApi> { KtorRestApi(get(), BuildConfig.SERVER_URL) }
   single<TokenRepository> { DataStoreTokenRepository(get<Context>().authDataStore) }
+  single<SettingsRepository> { DataStoreSettingsRepository(get<Context>().settingsDataStore) }
 
   factory { KtorMultiplayerTransport(get(), BuildConfig.SERVER_URL) } bind MultiplayerTransport::class
 

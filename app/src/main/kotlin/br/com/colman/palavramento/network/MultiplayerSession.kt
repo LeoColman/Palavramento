@@ -21,6 +21,15 @@ import kotlinx.coroutines.flow.first
  * reconnects with [backoff] on drop by replaying the exact same handshake and `JoinRoom` -
  * a reconnecting client and one joining for the first time run through identical code (dossier 5.3).
  *
+ * Unstable-network handling (task brief 5, `docs/adr/0008-polimento-do-app.md`): [state] keeps the
+ * last room screen it reached (Lobby/InRound/PostRound) across a drop instead of resetting to
+ * [MatchUiState.Disconnected] - so a mid-round reconnect never makes the found-words list disappear
+ * from view even for the moment the socket is down - while [connectionStatus] is the separate signal
+ * the UI uses to show a "Reconectando..." banner over that same screen.
+ * [submitWord] queues its message in [pendingSubmissions] instead of sending to a dead transport,
+ * and [collectUntilDisconnected] flushes it once a fresh `RoundStart` confirms which round is
+ * actually running after reconnecting.
+ *
  * [accessTokenProvider] and [elapsedRealtimeMs] are injected functions rather than concrete
  * Android/Koin types, which is what keeps this class unit-testable on the JVM against a fake
  * [MultiplayerTransport] (see `docs/adr/0006-arquitetura-do-app.md`).
@@ -36,44 +45,74 @@ class MultiplayerSession(
   private val stateFlow = MutableStateFlow<MatchUiState>(MatchUiState.Disconnected)
   val state: StateFlow<MatchUiState> = stateFlow
 
+  private val connectionStatusFlow = MutableStateFlow(ConnectionStatus.Reconnecting)
+  val connectionStatus: StateFlow<ConnectionStatus> = connectionStatusFlow
+
   private val clockFlow = MutableStateFlow<ServerClock?>(null)
   val clock: StateFlow<ServerClock?> = clockFlow
+
+  private val pendingSubmissions = PendingSubmissionQueue()
 
   @Volatile
   private var running = false
 
   /**
-   * Runs the connect/handshake/receive loop until [stop] is called, reconnecting forever on drop.
-   * Meant to be launched once in a long-lived coroutine scope (a ViewModel's, in production).
+   * Runs the connect/handshake/receive loop until [stop] or [disconnect] is called, reconnecting
+   * forever on drop. Meant to be (re)launched in a coroutine scope tied to the room screen's
+   * lifecycle - a fresh launch after [disconnect] reconnects exactly like any other drop.
    */
   suspend fun run() {
     running = true
+    connectionStatusFlow.value = ConnectionStatus.Reconnecting
     var attempt = 0
     while (running) {
       val connected = tryConnectAndHandshake()
       if (connected) {
         attempt = 0
+        connectionStatusFlow.value = ConnectionStatus.Connected
         collectUntilDisconnected()
       } else {
         attempt++
       }
       if (!running) break
-      stateFlow.value = MatchUiState.Disconnected
+      connectionStatusFlow.value = ConnectionStatus.Reconnecting
       clockFlow.value = null
       delay(backoff.delayForAttempt(attempt))
     }
   }
 
-  /** Stops [run]'s loop after the current connection attempt settles. */
+  /** Stops [run]'s loop after the current connection attempt settles, without closing the socket. */
   fun stop() {
     running = false
   }
 
+  /**
+   * Stops [run]'s loop and closes the current connection, if any (task brief 5: disconnect when the
+   * app is backgrounded). Safe to call even when not connected. [run] can be relaunched afterwards
+   * to reconnect from scratch, replaying the same handshake/`JoinRoom` path as any other connection.
+   */
+  suspend fun disconnect() {
+    running = false
+    transport.close()
+  }
+
+  /**
+   * Sends [ClientMessage.SubmitWord] when connected; while disconnected, queues it in
+   * [pendingSubmissions] instead (task brief 5), to be resent once a reconnect confirms the same
+   * round is still running. A send that fails despite [connectionStatus] reading `Connected` (the
+   * drop has not been detected yet) is queued the same way rather than silently lost.
+   */
   suspend fun submitWord(roundId: String, path: List<Int>, clientTimestampMs: Long) {
-    transport.send(ClientMessage.SubmitWord(roundId, path, clientTimestampMs))
+    val message = ClientMessage.SubmitWord(roundId, path, clientTimestampMs)
+    if (connectionStatusFlow.value != ConnectionStatus.Connected) {
+      pendingSubmissions.enqueue(message)
+      return
+    }
+    runCatching { transport.send(message) }.onFailure { pendingSubmissions.enqueue(message) }
   }
 
   suspend fun leaveRoom() {
+    pendingSubmissions.clear()
     transport.send(ClientMessage.LeaveRoom)
   }
 
@@ -102,8 +141,13 @@ class MultiplayerSession(
   private suspend fun collectUntilDisconnected() {
     try {
       transport.incoming().collect { message ->
-        if (message !is ServerMessage.ClockSyncResponse) {
-          stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
+        when (message) {
+          is ServerMessage.ClockSyncResponse -> Unit
+          is ServerMessage.RoundStart -> {
+            stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
+            flushPendingSubmissions(message.roundId)
+          }
+          else -> stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
         }
       }
     } catch (cancellation: CancellationException) {
@@ -111,6 +155,17 @@ class MultiplayerSession(
     } catch (failure: Exception) {
       // Falls through to run()'s reconnect path, same as a normal channel close.
     }
+  }
+
+  /**
+   * Sends every submission queued for [currentRoundId] (task brief 5), dropping anything queued for
+   * a round that is no longer the one running. A resend the server already accepted before the drop
+   * comes back as `WordRejected(JA_ENCONTRADA)` (dossier 5.1), which
+   * [MatchStateReducer.reduce][br.com.colman.palavramento.state.MatchStateReducer] already treats as
+   * a harmless rejection that never touches the found-words list.
+   */
+  private suspend fun flushPendingSubmissions(currentRoundId: String) {
+    pendingSubmissions.drain(currentRoundId).forEach { submission -> transport.send(submission) }
   }
 
   /**

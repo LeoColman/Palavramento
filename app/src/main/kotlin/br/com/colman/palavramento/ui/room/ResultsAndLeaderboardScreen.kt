@@ -5,8 +5,11 @@ package br.com.colman.palavramento.ui.room
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -15,14 +18,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.clock.ServerClock
 import br.com.colman.palavramento.state.MatchUiState
+import br.com.colman.palavramento.ui.common.FlipCountdown
+import br.com.colman.palavramento.ui.common.SmallDigitSize
 import br.com.colman.palavramento.ui.common.formatCountdown
 import br.com.colman.palavramento.ui.common.rememberRemainingMs
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
@@ -42,13 +49,15 @@ fun ResultsAndLeaderboardScreen(postRound: MatchUiState.PostRound, clock: Server
   val remainingMs = rememberRemainingMs(postRound.nextRoundStartsAt, clock)
 
   Column(Modifier.fillMaxSize().background(colors.resultsPrimary)) {
-    Text(
-      stringResource(R.string.results_next_round_format, formatCountdown(remainingMs)),
-      color = colors.textPrimary,
-      fontSize = 18.sp,
-      fontWeight = FontWeight.Bold,
-      modifier = Modifier.padding(16.dp),
-    )
+    val description = stringResource(R.string.results_next_round_format, formatCountdown(remainingMs))
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.padding(16.dp).semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
+      Text(stringResource(R.string.next_round_label), color = colors.textPrimary, fontWeight = FontWeight.Bold)
+      Spacer(Modifier.width(8.dp))
+      FlipCountdown(remainingMs, digitSize = SmallDigitSize)
+    }
     PrimaryTabRow(selectedTabIndex = selectedTab, containerColor = colors.surface, contentColor = colors.textPrimary) {
       Tab(
         selected = selectedTab == ResultsTabIndex,

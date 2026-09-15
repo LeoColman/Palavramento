@@ -77,7 +77,7 @@ class MatchStateReducerTest : FunSpec({
     state.foundWords shouldBe listOf(FoundWord("LIMO", 17, listOf(0, 1, 2, 3)))
     state.runningScore shouldBe 17
     state.runningWords shouldBe 1
-    state.lastFeedback shouldBe SubmissionFeedback.Accepted("LIMO", 17)
+    state.lastFeedback shouldBe SubmissionFeedback.Accepted("LIMO", 17, listOf(0, 1, 2, 3))
   }
 
   test("WordRejected during a round records the rejection reason without touching found words") {
@@ -87,7 +87,7 @@ class MatchStateReducerTest : FunSpec({
     val state = MatchStateReducer.reduce(inRound, rejected) as MatchUiState.InRound
 
     state.foundWords shouldBe emptyList()
-    state.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.AlreadyFound)
+    state.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.AlreadyFound, listOf(0, 1))
   }
 
   test("RoundEnd moves into PostRound, carrying the max score/words and board from the round that just ended") {

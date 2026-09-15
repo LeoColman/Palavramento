@@ -3,10 +3,13 @@
 
 package br.com.colman.palavramento.ui.theme
 
+import android.animation.ValueAnimator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import br.com.colman.palavramento.ui.common.LocalAnimationsEnabled
 
 /**
  * App-wide theme. Dark only (dossier 6.5: "Suporte a tema claro fora do escopo"): the palette is
@@ -15,7 +18,14 @@ import androidx.compose.runtime.CompositionLocalProvider
 @Composable
 fun PalavramentoTheme(content: @Composable () -> Unit) {
   val palette = DarkPalavramentoColors
-  CompositionLocalProvider(LocalPalavramentoColors provides palette) {
+  // Read once per composition root: ValueAnimator.areAnimatorsEnabled() reflects the system
+  // "remove animations" setting (task brief 2), and every phase-6 animation reads it through
+  // LocalAnimationsEnabled instead of querying Android directly.
+  val animationsEnabled = remember { ValueAnimator.areAnimatorsEnabled() }
+  CompositionLocalProvider(
+    LocalPalavramentoColors provides palette,
+    LocalAnimationsEnabled provides animationsEnabled,
+  ) {
     MaterialTheme(
       colorScheme = darkColorScheme(
         background = palette.background,

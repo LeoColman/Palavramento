@@ -3,8 +3,15 @@
 
 package br.com.colman.palavramento.ui.room
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,9 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
@@ -37,7 +49,10 @@ import br.com.colman.palavramento.domain.board.logicalIndexAt
 import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.mutator.effectiveValueOf
 import br.com.colman.palavramento.game.PathTracer
+import br.com.colman.palavramento.state.SubmissionFeedback
+import br.com.colman.palavramento.ui.common.animationDurationMillis
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
+import kotlinx.coroutines.delay
 import kotlin.math.sqrt
 
 /** Semantics test tag for the board's drag surface, used by the Compose gesture tests. */
@@ -49,13 +64,23 @@ const val TracedWordTestTag = "tracedWord"
 /**
  * The 4x4 board (dossier 6.2): square orange tiles, value top-left, letter centered, a
  * [Mutator.ForbiddenLetter] tile shown grey (dossier 1.5), and the continuous drag-to-trace gesture
- * (dossier 6.2, task brief 6): entering a tile's hit radius (40% of the tile size from its center)
- * appends it when adjacent to the last tile and unused; re-entering the second-to-last tile undoes
- * the last append; anything else is ignored; releasing submits the path (single-tile paths ignored).
+ * (dossier 6.2, task brief 1): the pointer's first tile is registered right at touch-down (see the
+ * `awaitFirstDown`/[drag] gesture below, which skips `detectDragGestures`' touch-slop gate so the
+ * first tile is never missed or misplaced); entering a tile's hit radius (40% of the tile size from
+ * its center) after that appends it when adjacent to the last tile and unused; re-entering the
+ * second-to-last tile undoes the last append; anything else is ignored; releasing submits the path
+ * (single-tile paths ignored). The traced path is also drawn as a line over the tiles in display
+ * space (task brief 1), and traced/flashed tiles animate smoothly (task brief 2), both skipped when
+ * [br.com.colman.palavramento.ui.common.LocalAnimationsEnabled] is off.
  *
  * [rotation] only changes which logical tile is drawn at which display cell
  * ([br.com.colman.palavramento.domain.board.logicalIndexAt]); [onSubmit] always receives logical
- * indices, never display ones.
+ * indices, never display ones. [visualRotationDegrees] is a purely cosmetic spin overlay (task brief
+ * 2: "Girar" animates instead of snapping) applied on top of that already-correct arrangement; it
+ * never feeds back into which tile is at which cell.
+ *
+ * [feedback] flashes the tiles of the last submitted path (task brief 2: accept/reject color, reject
+ * also shakes); [hapticsEnabled] gates the light tick fired when a tile is appended (task brief 3).
  */
 @Composable
 fun BoardView(
@@ -64,24 +89,35 @@ fun BoardView(
   rotation: Rotation,
   onSubmit: (List<Int>) -> Unit,
   modifier: Modifier = Modifier,
+  visualRotationDegrees: Float = 0f,
+  feedback: SubmissionFeedback? = null,
+  hapticsEnabled: Boolean = true,
 ) {
+  val colors = PalavramentoColors.current
   val gridSize = remember(tiles) { sqrt(tiles.size.toDouble()).toInt() }
   val board = remember(tiles) { Board(gridSize, tiles) }
   val tracer = remember(tiles) { PathTracer(board) }
   var path by remember(tiles) { mutableStateOf(emptyList<Int>()) }
   var boxSize by remember { mutableStateOf(IntSize.Zero) }
   val haptics = LocalHapticFeedback.current
+  val flashState = rememberTileFlashState(feedback)
 
   fun handlePointer(offset: Offset) {
     val displayIndex = displayIndexAt(offset, boxSize, gridSize) ?: return
     val logicalIndex = logicalIndexAt(displayIndex, gridSize, rotation)
-    if (tracer.onTileEntered(logicalIndex)) path = tracer.path
+    val sizeBefore = tracer.path.size
+    if (tracer.onTileEntered(logicalIndex)) {
+      path = tracer.path
+      if (hapticsEnabled && tracer.path.size > sizeBefore) {
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+      }
+    }
   }
 
   fun endDrag() {
     if (tracer.path.size >= MinSubmittablePathLength) {
       onSubmit(tracer.path)
-      haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+      if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     }
     tracer.clear()
     path = emptyList()
@@ -95,55 +131,177 @@ fun BoardView(
         .aspectRatio(1f)
         .onSizeChanged { boxSize = it }
         .pointerInput(tiles, rotation) {
-          detectDragGestures(
-            onDragStart = { offset -> handlePointer(offset) },
-            onDrag = { change, _ -> handlePointer(change.position) },
-            onDragEnd = { endDrag() },
-            onDragCancel = { endDrag() },
-          )
+          awaitEachGesture {
+            // No touch-slop gate (unlike detectDragGestures): the first tile is registered right
+            // where the finger goes down, so a quick tap-and-drag never loses or misplaces it.
+            val down = awaitFirstDown(requireUnconsumed = false)
+            handlePointer(down.position)
+            down.consume()
+            drag(down.id) { change ->
+              handlePointer(change.position)
+              change.consume()
+            }
+            endDrag()
+          }
         },
     ) {
-      Column(Modifier.fillMaxSize()) {
-        repeat(gridSize) { row ->
-          Row(Modifier.weight(1f).fillMaxWidth()) {
-            repeat(gridSize) { col ->
-              val displayIndex = row * gridSize + col
-              val logicalIndex = logicalIndexAt(displayIndex, gridSize, rotation)
-              val tile = tiles[logicalIndex]
-              BoardTile(
-                tile = tile,
-                value = mutator.effectiveValueOf(tile),
-                isForbidden = mutator.isForbiddenTile(tile),
-                isTraced = logicalIndex in path,
-                modifier = Modifier.weight(1f).fillMaxWidth().aspectRatio(1f),
-              )
-            }
-          }
-        }
+      Box(Modifier.fillMaxSize().graphicsLayer { rotationZ = visualRotationDegrees }) {
+        TileGrid(tiles, mutator, rotation, gridSize, path, flashState, Modifier.fillMaxSize())
+        TracedPathOverlay(path, gridSize, rotation, colors.highlight, Modifier.matchParentSize())
       }
     }
 
-    val word = path.joinToString(separator = "") { tiles[it].letters }
-    val score = path.sumOf { mutator.effectiveValueOf(tiles[it]) }
-    Text(
-      text = if (word.isEmpty()) "" else "$word ($score)",
-      modifier = Modifier.padding(top = 8.dp).testTag(TracedWordTestTag),
-      color = PalavramentoColors.current.textPrimary,
-    )
+    TracedWordLabel(path, tiles, mutator, colors.textPrimary)
+  }
+}
+
+/** The tile grid itself (dossier 6.2): one [BoardTile] per display cell, in [rotation]'s arrangement. */
+@Composable
+private fun TileGrid(
+  tiles: List<Tile>,
+  mutator: Mutator,
+  rotation: Rotation,
+  gridSize: Int,
+  path: List<Int>,
+  flashState: TileFlashState,
+  modifier: Modifier = Modifier,
+) {
+  Column(modifier) {
+    repeat(gridSize) { row ->
+      Row(Modifier.weight(1f).fillMaxWidth()) {
+        repeat(gridSize) { col ->
+          val displayIndex = row * gridSize + col
+          val logicalIndex = logicalIndexAt(displayIndex, gridSize, rotation)
+          val tile = tiles[logicalIndex]
+          BoardTile(
+            tile = tile,
+            value = mutator.effectiveValueOf(tile),
+            isForbidden = mutator.isForbiddenTile(tile),
+            isTraced = logicalIndex in path,
+            flashKind = flashState.flash.kindFor(logicalIndex),
+            shakeOffsetPx = flashState.shakeOffsetPx,
+            modifier = Modifier.weight(1f).fillMaxWidth().aspectRatio(1f),
+          )
+        }
+      }
+    }
+  }
+}
+
+/** The traced-path line (task brief 1), drawn in display space so it follows [rotation]. */
+@Composable
+private fun TracedPathOverlay(
+  path: List<Int>,
+  gridSize: Int,
+  rotation: Rotation,
+  color: Color,
+  modifier: Modifier = Modifier,
+) {
+  val strokeWidthPx = with(LocalDensity.current) { PathStrokeWidth.toPx() }
+  Canvas(modifier) {
+    if (path.size < MinDrawablePathLength) return@Canvas
+    val points = path.map { logicalIndex ->
+      tileCenter(displayIndexOf(logicalIndex, gridSize, rotation), size, gridSize)
+    }
+    for (index in 0 until points.size - 1) {
+      drawLine(color, points[index], points[index + 1], strokeWidth = strokeWidthPx, cap = StrokeCap.Round)
+    }
   }
 }
 
 @Composable
-private fun BoardTile(tile: Tile, value: Int, isForbidden: Boolean, isTraced: Boolean, modifier: Modifier = Modifier) {
+private fun TracedWordLabel(path: List<Int>, tiles: List<Tile>, mutator: Mutator, color: Color) {
+  val word = path.joinToString(separator = "") { tiles[it].letters }
+  val score = path.sumOf { mutator.effectiveValueOf(tiles[it]) }
+  Text(
+    text = if (word.isEmpty()) "" else "$word ($score)",
+    modifier = Modifier.padding(top = 8.dp).testTag(TracedWordTestTag),
+    color = color,
+  )
+}
+
+/** Which color a tile should flash for the last submission result (task brief 2), if any. */
+private enum class TileFlashKind { None, Accepted, Rejected }
+
+/** The tiles a `WordAccepted`/`WordRejected` path currently flashes, and which color. */
+private data class TileFlash(val path: Set<Int>, val accepted: Boolean)
+
+/** [TileFlash] in progress, if any, plus the current shake offset (task brief 2: reject shakes). */
+private data class TileFlashState(val flash: TileFlash?, val shakeOffsetPx: Float)
+
+/**
+ * Drives [TileFlash]/shake from [feedback] (task brief 2): flashes the submitted path's tiles the
+ * accept/reject color, shakes on reject, then clears after [FlashDurationMillis] - all skipped when
+ * [br.com.colman.palavramento.ui.common.LocalAnimationsEnabled] is off.
+ */
+@Composable
+private fun rememberTileFlashState(feedback: SubmissionFeedback?): TileFlashState {
+  var flash by remember { mutableStateOf<TileFlash?>(null) }
+  val shakeOffsetPx = remember { Animatable(0f) }
+  val flashDurationMs = animationDurationMillis(FlashDurationMillis)
+  val shakeStepDurationMs = animationDurationMillis(ShakeStepMillis)
+
+  LaunchedEffect(feedback) {
+    val current = feedback ?: return@LaunchedEffect
+    val flashedPath = current.pathOrEmpty().toSet()
+    if (flashedPath.isEmpty()) return@LaunchedEffect
+    val accepted = current is SubmissionFeedback.Accepted
+    flash = TileFlash(flashedPath, accepted)
+    if (!accepted) {
+      if (shakeStepDurationMs > 0) {
+        for (offset in ShakeOffsetsPx) shakeOffsetPx.animateTo(offset, tween(shakeStepDurationMs))
+      }
+      shakeOffsetPx.snapTo(0f)
+    }
+    if (flashDurationMs > 0) delay(flashDurationMs.toLong())
+    flash = null
+  }
+
+  return TileFlashState(flash, shakeOffsetPx.value)
+}
+
+private fun TileFlash?.kindFor(logicalIndex: Int): TileFlashKind {
+  if (this == null || logicalIndex !in path) return TileFlashKind.None
+  return if (accepted) TileFlashKind.Accepted else TileFlashKind.Rejected
+}
+
+private fun SubmissionFeedback.pathOrEmpty(): List<Int> = when (this) {
+  is SubmissionFeedback.Accepted -> path
+  is SubmissionFeedback.Rejected -> path
+}
+
+@Composable
+private fun BoardTile(
+  tile: Tile,
+  value: Int,
+  isForbidden: Boolean,
+  isTraced: Boolean,
+  flashKind: TileFlashKind,
+  shakeOffsetPx: Float,
+  modifier: Modifier = Modifier,
+) {
   val colors = PalavramentoColors.current
-  val background = when {
+  val targetColor = when {
+    flashKind == TileFlashKind.Accepted -> colors.accepted
+    flashKind == TileFlashKind.Rejected -> colors.rejected
     isForbidden -> colors.tileForbidden
     isTraced -> colors.highlight
     else -> colors.tileBackground
   }
+  val colorDurationMs = animationDurationMillis(TileColorAnimationMillis)
+  val background by animateColorAsState(targetColor, tween(colorDurationMs), label = "tileColor")
+  val scaleDurationMs = animationDurationMillis(TileScaleAnimationMillis)
+  val scale by animateFloatAsState(if (isTraced) TracedScale else 1f, tween(scaleDurationMs), label = "tileScale")
+  val shakeX = if (flashKind == TileFlashKind.Rejected) shakeOffsetPx else 0f
+
   Box(
     modifier
       .padding(TileGap)
+      .graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+        translationX = shakeX
+      }
       .background(background, RoundedCornerShape(TileCornerRadius)),
   ) {
     Text(
@@ -159,30 +317,17 @@ private fun BoardTile(tile: Tile, value: Int, isForbidden: Boolean, isTraced: Bo
   }
 }
 
-/**
- * Display-space cell index under [position] when it falls within [RadiusFraction] of a cell's
- * center, or null when [position] is in the dead zone between tiles (task brief 6: "raio menor que
- * o tile, em torno de 40% do seu tamanho a partir do centro").
- */
-private fun displayIndexAt(position: Offset, boxSize: IntSize, gridSize: Int): Int? {
-  if (boxSize.width <= 0 || boxSize.height <= 0) return null
-  val cellWidth = boxSize.width.toFloat() / gridSize
-  val cellHeight = boxSize.height.toFloat() / gridSize
-  val col = (position.x / cellWidth).toInt().coerceIn(0, gridSize - 1)
-  val row = (position.y / cellHeight).toInt().coerceIn(0, gridSize - 1)
-  val centerX = (col + HalfCell) * cellWidth
-  val centerY = (row + HalfCell) * cellHeight
-  val deltaX = position.x - centerX
-  val deltaY = position.y - centerY
-  val radius = minOf(cellWidth, cellHeight) * RadiusFraction
-  return if (deltaX * deltaX + deltaY * deltaY <= radius * radius) row * gridSize + col else null
-}
-
 private fun Mutator.isForbiddenTile(tile: Tile): Boolean = this is Mutator.ForbiddenLetter && letter in tile.letters
 
 private const val MinSubmittablePathLength = 2
-private const val RadiusFraction = 0.4f
-private const val HalfCell = 0.5f
+private const val MinDrawablePathLength = 2
+private const val TracedScale = 1.06f
+private const val TileColorAnimationMillis = 150
+private const val TileScaleAnimationMillis = 120
+private const val FlashDurationMillis = 500
+private const val ShakeStepMillis = 40
+private val ShakeOffsetsPx = listOf(-16f, 16f, -12f, 12f, -6f, 0f)
 private val TileGap = 3.dp
 private val TileCornerRadius = 8.dp
 private val TileValuePadding = PaddingValues(4.dp)
+private val PathStrokeWidth = 6.dp

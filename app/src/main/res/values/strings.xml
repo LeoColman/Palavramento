@@ -69,4 +69,31 @@
   </plurals>
 
   <string name="room_connecting">Conectando...</string>
+
+  <!-- Unstable network (task brief 5) -->
+  <string name="room_reconnecting">Reconectando...</string>
+
+  <!-- Shared "Próxima partida em MM:SS" label, next to the flip countdown (dossie 6.1/6.3, task brief 4) -->
+  <string name="next_round_label">Próxima partida em</string>
+
+  <!-- Match settings sheet (task brief 3) -->
+  <string name="settings_title">Ajustes</string>
+  <string name="settings_haptics_label">Vibração ao jogar</string>
+  <string name="settings_about_label">Sobre</string>
+
+  <!-- Sobre (task brief 6, LICENSES.md) -->
+  <string name="about_title">Sobre</string>
+  <string name="about_back_content_description">Voltar</string>
+  <string name="about_license_title">Licença do Palavramento</string>
+  <string name="about_license_body">Palavramento é distribuído sob a licença AGPL-3.0-or-later. Você pode usar, estudar,
+    modificar e redistribuir o aplicativo e o servidor, desde que mantenha a mesma licença e disponibilize o
+    código-fonte correspondente, inclusive para quem usa o servidor pela rede.</string>
+  <string name="about_source_link_label">Ver código-fonte</string>
+  <string name="about_source_url" translatable="false">https://github.com/leonardocolman/palavramento</string>
+  <string name="about_lexicon_title">Dicionário</string>
+  <string name="about_lexicon_body">Palavras validadas com o dicionário Hunspell pt_BR do projeto VERO, por Raimundo
+    Santos Moura e colaboradores, sob LGPLv3.</string>
+  <string name="about_frequency_title">Lista de frequência</string>
+  <string name="about_frequency_body">Lista de frequência pt_BR de FrequencyWords, por Hermit Dave, CC BY-SA 4.0,
+    derivada do corpus OpenSubtitles2018 (OPUS).</string>
 </resources>

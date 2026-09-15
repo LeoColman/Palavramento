@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <color name="window_background">#FF0B1B34</color>
+
+  <!-- Launcher icon (task brief 7): matches PalavramentoColors.tileBackground/tileText. -->
+  <color name="ic_launcher_background">#FFE08A2B</color>
+  <color name="ic_launcher_foreground_letter">#FF1A1005</color>
 </resources>

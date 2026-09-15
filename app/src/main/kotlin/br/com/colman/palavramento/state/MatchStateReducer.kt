@@ -55,7 +55,7 @@ object MatchStateReducer {
         foundWords = state.foundWords + FoundWord(message.word, message.score, message.path),
         runningScore = message.runningScore,
         runningWords = message.runningWords,
-        lastFeedback = SubmissionFeedback.Accepted(message.word, message.score),
+        lastFeedback = SubmissionFeedback.Accepted(message.word, message.score, message.path),
       )
     } else {
       state
@@ -63,7 +63,7 @@ object MatchStateReducer {
 
   private fun onWordRejected(state: MatchUiState, message: ServerMessage.WordRejected): MatchUiState =
     if (state is MatchUiState.InRound) {
-      state.copy(lastFeedback = SubmissionFeedback.Rejected(message.reason))
+      state.copy(lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path))
     } else {
       state
     }

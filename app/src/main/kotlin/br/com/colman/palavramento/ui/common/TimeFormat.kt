@@ -14,5 +14,17 @@ fun formatCountdown(remainingMs: Long): String {
   return "%02d:%02d".format(minutes, seconds)
 }
 
+/**
+ * The four digits of [formatCountdown]'s `MM:SS`, in display order (minutes tens, minutes units,
+ * seconds tens, seconds units). Used by the flip countdown (task brief 4) to animate exactly the
+ * digit that changed instead of the whole string.
+ */
+fun countdownDigits(remainingMs: Long): List<Int> =
+  formatCountdown(remainingMs).filter { it.isDigit() }.map { it - '0' }
+
+/** True in the last [UrgencyThresholdMs] of a countdown (task brief 4: urgency color). */
+fun isCountdownUrgent(remainingMs: Long): Boolean = remainingMs in 1..UrgencyThresholdMs
+
 private const val MillisPerSecond = 1000L
 private const val SecondsPerMinute = 60L
+private const val UrgencyThresholdMs = 10_000L

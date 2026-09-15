@@ -17,8 +17,8 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 
-private fun sampleRoundStart(alreadyFound: List<FoundWord>) = ServerMessage.RoundStart(
-  roundId = "round-1",
+private fun sampleRoundStart(alreadyFound: List<FoundWord>, roundId: String = "round-1") = ServerMessage.RoundStart(
+  roundId = roundId,
   board = List(16) { Tile("A", 1) },
   mutator = Mutator.NoMutator,
   themeTitle = "Grade padrao",
@@ -99,9 +99,14 @@ class MultiplayerSessionTest : FunSpec({
 
       transport.dropConnection()
       advanceUntilIdle()
-      session.state.value shouldBe MatchUiState.Disconnected
+      // Unstable-network handling (task brief 5, docs/adr/0008-polimento-do-app.md): the room screen
+      // stays on InRound across the drop - nothing found so far disappears from view - while
+      // connectionStatus is the separate signal a "Reconectando..." banner reads.
+      session.connectionStatus.value shouldBe ConnectionStatus.Reconnecting
+      (session.state.value as MatchUiState.InRound).foundWords shouldBe alreadyFound
 
       completeHandshake(transport)
+      session.connectionStatus.value shouldBe ConnectionStatus.Connected
       transport.connectCount shouldBe 2
       transport.sent.count { it is ClientMessage.JoinRoom } shouldBe 2
 
@@ -110,6 +115,67 @@ class MultiplayerSessionTest : FunSpec({
       transport.push(sampleRoundStart(alreadyFound))
       advanceUntilIdle()
       (session.state.value as MatchUiState.InRound).foundWords shouldBe alreadyFound
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("A word submitted while disconnected is queued, then resent once reconnected into the same round") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      val alreadyFound = listOf(FoundWord("CASA", 6, listOf(0, 1, 2, 3)))
+      transport.push(sampleRoundStart(alreadyFound))
+      advanceUntilIdle()
+
+      transport.dropConnection()
+      advanceUntilIdle()
+      session.connectionStatus.value shouldBe ConnectionStatus.Reconnecting
+
+      // Submitted while the socket is down: queued, nothing sent yet.
+      session.submitWord("round-1", listOf(4, 5, 6), clientTimestampMs = 1_000)
+      transport.sent.none { it is ClientMessage.SubmitWord } shouldBe true
+
+      // Reconnect handshake, then the server confirms round-1 is still the round running.
+      completeHandshake(transport)
+      transport.push(sampleRoundStart(alreadyFound))
+      advanceUntilIdle()
+
+      transport.sent.filterIsInstance<ClientMessage.SubmitWord>().single().path shouldBe listOf(4, 5, 6)
+      // Found words already restored, per the mid-round reconnect scenario above: this queued
+      // resend never displaces them, even before the server's answer to it arrives.
+      (session.state.value as MatchUiState.InRound).foundWords shouldBe alreadyFound
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("A submission queued for a round that has since ended is dropped, not resent") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStart(emptyList(), roundId = "round-1"))
+      advanceUntilIdle()
+
+      transport.dropConnection()
+      advanceUntilIdle()
+      session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+
+      // A new round already started by the time the client reconnects.
+      completeHandshake(transport)
+      transport.push(sampleRoundStart(emptyList(), roundId = "round-2"))
+      advanceUntilIdle()
+
+      transport.sent.none { it is ClientMessage.SubmitWord } shouldBe true
+      (session.state.value as MatchUiState.InRound).roundId shouldBe "round-2"
 
       job.cancelAndJoin()
     }

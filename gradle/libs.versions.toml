@@ -24,6 +24,7 @@ activity-compose = "1.13.0"
 navigation-compose = "2.10.1"
 lifecycle = "2.11.0"
 datastore = "1.2.1"
+androidx-test = "1.7.0"
 
 [libraries]
 # Kotlin
@@ -92,6 +93,10 @@ navigation-compose = { module = "androidx.navigation:navigation-compose", versio
 lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 
+# Android instrumented tests
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test" }
+
 # Tests
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
@@ -137,6 +142,7 @@ compose = [
   "lifecycle-runtime-compose",
 ]
 koin-android = ["koin-android", "koin-compose"]
+android-test = ["androidx-test-core", "androidx-test-runner", "kotest-runner-android"]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

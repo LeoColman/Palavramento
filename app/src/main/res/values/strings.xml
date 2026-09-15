@@ -1,4 +1,72 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name" translatable="false">Palavramento</string>
+
+  <!-- Lobby (dossie 6.1) -->
+  <string name="lobby_guest_name">Convidado</string>
+  <string name="lobby_level_format">Nível %1$d</string>
+  <string name="lobby_xp_format">%1$d / %2$d XP</string>
+  <string name="lobby_stats_title">Estatísticas</string>
+  <string name="lobby_stat_total_score">Pontuação total</string>
+  <string name="lobby_stat_total_words">Palavras totais</string>
+  <string name="lobby_stat_best_game_score">Melhor pontuação de partida</string>
+  <string name="lobby_stat_best_word">Melhor palavra</string>
+  <string name="lobby_stat_games_completed">Partidas completas</string>
+  <string name="lobby_stat_average_score">Pontuação média</string>
+  <string name="lobby_stat_average_words">Contagem média de palavras</string>
+  <string name="lobby_stat_average_points_per_word">Pontuação média por palavra</string>
+  <string name="lobby_stat_best_rank">Melhor colocação</string>
+  <string name="lobby_stat_games_played">Partidas jogadas</string>
+  <string name="lobby_stat_empty">-</string>
+  <string name="lobby_guest_invite">Entre para salvar suas estatísticas</string>
+  <string name="lobby_login_button">Entrar</string>
+  <string name="lobby_language_label">Idioma</string>
+  <string name="lobby_language_value" translatable="false">Português</string>
+  <string name="lobby_play_button">Jogar</string>
+
+  <!-- Waiting (dossie 6.1, entre rodadas) -->
+  <string name="waiting_next_round_format">Próxima partida em %1$s</string>
+  <plurals name="waiting_players_count">
+    <item quantity="one">%1$d jogador aguardando</item>
+    <item quantity="other">%1$d jogadores aguardando</item>
+  </plurals>
+
+  <!-- Match (dossie 6.2) -->
+  <string name="match_back_content_description">Voltar</string>
+  <string name="match_settings_content_description">Ajustes</string>
+  <string name="match_points_format">Pontos: %1$d/%2$d</string>
+  <string name="match_words_format">Palavras: %1$d/%2$d</string>
+  <string name="match_rotate_button">Girar</string>
+  <string name="match_word_accepted_format">%1$s +%2$d</string>
+  <string name="match_reason_not_a_word">Palavra inválida</string>
+  <string name="match_reason_already_found">Já encontrada</string>
+  <string name="match_reason_invalid_path">Caminho inválido</string>
+  <string name="match_reason_too_short">Palavra muito curta</string>
+  <string name="match_reason_blocked_by_mutator">Bloqueada pelo mutador</string>
+
+  <!-- Results (dossie 6.3) -->
+  <string name="results_tab_results">Resultados</string>
+  <string name="results_tab_leaderboard">Placar</string>
+  <string name="results_next_round_format">Próxima partida em %1$s</string>
+  <string name="results_points_format">Pontos: %1$d/%2$d</string>
+  <string name="results_words_format">Palavras: %1$d/%2$d</string>
+  <string name="results_seconds_per_word">Segundos por palavra</string>
+  <string name="results_average_length">Comprimento médio</string>
+  <string name="results_bonus_points">Pontos bônus</string>
+  <string name="results_average_points">Pontos médios</string>
+  <string name="results_xp">XP</string>
+  <string name="results_column_found">Todas / Encontradas</string>
+  <string name="results_column_common">Não encontradas - Comuns</string>
+  <string name="results_column_expert">Não encontradas - Especialistas</string>
+
+  <!-- Leaderboard (dossie 6.4) -->
+  <string name="leaderboard_rank_format">%1$dº</string>
+  <string name="leaderboard_percentile_format">Top %1$d%%</string>
+  <string name="leaderboard_top_players_title">Jogadores Top</string>
+  <plurals name="leaderboard_words_short">
+    <item quantity="one">%1$d palavra</item>
+    <item quantity="other">%1$d palavras</item>
+  </plurals>
+
+  <string name="room_connecting">Conectando...</string>
 </resources>

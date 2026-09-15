@@ -24,6 +24,29 @@ servidor).
 ./gradlew :app:installDebug  # app num aparelho ou emulador
 ```
 
+## Rodando o servidor localmente
+
+O servidor precisa de um PostgreSQL. `docker-compose.yml` na raiz sobe um, com as credenciais que os
+valores padrão de `ServerConfig` já esperam:
+
+```bash
+docker compose up -d postgres   # sobe o Postgres em localhost:5432
+./gradlew :server:run           # aplica as migrações do Flyway e escuta em :8080
+curl localhost:8080/health      # -> ok
+```
+
+Todo o resto é configurável por variável de ambiente (`ServerConfig.fromEnv`, valores padrão entre
+parênteses): `PORT` (8080), `DATABASE_URL`
+(`jdbc:postgresql://localhost:5432/palavramento`), `DATABASE_USER`/`DATABASE_PASSWORD`
+(`palavramento`/`palavramento`), `JWT_SECRET` (**trocar em produção**), `JWT_ISSUER`, `JWT_AUDIENCE`,
+`ACCESS_TOKEN_TTL_SECONDS` (900), `REFRESH_TOKEN_TTL_SECONDS` (2592000), `ROUND_DURATION_SECONDS`
+(120), `INTERMISSION_DURATION_SECONDS` (60), `LATE_SUBMISSION_TOLERANCE_MILLIS` (500),
+`SUBMIT_RATE_LIMIT_PER_SECOND` (10), `COMMON_CUTOFF`, `LEADERBOARD_SIZE` (20). TLS é responsabilidade
+do ambiente de implantação (proxy reverso), não do processo Ktor (ver ADR 0007).
+
+Os testes de integração do servidor (`./gradlew :server:test`) precisam de Docker: cada execução sobe
+seu próprio PostgreSQL via Testcontainers (compartilhado entre as specs, não o do `docker-compose`).
+
 ## Licença
 
 AGPL-3.0-or-later. Léxico e lista de frequência têm licenças próprias, descritas em

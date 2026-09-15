@@ -1,0 +1,98 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 Leonardo Colman Lopes
+
+package br.com.colman.palavramento.server.round
+
+import br.com.colman.palavramento.domain.stats.AcceptedWord
+import br.com.colman.palavramento.domain.stats.LeaderboardEntry
+import br.com.colman.palavramento.domain.stats.Ranking
+import br.com.colman.palavramento.domain.stats.RoundStats
+import br.com.colman.palavramento.domain.stats.RoundStatsCalculator
+import br.com.colman.palavramento.domain.stats.XpFormula
+import br.com.colman.palavramento.server.repository.PlayerRepository
+import br.com.colman.palavramento.server.repository.PlayerStatsRepository
+import br.com.colman.palavramento.server.repository.RoundContribution
+import br.com.colman.palavramento.server.repository.RoundResultRepository
+import br.com.colman.palavramento.server.repository.RoundResultRow
+import java.time.Instant
+
+/** One participant's finished-round outcome, everything [ServerMessage.RoundEnd]/[Leaderboard] need. */
+data class PlayerRoundOutcome(
+  val playerId: String,
+  val displayName: String,
+  val stats: RoundStats,
+  val rank: Int,
+  val bestWord: FoundWord?,
+)
+
+data class FinalizeResult(val outcomes: List<PlayerRoundOutcome>, val totalPlayers: Int)
+
+/**
+ * Turns one finished round's in-memory found-word state into persisted results (dossier §7): ranks
+ * every participant, computes [RoundStats] and XP, then writes `round_results` and updates
+ * `player_stats` for registered players in a single transaction, exactly like the dossier requires.
+ */
+class RoundFinalizer(
+  private val playerRepository: PlayerRepository,
+  private val roundResultRepository: RoundResultRepository,
+  private val playerStatsRepository: PlayerStatsRepository,
+  private val xpFormula: XpFormula = XpFormula.Default,
+) {
+
+  suspend fun finalize(
+    roundId: String,
+    startedAt: Instant,
+    perPlayerFound: Map<String, List<FoundWord>>,
+  ): FinalizeResult {
+    if (perPlayerFound.isEmpty()) return FinalizeResult(emptyList(), 0)
+
+    val players = playerRepository.findByIds(perPlayerFound.keys)
+    val entries = perPlayerFound.map { (playerId, words) ->
+      val name = players[playerId]?.displayName ?: "Jogador"
+      LeaderboardEntry(playerId, name, words.sumOf { it.score }, words.size)
+    }
+    val ranked = Ranking.rank(entries)
+
+    val outcomes = ranked.map { rankedEntry ->
+      val playerId = rankedEntry.entry.playerId
+      val words = perPlayerFound.getValue(playerId)
+      val accepted = words.map { AcceptedWord(it.score, it.normalized.length, it.acceptedAt.toEpochMilli()) }
+      val stats = RoundStatsCalculator.compute(startedAt.toEpochMilli(), accepted, xpFormula = xpFormula)
+      val bestWord = words.maxByOrNull { it.score }
+      PlayerRoundOutcome(playerId, rankedEntry.entry.name, stats, rankedEntry.rank, bestWord)
+    }
+
+    playerRepository.transaction {
+      outcomes.forEach { outcome ->
+        roundResultRepository.insert(
+          this,
+          RoundResultRow(
+            roundId,
+            outcome.playerId,
+            outcome.stats.points,
+            outcome.stats.words,
+            outcome.rank,
+            outcome.stats.xp
+          ),
+        )
+        val player = players[outcome.playerId]
+        if (player != null && !player.isGuest) {
+          playerStatsRepository.applyRound(
+            this,
+            outcome.playerId,
+            RoundContribution(
+              score = outcome.stats.points,
+              words = outcome.stats.words,
+              bestWordDisplay = outcome.bestWord?.display,
+              bestWordScore = outcome.bestWord?.score ?: 0,
+              rank = outcome.rank,
+              xp = outcome.stats.xp,
+            ),
+          )
+        }
+      }
+    }
+
+    return FinalizeResult(outcomes, outcomes.size)
+  }
+}

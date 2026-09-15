@@ -13,6 +13,12 @@ logback = "1.6.3"
 bcrypt = "0.10.2"
 testcontainers = "2.0.5"
 kotest = "6.2.5"
+# io.kotest:kotest-extensions-testcontainers never published a release tracking the main Kotest
+# version line (its last non-milestone release is 4.2.0, built against a Kotest 4.x listener SPI
+# that is not binary compatible with kotest-runner-junit5 6.2.5). 6.0.0.M4 is the newest build whose
+# API (ContainerExtension/JdbcDatabaseContainerExtension) matches the current 6.x extension SPI, so
+# it is pinned separately here rather than reusing the `kotest` version.
+kotest-extensions-testcontainers = "6.0.0.M4"
 kotest-runner-android = "1.2.3"
 pitest = "1.19.1"
 mockk = "1.14.11"
@@ -98,7 +104,7 @@ kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 kotest-pitest = { module = "io.kotest:kotest-extensions-pitest", version.ref = "kotest" }
 pitest-command-line = { module = "org.pitest:pitest-command-line", version.ref = "pitest" }
-kotest-testcontainers = { module = "io.kotest:kotest-extensions-testcontainers", version.ref = "kotest" }
+kotest-testcontainers = { module = "io.kotest:kotest-extensions-testcontainers", version.ref = "kotest-extensions-testcontainers" }
 kotest-runner-android = { module = "br.com.colman:kotest-runner-android", version.ref = "kotest-runner-android" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 

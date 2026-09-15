@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Leonardo Colman Lopes
+
+# PostgreSQL local para `./gradlew :server:run` (dossier §7, fase 3). Os testes de integração do
+# servidor não usam este arquivo: eles sobem seu próprio container via Testcontainers.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: palavramento
+      POSTGRES_USER: palavramento
+      POSTGRES_PASSWORD: palavramento
+    ports:
+      - "5432:5432"
+    volumes:
+      - palavramento-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U palavramento -d palavramento"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  palavramento-postgres-data:

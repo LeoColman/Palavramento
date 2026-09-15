@@ -32,10 +32,24 @@ dependencies {
   implementation(libs.bundles.ktor.server)
   implementation(libs.logback)
 
+  implementation(libs.koin.ktor)
+  implementation(libs.koin.logger.slf4j)
+
+  implementation(libs.bundles.exposed)
+  implementation(libs.flyway.core)
+  implementation(libs.flyway.postgresql)
+  implementation(libs.postgresql)
+  implementation(libs.hikari)
+  implementation(libs.bcrypt)
+
   lexiconCompilerImplementation(project(":domain"))
 
   testImplementation(libs.bundles.kotest)
   testImplementation(libs.ktor.server.test.host)
+  testImplementation(libs.ktor.client.content.negotiation)
+  testImplementation(libs.ktor.client.websockets)
+  testImplementation(libs.kotest.testcontainers)
+  testImplementation(libs.testcontainers.postgresql)
   testImplementation(sourceSets["lexiconCompiler"].output)
 
   detektPlugins(libs.detekt.formatting)

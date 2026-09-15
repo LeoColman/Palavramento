@@ -28,6 +28,12 @@ Não criar módulos novos: o limite é 3.
 - Nunca usar travessão (em dash, U+2014) em código, comentário, doc ou commit.
 - Testes com Kotest. Toda spec termina em `Test` (o Pitest ignora as outras). Preferir testes de
   propriedade quando a regra é universal.
+- Pitest em `:domain` (limite 80%) com o plugin do Kotest:
+  - Montar fixtures dentro de cada teste, nunca no corpo da spec. Exceção lançada na construção da
+    spec não chega ao PIT, e o mutante que quebra o construtor sobrevive.
+  - Getter de data class só conta como coberto quando algum teste lê a propriedade; comparar por
+    igualdade não basta.
+  - O pacote `protocol` (DTOs) fica fora do PIT e é coberto por testes de round-trip.
 - Detekt falha o build. `@Suppress` só com comentário justificando.
 - Versões só em `gradle/libs.versions.toml`.
 

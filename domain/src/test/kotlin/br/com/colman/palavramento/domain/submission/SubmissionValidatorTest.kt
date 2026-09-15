@@ -7,7 +7,6 @@ import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Path
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.lexicon.InMemoryLexicon
-import br.com.colman.palavramento.domain.mutator.Mutator
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
@@ -18,7 +17,6 @@ class SubmissionValidatorTest : FunSpec({
   test("Accepts a valid word not yet found, scoring the sum of its tile values") {
     val result = SubmissionValidator.validate(
       board(),
-      Mutator.NoMutator,
       InMemoryLexicon.of("cat"),
       alreadyFound = emptySet(),
       path = Path(listOf(0, 1, 2)),
@@ -30,7 +28,6 @@ class SubmissionValidatorTest : FunSpec({
   test("Rejects a path that is not valid on the board") {
     val result = SubmissionValidator.validate(
       board(),
-      Mutator.NoMutator,
       InMemoryLexicon.of("cat"),
       alreadyFound = emptySet(),
       path = Path(listOf(0, 1, 0)),
@@ -41,7 +38,6 @@ class SubmissionValidatorTest : FunSpec({
   test("Rejects a word shorter than the dossier's minimum of 3 letters, before checking the lexicon") {
     val result = SubmissionValidator.validate(
       board(),
-      Mutator.NoMutator,
       InMemoryLexicon.of("ca"),
       alreadyFound = emptySet(),
       path = Path(listOf(0, 1)),
@@ -52,7 +48,6 @@ class SubmissionValidatorTest : FunSpec({
   test("Rejects a path that does not spell a lexicon word") {
     val result = SubmissionValidator.validate(
       board(),
-      Mutator.NoMutator,
       InMemoryLexicon.of("cats"),
       alreadyFound = emptySet(),
       path = Path(listOf(0, 1, 2)),
@@ -63,7 +58,6 @@ class SubmissionValidatorTest : FunSpec({
   test("Rejects a word already found, by normalized form regardless of path") {
     val result = SubmissionValidator.validate(
       board(),
-      Mutator.NoMutator,
       InMemoryLexicon.of("cat"),
       alreadyFound = setOf("CAT"),
       path = Path(listOf(0, 1, 2)),
@@ -71,14 +65,22 @@ class SubmissionValidatorTest : FunSpec({
     result shouldBe SubmissionResult.Rejected(RejectionReason.AlreadyFound)
   }
 
-  test("A valuable-letter mutator changes the score") {
-    val result = SubmissionValidator.validate(
-      board(),
-      Mutator.ValuableLetter('C', 10),
+  test("Only the traced copy of a valuable letter scores its inflated value") {
+    // C(10) A C(3) T: the same word through either C scores that C's own value.
+    val board = Board(2, listOf(Tile("C", 10), Tile("A", 1), Tile("C", 3), Tile("T", 3)))
+    val throughValuable = SubmissionValidator.validate(
+      board,
       InMemoryLexicon.of("cat"),
       alreadyFound = emptySet(),
-      path = Path(listOf(0, 1, 2)),
+      path = Path(listOf(0, 1, 3)),
     )
-    result shouldBe SubmissionResult.Accepted("cat", 14)
+    val throughPlain = SubmissionValidator.validate(
+      board,
+      InMemoryLexicon.of("cat"),
+      alreadyFound = emptySet(),
+      path = Path(listOf(2, 1, 3)),
+    )
+    throughValuable shouldBe SubmissionResult.Accepted("cat", 14)
+    throughPlain shouldBe SubmissionResult.Accepted("cat", 7)
   }
 })

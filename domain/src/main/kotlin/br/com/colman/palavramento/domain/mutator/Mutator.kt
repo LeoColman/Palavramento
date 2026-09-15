@@ -3,7 +3,6 @@
 
 package br.com.colman.palavramento.domain.mutator
 
-import br.com.colman.palavramento.domain.board.Tile
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -27,7 +26,11 @@ sealed interface Mutator {
   @SerialName("SEM_MUTADOR")
   object NoMutator : Mutator
 
-  /** [letter] scores [value] points per tile instead of its base value, e.g. L worth 10. */
+  /**
+   * One tile of [letter] is worth [value] instead of its base value, e.g. an L worth 10. Only one copy
+   * (owner decision, 2026-09-15): the generator picks it and bakes the value into that tile, and
+   * scoring always reads each tile's own value, so other copies of the letter keep their base value.
+   */
   @Serializable
   @SerialName("LETRA_VALIOSA")
   data class ValuableLetter(val letter: Char, val value: Int) : Mutator {
@@ -73,11 +76,3 @@ sealed interface Mutator {
 
 /** Dossier 1.1 minimum word length, in letters: always 3, no mutator overrides it (ADR 0012). */
 const val DefaultMinimumLength = 3
-
-/** Points a [tile] is worth under this mutator: [Mutator.ValuableLetter] overrides a single-letter tile. */
-fun Mutator.effectiveValueOf(tile: Tile): Int =
-  if (this is Mutator.ValuableLetter && tile.letters.length == 1 && tile.letters[0] == letter) {
-    value
-  } else {
-    tile.value
-  }

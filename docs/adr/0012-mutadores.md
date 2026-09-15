@@ -36,8 +36,13 @@ palavra de pontuar, e a única regra de comprimento mínimo que existe agora é 
 ### Mantidos e novos: o conjunto final de quatro
 
 1. `SEM_MUTADOR` (`Mutator.NoMutator`): sem mudança. Título "Grade padrão".
-2. `LETRA_VALIOSA` (`Mutator.ValuableLetter(letter, value)`): sem mudança. Título "L de alto
-   valor".
+2. `LETRA_VALIOSA` (`Mutator.ValuableLetter(letter, value)`): título "L de alto valor". **Só uma
+   cópia da letra fica valiosa** (correção pedida pelo dono do projeto em 2026-09-15; antes todas as
+   cópias recebiam o valor inflado): o gerador sorteia uma das cópias, ou transforma um tile
+   aleatório na letra quando o sorteio não produziu nenhuma, e grava o valor nesse tile. Solver,
+   validação e app passam a ler sempre o valor do próprio tile; `Mutator.effectiveValueOf` deixou de
+   existir, e `Solver.solve`/`SubmissionValidator.validate` não recebem mais o mutador. Rodadas
+   antigas continuam coerentes, porque o valor de cada tile já estava gravado em `board_json`.
 3. **Novo** `DIGRAFOS` (`Mutator.Digraphs(count)`): a grade contém `count` tiles de dígrafo (dossiê
    §1.6 já previa o modelo, tile = `String`; o solver já percorre tiles de múltiplas letras como uma
    unidade, sem mudança nenhuma no `Solver` para isso funcionar). Título fixo "Dígrafos",

@@ -10,8 +10,6 @@ import br.com.colman.palavramento.domain.board.spell
 import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.lexicon.lookup
 import br.com.colman.palavramento.domain.mutator.DefaultMinimumLength
-import br.com.colman.palavramento.domain.mutator.Mutator
-import br.com.colman.palavramento.domain.mutator.effectiveValueOf
 
 /**
  * Validates one client submission end to end (dossier 5.2): the server is the only source of
@@ -26,6 +24,9 @@ import br.com.colman.palavramento.domain.mutator.effectiveValueOf
  * 3. **Lexicon** ([RejectionReason.NotAWord]): the normalized word is not in the dictionary.
  * 4. **Duplicate** ([RejectionReason.AlreadyFound]): checked last, and by normalized word regardless
  *    of path, so a word already scored some other way cannot score again through a new path.
+ *
+ * The score is the sum of the traced tiles' own values: the round's mutator is already baked into
+ * the tiles by the generator, so only the traced copy of a valuable letter scores its inflated value.
  */
 object SubmissionValidator {
 
@@ -34,7 +35,6 @@ object SubmissionValidator {
   @Suppress("ReturnCount")
   fun validate(
     board: Board,
-    mutator: Mutator,
     lexicon: Lexicon,
     alreadyFound: Set<String>,
     path: Path,
@@ -48,7 +48,7 @@ object SubmissionValidator {
 
     if (normalized in alreadyFound) return SubmissionResult.Rejected(RejectionReason.AlreadyFound)
 
-    val score = path.indices.sumOf { mutator.effectiveValueOf(board.tiles[it]) }
+    val score = path.indices.sumOf { board.tiles[it].value }
     return SubmissionResult.Accepted(entry.display, score)
   }
 }

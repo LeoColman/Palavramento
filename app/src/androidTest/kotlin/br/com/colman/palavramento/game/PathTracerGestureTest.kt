@@ -17,7 +17,6 @@ import androidx.compose.ui.test.up
 import br.com.colman.kotest.FunSpec
 import br.com.colman.palavramento.domain.board.Rotation
 import br.com.colman.palavramento.domain.board.Tile
-import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.ui.room.BoardTestTag
 import br.com.colman.palavramento.ui.room.BoardView
 import br.com.colman.palavramento.ui.room.TracedWordTestTag
@@ -38,7 +37,7 @@ class PathTracerGestureTest : FunSpec({
   test("Dragging onto an adjacent tile appends it to the traced word") {
     runAndroidComposeUiTest<ComponentActivity> {
       setContent {
-        BoardView(tiles = sampleTiles(), mutator = Mutator.NoMutator, rotation = Rotation.Deg0, onSubmit = {})
+        BoardView(tiles = sampleTiles(), rotation = Rotation.Deg0, onSubmit = {})
       }
 
       onNodeWithTag(BoardTestTag).performTouchInput {
@@ -57,7 +56,7 @@ class PathTracerGestureTest : FunSpec({
   test("Dragging back onto the second-to-last tile undoes the last append") {
     runAndroidComposeUiTest<ComponentActivity> {
       setContent {
-        BoardView(tiles = sampleTiles(), mutator = Mutator.NoMutator, rotation = Rotation.Deg0, onSubmit = {})
+        BoardView(tiles = sampleTiles(), rotation = Rotation.Deg0, onSubmit = {})
       }
 
       onNodeWithTag(BoardTestTag).performTouchInput {
@@ -84,7 +83,7 @@ class PathTracerGestureTest : FunSpec({
   test("Dragging onto a non-adjacent tile is ignored") {
     runAndroidComposeUiTest<ComponentActivity> {
       setContent {
-        BoardView(tiles = sampleTiles(), mutator = Mutator.NoMutator, rotation = Rotation.Deg0, onSubmit = {})
+        BoardView(tiles = sampleTiles(), rotation = Rotation.Deg0, onSubmit = {})
       }
 
       onNodeWithTag(BoardTestTag).performTouchInput {

@@ -11,6 +11,10 @@
   <string name="lobby_stat_total_words">Palavras totais</string>
   <string name="lobby_stat_best_game_score">Melhor pontuação de partida</string>
   <string name="lobby_stat_best_word">Melhor palavra</string>
+  <plurals name="lobby_stat_best_word_format">
+    <item quantity="one">%1$s (%2$d ponto)</item>
+    <item quantity="other">%1$s (%2$d pontos)</item>
+  </plurals>
   <string name="lobby_stat_games_completed">Partidas completas</string>
   <string name="lobby_stat_average_score">Pontuação média</string>
   <string name="lobby_stat_average_words">Contagem média de palavras</string>

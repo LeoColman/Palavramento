@@ -47,8 +47,6 @@ import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Rotation
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.board.logicalIndexAt
-import br.com.colman.palavramento.domain.mutator.Mutator
-import br.com.colman.palavramento.domain.mutator.effectiveValueOf
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.game.PathTracer
 import br.com.colman.palavramento.state.SubmissionFeedback
@@ -87,7 +85,6 @@ const val TracedWordTestTag = "tracedWord"
 @Composable
 fun BoardView(
   tiles: List<Tile>,
-  mutator: Mutator,
   rotation: Rotation,
   onSubmit: (List<Int>) -> Unit,
   modifier: Modifier = Modifier,
@@ -148,12 +145,12 @@ fun BoardView(
         },
     ) {
       Box(Modifier.fillMaxSize().graphicsLayer { rotationZ = visualRotationDegrees }) {
-        TileGrid(tiles, mutator, rotation, gridSize, path, flashState, Modifier.fillMaxSize())
+        TileGrid(tiles, rotation, gridSize, path, flashState, Modifier.fillMaxSize())
         TracedPathOverlay(path, gridSize, rotation, colors.highlight, Modifier.matchParentSize())
       }
     }
 
-    TracedWordLabel(path, tiles, mutator, colors.textPrimary)
+    TracedWordLabel(path, tiles, colors.textPrimary)
   }
 }
 
@@ -161,7 +158,6 @@ fun BoardView(
 @Composable
 private fun TileGrid(
   tiles: List<Tile>,
-  mutator: Mutator,
   rotation: Rotation,
   gridSize: Int,
   path: List<Int>,
@@ -177,7 +173,8 @@ private fun TileGrid(
           val tile = tiles[logicalIndex]
           BoardTile(
             tile = tile,
-            value = mutator.effectiveValueOf(tile),
+            // The server bakes the round's mutator into each tile, so this is exactly what it scores.
+            value = tile.value,
             isTraced = logicalIndex in path,
             flashKind = flashState.flash.kindFor(logicalIndex),
             shakeOffsetPx = flashState.shakeOffsetPx,
@@ -211,9 +208,9 @@ private fun TracedPathOverlay(
 }
 
 @Composable
-private fun TracedWordLabel(path: List<Int>, tiles: List<Tile>, mutator: Mutator, color: Color) {
+private fun TracedWordLabel(path: List<Int>, tiles: List<Tile>, color: Color) {
   val word = path.joinToString(separator = "") { tiles[it].letters }
-  val score = path.sumOf { mutator.effectiveValueOf(tiles[it]) }
+  val score = path.sumOf { tiles[it].value }
   Text(
     text = if (word.isEmpty()) "" else "$word ($score)",
     modifier = Modifier.padding(top = 8.dp).testTag(TracedWordTestTag),

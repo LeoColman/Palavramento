@@ -8,8 +8,6 @@ import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.lexicon.LexiconEntry
 import br.com.colman.palavramento.domain.lexicon.walk
 import br.com.colman.palavramento.domain.mutator.DefaultMinimumLength
-import br.com.colman.palavramento.domain.mutator.Mutator
-import br.com.colman.palavramento.domain.mutator.effectiveValueOf
 
 /**
  * Exhaustive board solver: depth-first search pruned by the lexicon's own prefix structure
@@ -17,7 +15,9 @@ import br.com.colman.palavramento.domain.mutator.effectiveValueOf
  *
  * Every distinct normalized word reachable on the board is returned once, with its best-scoring
  * path (dossier: the same word only scores once per round, regardless of path), as long as it is at
- * least [DefaultMinimumLength] letters (ADR 0012: no mutator overrides that minimum any more).
+ * least [DefaultMinimumLength] letters (ADR 0012: no mutator overrides that minimum any more). A
+ * word's score is the sum of its tiles' own values: the generator already applied the round's
+ * mutator to the tiles, so the solver never needs to know which mutator is active.
  *
  * The search itself avoids allocating anything beyond a few fixed-size buffers per [solve] call:
  * the path and visited buffers are reused across every DFS branch, and a word's normalized form and
@@ -25,13 +25,9 @@ import br.com.colman.palavramento.domain.mutator.effectiveValueOf
  */
 class Solver(private val lexicon: Lexicon) {
 
-  fun solve(
-    board: Board,
-    mutator: Mutator = Mutator.NoMutator,
-    commonCutoff: Int = DefaultCommonCutoff,
-  ): List<SolvedWord> {
+  fun solve(board: Board, commonCutoff: Int = DefaultCommonCutoff): List<SolvedWord> {
     val buffers = Buffers(visited = BooleanArray(board.tiles.size), path = IntArray(board.tiles.size))
-    val frame = SearchFrame(board, mutator, commonCutoff, buffers, best = LinkedHashMap())
+    val frame = SearchFrame(board, commonCutoff, buffers, best = LinkedHashMap())
 
     val start = Cursor(depth = 0, letterCount = 0, node = Lexicon.Root, score = 0)
     for (tileIndex in board.tiles.indices) {
@@ -51,7 +47,7 @@ class Solver(private val lexicon: Lexicon) {
       depth = cursor.depth + 1,
       letterCount = cursor.letterCount + tile.letters.length,
       node = node,
-      score = cursor.score + frame.mutator.effectiveValueOf(tile),
+      score = cursor.score + tile.value,
     )
 
     val entry = lexicon.entry(node)
@@ -84,7 +80,6 @@ class Solver(private val lexicon: Lexicon) {
   /** Everything one [solve] call threads through every DFS branch, grouped to keep call sites short. */
   private class SearchFrame(
     val board: Board,
-    val mutator: Mutator,
     val commonCutoff: Int,
     val buffers: Buffers,
     val best: MutableMap<String, SolvedWord>,

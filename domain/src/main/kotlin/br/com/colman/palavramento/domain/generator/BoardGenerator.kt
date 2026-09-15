@@ -6,7 +6,6 @@ package br.com.colman.palavramento.domain.generator
 import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.mutator.Mutator
-import br.com.colman.palavramento.domain.mutator.effectiveValueOf
 import br.com.colman.palavramento.domain.scoring.LetterValueTable
 import br.com.colman.palavramento.domain.solver.Solver
 import br.com.colman.palavramento.domain.solver.WordTier
@@ -48,7 +47,7 @@ class BoardGenerator(
       attemptsInBlock++
 
       val board = drawBoard(random, size, mutator)
-      val solution = solver.solve(board, mutator, commonCutoff)
+      val solution = solver.solve(board, commonCutoff)
       val commonWords = solution.count { it.tier == WordTier.Common }
       val totalWords = solution.size
       val maxScore = solution.sumOf { it.score }
@@ -69,28 +68,37 @@ class BoardGenerator(
   }
 
   /**
-   * Tiles carry the values players see (dossier 3, step 2: "aplicar mutador"), so a
-   * [Mutator.ValuableLetter] is baked in here rather than only applied inside the solver. The
-   * override is idempotent, so the solver applying it again changes nothing.
+   * Tiles carry the values players see and score (dossier 3, step 2: "aplicar mutador"): the solver,
+   * the server's validation and the app all read each tile's own value, so every mutator is applied
+   * here. That happens after the per-letter draw, with the same seeded [random], so the letter draw
+   * always consumes the same sequence of [random] values regardless of mutator and generation stays
+   * deterministic; only the placement step that follows differs.
    *
-   * [Mutator.Digraphs] and [Mutator.LetterInCorners] (ADR 0012) are structural: they replace some of
-   * the drawn tiles outright, after the per-letter draw above, using the same seeded [random] so
-   * generation stays deterministic. Applying them second (never first) means the letter draw always
-   * consumes the same sequence of [random] values regardless of mutator, and only the placement step
-   * that follows differs.
+   * [Mutator.ValuableLetter] inflates exactly one tile of its letter (owner decision, 2026-09-15):
+   * a copy picked at random or, when the draw produced none, a random tile turned into that letter,
+   * so an "L de alto valor" round always has its L. [Mutator.Digraphs] and [Mutator.LetterInCorners]
+   * (ADR 0012) replace some tiles outright.
    */
   private fun drawBoard(random: Random, size: Int, mutator: Mutator): Board {
     val tiles = MutableList(size * size) {
       val letter = letterWeights.sample(random)
-      val base = Tile(letter.toString(), letterValues.value(letter))
-      Tile(base.letters, mutator.effectiveValueOf(base))
+      Tile(letter.toString(), letterValues.value(letter))
     }
     when (mutator) {
+      is Mutator.ValuableLetter -> applyValuableLetter(random, tiles, mutator)
       is Mutator.Digraphs -> applyDigraphs(random, tiles, mutator.count)
       is Mutator.LetterInCorners -> applyCorners(tiles, size, mutator.letter)
-      else -> Unit
+      Mutator.NoMutator -> Unit
     }
     return Board(size, tiles)
+  }
+
+  /** Gives [mutator]'s value to a single tile of its letter, creating that tile when the draw had none. */
+  private fun applyValuableLetter(random: Random, tiles: MutableList<Tile>, mutator: Mutator.ValuableLetter) {
+    val letter = mutator.letter.toString()
+    val copies = tiles.indices.filter { tiles[it].letters == letter }
+    val position = if (copies.isEmpty()) random.nextInt(tiles.size) else copies[random.nextInt(copies.size)]
+    tiles[position] = Tile(letter, mutator.value)
   }
 
   /** Overwrites [count] distinct, randomly chosen tiles with digraph tiles drawn from [digraphs]. */

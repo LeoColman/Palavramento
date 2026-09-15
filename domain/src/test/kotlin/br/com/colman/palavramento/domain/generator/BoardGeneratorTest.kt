@@ -93,16 +93,34 @@ class BoardGeneratorTest : FunSpec({
     }
   }
 
-  test("A valuable letter mutator is baked into the tile values players see") {
+  test("A valuable letter inflates exactly one copy of its letter, for any seed") {
+    (1L..15L).forEach { seed ->
+      val result = generator().generate(
+        seed = seed,
+        size = 4,
+        mutator = Mutator.ValuableLetter('C', 10),
+        commonCutoff = Int.MAX_VALUE,
+        criteria = reachableCriteria(),
+      )
+      val inflated = result.board.tiles.filter { it.value == 10 }
+      inflated shouldHaveSize 1
+      inflated.single().letters shouldBe "C"
+      // uniformValues(): every other tile, other copies of C included, keeps its base value.
+      result.board.tiles.filter { it.value != 10 }.forEach { it.value shouldBe 1 }
+    }
+  }
+
+  test("A valuable letter the draw did not produce still gets its one inflated tile") {
+    // weightsFavoring("CASOR") practically never draws a Z, so the generator has to place it.
     val result = generator().generate(
-      seed = 7,
+      seed = 11,
       size = 4,
-      mutator = Mutator.ValuableLetter('C', 10),
+      mutator = Mutator.ValuableLetter('Z', 10),
       commonCutoff = Int.MAX_VALUE,
       criteria = reachableCriteria(),
     )
-    result.board.tiles.forEach { tile -> tile.value shouldBe if (tile.letters == "C") 10 else 1 }
-    result.board.tiles.any { it.letters == "C" } shouldBe true
+    result.board.tiles.filter { it.letters == "Z" } shouldHaveSize 1
+    result.board.tiles.single { it.letters == "Z" }.value shouldBe 10
   }
 
   test("cornersOf computes the exact four corner indices for a size, not just their count") {

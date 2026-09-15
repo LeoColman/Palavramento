@@ -11,14 +11,13 @@ import androidx.compose.ui.test.runAndroidComposeUiTest
 import br.com.colman.kotest.FunSpec
 import br.com.colman.palavramento.domain.board.Rotation
 import br.com.colman.palavramento.domain.board.Tile
-import br.com.colman.palavramento.domain.mutator.Mutator
 
 /** One digraph tile plus 15 plain single-letter tiles, a 4x4 board (dossier 1.1). */
 private fun tilesWithOneDigraph(): List<Tile> =
   listOf(Tile("QU", 11)) + List(15) { index -> Tile(('A' + index).toString(), index + 1) }
 
 /**
- * ADR 0012 acceptance: a two-letter digraph tile (e.g. `QU`, from [Mutator.Digraphs]) must render
+ * ADR 0012 acceptance: a two-letter digraph tile (e.g. `QU`, from the `DIGRAFOS` mutator) must render
  * legibly, its letters fitting inside the tile. [BoardView] gives a multi-letter tile a smaller font
  * than a single-letter one (`BoardTile` in `BoardView.kt`); this proves the full two-letter text is
  * actually drawn on screen, not clipped or ellipsized, alongside an ordinary single-letter tile.
@@ -31,7 +30,6 @@ class BoardTileRenderTest : FunSpec({
       setContent {
         BoardView(
           tiles = tilesWithOneDigraph(),
-          mutator = Mutator.Digraphs(1),
           rotation = Rotation.Deg0,
           onSubmit = {},
         )
@@ -45,7 +43,6 @@ class BoardTileRenderTest : FunSpec({
       setContent {
         BoardView(
           tiles = tilesWithOneDigraph(),
-          mutator = Mutator.Digraphs(1),
           rotation = Rotation.Deg0,
           onSubmit = {},
         )

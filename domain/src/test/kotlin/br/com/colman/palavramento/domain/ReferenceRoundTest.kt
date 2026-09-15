@@ -10,7 +10,6 @@ import br.com.colman.palavramento.domain.board.isValidOn
 import br.com.colman.palavramento.domain.board.spell
 import br.com.colman.palavramento.domain.lexicon.InMemoryLexicon
 import br.com.colman.palavramento.domain.lexicon.LexiconEntry
-import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.stats.AcceptedWord
 import br.com.colman.palavramento.domain.stats.RoundStatsCalculator
 import br.com.colman.palavramento.domain.submission.SubmissionResult
@@ -69,7 +68,7 @@ class ReferenceRoundTest : FunSpec({
     var alreadyFound = emptySet<String>()
 
     referenceFinds.forEach { find ->
-      val result = SubmissionValidator.validate(board, Mutator.NoMutator, lexicon, alreadyFound, Path(find.path))
+      val result = SubmissionValidator.validate(board, lexicon, alreadyFound, Path(find.path))
       result.shouldBeInstanceOf<SubmissionResult.Accepted>()
       result.score shouldBe find.expectedScore
       alreadyFound = alreadyFound + Path(find.path).spell(board)

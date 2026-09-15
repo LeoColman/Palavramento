@@ -3,32 +3,11 @@
 
 package br.com.colman.palavramento.domain.mutator
 
-import br.com.colman.palavramento.domain.board.Tile
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
 class MutatorTest : FunSpec({
-  test("NoMutator never overrides a tile's value") {
-    Mutator.NoMutator.effectiveValueOf(Tile("L", 3)) shouldBe 3
-  }
-
-  test("ValuableLetter overrides a matching single-letter tile") {
-    val mutator = Mutator.ValuableLetter('L', 10)
-    mutator.effectiveValueOf(Tile("L", 3)) shouldBe 10
-    mutator.effectiveValueOf(Tile("A", 1)) shouldBe 1
-  }
-
-  test("ValuableLetter does not override a digraph tile") {
-    val mutator = Mutator.ValuableLetter('Q', 10)
-    mutator.effectiveValueOf(Tile("QU", 4)) shouldBe 4
-  }
-
-  test("Digraphs and LetterInCorners never override a tile's value through effectiveValueOf") {
-    Mutator.Digraphs(3).effectiveValueOf(Tile("L", 3)) shouldBe 3
-    Mutator.LetterInCorners('O').effectiveValueOf(Tile("L", 3)) shouldBe 3
-  }
-
   test("Rejects a letter outside A-Z") {
     shouldThrow<IllegalArgumentException> { Mutator.ValuableLetter('a', 5) }
     shouldThrow<IllegalArgumentException> { Mutator.LetterInCorners('1') }
@@ -39,8 +18,10 @@ class MutatorTest : FunSpec({
     Mutator.ValuableLetter('Z', 5).letter shouldBe 'Z'
     Mutator.LetterInCorners('A').letter shouldBe 'A'
     Mutator.LetterInCorners('Z').letter shouldBe 'Z'
-    shouldThrow<IllegalArgumentException> { Mutator.LetterInCorners('@') } // one before 'A'
-    shouldThrow<IllegalArgumentException> { Mutator.LetterInCorners('[') } // one after 'Z'
+    shouldThrow<IllegalArgumentException> { Mutator.ValuableLetter('@', 5) } // one before 'A'
+    shouldThrow<IllegalArgumentException> { Mutator.ValuableLetter('[', 5) } // one after 'Z'
+    shouldThrow<IllegalArgumentException> { Mutator.LetterInCorners('@') }
+    shouldThrow<IllegalArgumentException> { Mutator.LetterInCorners('[') }
   }
 
   test("Rejects a non-positive valuable value or digraph count, accepts exactly 1") {

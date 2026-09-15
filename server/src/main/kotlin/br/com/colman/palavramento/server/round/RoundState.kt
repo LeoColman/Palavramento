@@ -7,7 +7,6 @@ import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Path
 import br.com.colman.palavramento.domain.board.spell
 import br.com.colman.palavramento.domain.lexicon.Lexicon
-import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.domain.submission.SubmissionResult
 import br.com.colman.palavramento.domain.submission.SubmissionValidator
@@ -64,7 +63,7 @@ class RoundState(val generated: GeneratedRound, private val onAccepted: suspend 
     acceptedAt: Instant,
   ): SubmitOutcome {
     val state = playerState(playerId)
-    val outcome = state.submit(record.board, record.mutator, lexicon, pathIndices, acceptedAt)
+    val outcome = state.submit(record.board, lexicon, pathIndices, acceptedAt)
     if (outcome is SubmitOutcome.Accepted) {
       onAccepted(
         AcceptedSubmission(
@@ -103,13 +102,13 @@ class PlayerRoundState {
 
   suspend fun submit(
     board: Board,
-    mutator: Mutator,
     lexicon: Lexicon,
     pathIndices: List<Int>,
     acceptedAt: Instant,
   ): SubmitOutcome = mutex.withLock {
     val alreadyFound = found.keys
-    val result = SubmissionValidator.validate(board, mutator, lexicon, alreadyFound, Path(pathIndices))
+    // The round's mutator is already baked into the tiles (ADR 0012), so validation needs only the board.
+    val result = SubmissionValidator.validate(board, lexicon, alreadyFound, Path(pathIndices))
     when (result) {
       is SubmissionResult.Rejected -> SubmitOutcome.Rejected(result.reason, pathIndices)
       is SubmissionResult.Accepted -> {

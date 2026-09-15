@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -157,7 +158,7 @@ private fun StatsPanel(stats: LifetimeStats?, isGuest: Boolean, isLoading: Boole
       StatRow(stringResource(R.string.lobby_stat_total_score), stats?.totalScore?.toString() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_total_words), stats?.totalWords?.toString() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_best_game_score), stats?.bestGameScore?.toString() ?: empty)
-      StatRow(stringResource(R.string.lobby_stat_best_word), stats?.bestWord ?: empty)
+      StatRow(stringResource(R.string.lobby_stat_best_word), bestWordText(stats) ?: empty)
       StatRow(stringResource(R.string.lobby_stat_games_completed), stats?.gamesCompleted?.toString() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_average_score), stats?.averageScore?.oneDecimal() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_average_words), stats?.averageWords?.oneDecimal() ?: empty)
@@ -180,6 +181,22 @@ private fun StatsPanel(stats: LifetimeStats?, isGuest: Boolean, isLoading: Boole
         }
       }
     }
+  }
+}
+
+/** "mirarei (13 pontos)": the lifetime best word with the score it earned, or null before any word. */
+@Composable
+private fun bestWordText(stats: LifetimeStats?): String? {
+  val word = stats?.bestWord
+  return if (stats == null || word == null) {
+    null
+  } else {
+    pluralStringResource(
+      R.plurals.lobby_stat_best_word_format,
+      stats.bestWordScore,
+      word,
+      stats.bestWordScore,
+    )
   }
 }
 

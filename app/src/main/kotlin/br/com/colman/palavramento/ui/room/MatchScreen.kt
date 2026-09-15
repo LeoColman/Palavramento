@@ -91,7 +91,6 @@ fun MatchScreen(
 
     BoardView(
       tiles = round.board,
-      mutator = round.mutator,
       rotation = rotationController.rotation,
       visualRotationDegrees = rotationController.visualDegrees,
       feedback = round.lastFeedback,

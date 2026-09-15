@@ -60,6 +60,7 @@ fun MatchScreen(
   onSubmit: (roundId: String, path: List<Int>, clientTimestampMs: Long) -> Unit,
   onBack: () -> Unit,
   onOpenAbout: () -> Unit = {},
+  onRemainingMsChanged: (Long) -> Unit = {},
   settingsViewModel: SettingsViewModel = koinViewModel(),
 ) {
   val colors = PalavramentoColors.current
@@ -70,6 +71,9 @@ fun MatchScreen(
   val currentRound = rememberUpdatedState(round)
 
   PlayFeedbackHaptics(round.lastFeedback, hapticsEnabled)
+  // Audio task brief: the music's speed ramp reuses this same countdown tick instead of a second
+  // ticker; RoomViewModel.updateMusicSpeed no-ops when the resulting speed has not actually changed.
+  LaunchedEffect(remainingMs) { onRemainingMsChanged(remainingMs) }
 
   Column(
     Modifier

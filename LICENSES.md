@@ -61,6 +61,22 @@ citação. Como só usamos contagens agregadas, o risco é considerado baixo. Se
 eliminá-lo, o caminho é trocar a lista pelo corpus Leipzig ou pela frequência sintética do §2.3; a
 separação comum/especialista é parametrizada e não depende da fonte.
 
+## Sons do jogo
+
+| Item | Valor |
+|---|---|
+| Arquivos | `app/src/main/res/raw/bg_music.ogg`, `sfx_accepted.ogg`, `sfx_rejected.ogg`, `sfx_already_found.ogg` |
+| Origem | Sintetizados por `tools/audio/generate_sounds.py`, script deste repositório, com apenas a biblioteca padrão do Python (`wave`, `math`, `struct`, `random` com semente fixa) |
+| Autor | Original, sem amostras nem áudio de terceiros |
+| Licença | AGPL-3.0-or-later, a mesma do projeto (ver `LICENSE`) |
+
+**Decisão:** para não herdar a obrigação de licenciar ou creditar áudio de terceiros (dossiê §12.1,
+mesma lógica do léxico e da lista de frequência acima), a trilha e os três efeitos sonoros (docs/adr/
+0011-audio.md) são gerados por código, não gravados nem baixados. Rodar `tools/audio/generate_sounds.py`
+reproduz exatamente os mesmos arquivos (semente fixa) e é o "código-fonte correspondente" desses
+`.ogg`, cumprindo a mesma obrigação de disponibilizar a fonte que os outros artefatos derivados deste
+projeto já cumprem.
+
 ## Dependências de build e execução
 
 Todas compatíveis com AGPLv3:

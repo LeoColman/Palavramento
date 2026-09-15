@@ -48,4 +48,36 @@ class DataStoreSettingsRepositoryTest : FunSpec({
       repository.hapticsEnabled.first() shouldBe true
     }
   }
+
+  test("musicEnabled and effectsEnabled also default to true before any save") {
+    runTest {
+      val repository = DataStoreSettingsRepository(tempDataStore())
+      repository.musicEnabled.first() shouldBe true
+      repository.effectsEnabled.first() shouldBe true
+    }
+  }
+
+  test("setMusicEnabled(false) persists independently of the other two toggles") {
+    runTest {
+      val repository = DataStoreSettingsRepository(tempDataStore())
+
+      repository.setMusicEnabled(false)
+
+      repository.musicEnabled.first() shouldBe false
+      repository.hapticsEnabled.first() shouldBe true
+      repository.effectsEnabled.first() shouldBe true
+    }
+  }
+
+  test("setEffectsEnabled(false) persists independently of the other two toggles") {
+    runTest {
+      val repository = DataStoreSettingsRepository(tempDataStore())
+
+      repository.setEffectsEnabled(false)
+
+      repository.effectsEnabled.first() shouldBe false
+      repository.hapticsEnabled.first() shouldBe true
+      repository.musicEnabled.first() shouldBe true
+    }
+  }
 })

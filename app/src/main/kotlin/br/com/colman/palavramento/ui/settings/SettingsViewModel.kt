@@ -11,14 +11,26 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Backs the match settings sheet (task brief 3): the haptics on/off toggle. */
+/** Backs the match settings sheet: the haptics, music and sound effect on/off toggles. */
 class SettingsViewModel(private val repository: SettingsRepository) : ViewModel() {
 
   val hapticsEnabled: StateFlow<Boolean> = repository.hapticsEnabled
     .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SubscriptionTimeoutMs), true)
+  val musicEnabled: StateFlow<Boolean> = repository.musicEnabled
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SubscriptionTimeoutMs), true)
+  val effectsEnabled: StateFlow<Boolean> = repository.effectsEnabled
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(SubscriptionTimeoutMs), true)
 
   fun setHapticsEnabled(enabled: Boolean) {
     viewModelScope.launch { repository.setHapticsEnabled(enabled) }
+  }
+
+  fun setMusicEnabled(enabled: Boolean) {
+    viewModelScope.launch { repository.setMusicEnabled(enabled) }
+  }
+
+  fun setEffectsEnabled(enabled: Boolean) {
+    viewModelScope.launch { repository.setEffectsEnabled(enabled) }
   }
 
   private companion object {

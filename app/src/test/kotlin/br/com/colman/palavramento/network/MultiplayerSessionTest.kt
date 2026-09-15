@@ -10,7 +10,10 @@ import br.com.colman.palavramento.domain.protocol.FoundWord
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.state.MatchUiState
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.kotest.matchers.types.shouldNotBeSameInstanceAs
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -194,6 +197,52 @@ class MultiplayerSessionTest : FunSpec({
 
       transport.connectCount shouldBe 2
       transport.sent.last() shouldBe ClientMessage.JoinRoom(sessionToken = "token")
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("The clock survives a connection drop instead of resetting to null, until a fresh handshake replaces it") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      val clockAfterFirstHandshake = session.clock.value
+      clockAfterFirstHandshake.shouldNotBeNull()
+
+      transport.dropConnection()
+      advanceUntilIdle()
+      // Orchestrator finding (task brief 4): the match countdown read 00:00 throughout
+      // "Reconectando..." because this used to be nulled out on every drop; it must keep the last
+      // synced clock instead, right up until a fresh handshake actually has a new one to offer.
+      session.clock.value shouldBeSameInstanceAs clockAfterFirstHandshake
+
+      completeHandshake(transport)
+      session.clock.value.shouldNotBeNull()
+      session.clock.value shouldNotBeSameInstanceAs clockAfterFirstHandshake
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("connectionAttempts counts consecutive failures and resets to 0 once connected") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      transport.connectFailure = IllegalStateException("network down")
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      session.connectionAttempts.value shouldBe 0
+      advanceUntilIdle()
+      // The one failed attempt (transport.connectFailure fires once, then clears itself).
+      session.connectionAttempts.value shouldBe 1
+
+      completeHandshake(transport)
+      session.connectionAttempts.value shouldBe 0
 
       job.cancelAndJoin()
     }

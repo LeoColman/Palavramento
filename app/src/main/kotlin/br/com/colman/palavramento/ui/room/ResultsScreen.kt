@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.colman.palavramento.R
@@ -32,6 +34,9 @@ import br.com.colman.palavramento.domain.solver.WordTier
 import br.com.colman.palavramento.domain.stats.RoundStats
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
 import kotlin.math.sqrt
+
+/** Fixed width for a word row's score, so a long word never collides with it (orchestrator finding). */
+private val ScoreSlotWidth = 24.dp
 
 /** Results tab content (dossie 6.3): mini board, round stats, and the three word columns. */
 @Composable
@@ -103,12 +108,22 @@ private fun WordColumn(title: String, words: List<LabelledWord>, modifier: Modif
     Text(title, color = colors.textSecondary, fontSize = 12.sp)
     LazyColumn(Modifier.weight(1f)) {
       items(words, key = { it.word }) { word ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-          Text(word.score.toString(), color = colors.textPrimary)
+        Row(
+          Modifier.fillMaxWidth().padding(vertical = 2.dp),
+          horizontalArrangement = Arrangement.spacedBy(4.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          // Orchestrator finding: a fixed-width slot for the score plus an ellipsized word is what
+          // keeps a long word ("redepositamos") from colliding with its score at the small column
+          // widths this three-column layout uses.
+          Text(word.score.toString(), color = colors.textPrimary, modifier = Modifier.width(ScoreSlotWidth))
           Text(
             word.word,
             color = colors.textPrimary,
             fontStyle = if (word.tier == WordTier.Expert) FontStyle.Italic else FontStyle.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
           )
         }
       }

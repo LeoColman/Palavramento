@@ -7,6 +7,7 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.detekt)
+  alias(libs.plugins.sqldelight)
 }
 
 android {
@@ -92,6 +93,10 @@ dependencies {
 
   implementation(libs.datastore.preferences)
 
+  implementation(libs.sqldelight.android.driver)
+  implementation(libs.sqldelight.coroutines)
+  testImplementation(libs.sqldelight.sqlite.driver)
+
   testImplementation(libs.bundles.kotest)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.koin.test)
@@ -112,4 +117,35 @@ detekt {
 
 tasks.named("check") {
   dependsOn("detekt")
+}
+
+// Local cache (dossier 7, ADR 0009): profile, lifetime stats and the last 50 rounds.
+sqldelight {
+  databases {
+    create("Database") {
+      packageName.set("br.com.colman.palavramento.data")
+      dialect(libs.sqldelight.sqlite.dialect)
+      schemaOutputDirectory = file("src/main/sqldelight/databases")
+      verifyMigrations = true
+    }
+  }
+}
+
+// Workaround (task brief, docs/adr/0009-persistencia-local-e-auth.md): SQLDelight 2.3.x uses
+// variant.sources.java?.addGeneratedSourceDirectory for AGP < 9.0, but KGP 2.x does not include
+// java-registered generated sources in Kotlin compilation under AGP 9's legacy variant API
+// (gradle.properties opts out of AGP 9's built-in Kotlin/new DSL for exactly this). Manually wire
+// the generate task output dir into KotlinCompile sources, same fix as the reference project (Petals).
+afterEvaluate {
+  android.applicationVariants.all {
+    val variantName = name
+    val capitalizedName = variantName.replaceFirstChar { it.uppercase() }
+    val sqldelightDir = layout.buildDirectory.dir("generated/sqldelight/code/Database/$variantName")
+    tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
+      .matching { it.name == "compile${capitalizedName}Kotlin" }
+      .configureEach {
+        dependsOn("generate${capitalizedName}DatabaseInterface")
+        source(sqldelightDir)
+      }
+  }
 }

@@ -7,9 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -48,7 +51,7 @@ fun ResultsAndLeaderboardScreen(postRound: MatchUiState.PostRound, clock: Server
   var selectedTab by remember { mutableIntStateOf(ResultsTabIndex) }
   val remainingMs = rememberRemainingMs(postRound.nextRoundStartsAt, clock)
 
-  Column(Modifier.fillMaxSize().background(colors.resultsPrimary)) {
+  Column(Modifier.fillMaxSize().background(colors.resultsPrimary).windowInsetsPadding(WindowInsets.safeDrawing)) {
     val description = stringResource(R.string.results_next_round_format, formatCountdown(remainingMs))
     Row(
       verticalAlignment = Alignment.CenterVertically,

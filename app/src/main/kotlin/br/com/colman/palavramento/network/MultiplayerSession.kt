@@ -51,6 +51,12 @@ class MultiplayerSession(
   private val clockFlow = MutableStateFlow<ServerClock?>(null)
   val clock: StateFlow<ServerClock?> = clockFlow
 
+  // Orchestrator finding (task brief 4): consecutive failed connection attempts since the last
+  // success, so the UI can tell "still trying the very first connection" apart from "connected once,
+  // now reconnecting" and show an error+retry state instead of spinning forever (see RoomScreen).
+  private val connectionAttemptsFlow = MutableStateFlow(0)
+  val connectionAttempts: StateFlow<Int> = connectionAttemptsFlow
+
   private val pendingSubmissions = PendingSubmissionQueue()
 
   @Volatile
@@ -69,14 +75,19 @@ class MultiplayerSession(
       val connected = tryConnectAndHandshake()
       if (connected) {
         attempt = 0
+        connectionAttemptsFlow.value = 0
         connectionStatusFlow.value = ConnectionStatus.Connected
         collectUntilDisconnected()
       } else {
         attempt++
+        connectionAttemptsFlow.value = attempt
       }
       if (!running) break
       connectionStatusFlow.value = ConnectionStatus.Reconnecting
-      clockFlow.value = null
+      // Orchestrator finding (task brief 4): keep the last synced clock across a drop instead of
+      // nulling it out here - the match countdown otherwise reads null and renders 00:00 for the
+      // whole "Reconectando..." window. tryConnectAndHandshake only overwrites it once a fresh
+      // handshake actually produced a new offset.
       delay(backoff.delayForAttempt(attempt))
     }
   }
@@ -125,8 +136,10 @@ class MultiplayerSession(
     transport.connect()
     val estimator = ClockSyncEstimator()
     runClockSyncHandshake(estimator)
-    val offset = estimator.offsetMs
-    clockFlow.value = offset?.let { ServerClock(it, elapsedRealtimeMs) }
+    // Only overwrite the clock once a fresh offset is actually available: leaving the previous
+    // ServerClock in place otherwise (instead of a stray null) is what keeps the match countdown
+    // ticking through a "Reconectando..." window (task brief 4).
+    estimator.offsetMs?.let { offset -> clockFlow.value = ServerClock(offset, elapsedRealtimeMs) }
     transport.send(ClientMessage.JoinRoom(sessionToken = accessTokenProvider()))
     true
   } catch (cancellation: CancellationException) {

@@ -9,6 +9,7 @@ import br.com.colman.palavramento.domain.protocol.FoundWord
 import br.com.colman.palavramento.domain.protocol.LabelledWord
 import br.com.colman.palavramento.domain.protocol.LeaderboardRow
 import br.com.colman.palavramento.domain.protocol.ServerMessage
+import br.com.colman.palavramento.domain.protocol.ValidWord
 import br.com.colman.palavramento.domain.solver.WordTier
 import br.com.colman.palavramento.domain.stats.RoundStats
 import br.com.colman.palavramento.domain.submission.RejectionReason
@@ -21,6 +22,7 @@ private fun sampleRoundStart(
   alreadyFound: List<FoundWord> = emptyList(),
   runningScore: Int = 0,
   runningWords: Int = 0,
+  validWords: List<ValidWord> = emptyList(),
 ) =
   ServerMessage.RoundStart(
     roundId = "round-1",
@@ -35,6 +37,7 @@ private fun sampleRoundStart(
     alreadyFound = alreadyFound,
     runningScore = runningScore,
     runningWords = runningWords,
+    validWords = validWords,
   )
 
 class MatchStateReducerTest : FunSpec({
@@ -167,5 +170,74 @@ class MatchStateReducerTest : FunSpec({
   test("ClockSyncResponse never changes the room state: it is consumed by the session, not the reducer") {
     val state = MatchUiState.Lobby(1, 2)
     MatchStateReducer.reduce(state, ServerMessage.ClockSyncResponse(clientSentAt = 1, serverTime = 2)) shouldBe state
+  }
+
+  test("RoundStart carries validWords into InRound (ADR 0014), empty by default for an old server") {
+    val validWords = listOf(ValidWord("CAT", "cat"), ValidWord("LIMO", "limo"))
+    val state = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart(validWords = validWords))
+    (state as MatchUiState.InRound).validWords shouldBe validWords
+
+    val defaultState = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart())
+    (defaultState as MatchUiState.InRound).validWords shouldBe emptyList()
+  }
+
+  test("WordAccepted for a pending path (ADR 0014) reconciles totals without touching lastFeedback") {
+    var state = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart()) as MatchUiState.InRound
+    val localFeedback = SubmissionFeedback.Accepted("cat", 7, listOf(0, 1, 2))
+    state = state.copy(
+      foundWords = listOf(FoundWord("cat", 7, listOf(0, 1, 2))),
+      runningScore = 7,
+      runningWords = 1,
+      lastFeedback = localFeedback,
+      pendingPaths = setOf(listOf(0, 1, 2)),
+    )
+
+    val confirmed = MatchStateReducer.reduce(
+      state,
+      ServerMessage.WordAccepted("cat", 7, runningScore = 7, runningWords = 1, path = listOf(0, 1, 2)),
+    ) as MatchUiState.InRound
+
+    // No duplicate FoundWord, running totals now the server's own values, pending path cleared.
+    confirmed.foundWords shouldBe listOf(FoundWord("cat", 7, listOf(0, 1, 2)))
+    confirmed.runningScore shouldBe 7
+    confirmed.runningWords shouldBe 1
+    confirmed.pendingPaths shouldBe emptySet()
+    // Unchanged: this is what stops a second flash/sound/haptic from firing for the same word.
+    confirmed.lastFeedback shouldBe localFeedback
+  }
+
+  test("WordAccepted for a path that was never accepted locally behaves exactly as before this feature") {
+    val state = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart()) as MatchUiState.InRound
+
+    val accepted = MatchStateReducer.reduce(
+      state,
+      ServerMessage.WordAccepted("cat", 7, runningScore = 7, runningWords = 1, path = listOf(0, 1, 2)),
+    ) as MatchUiState.InRound
+
+    accepted.foundWords shouldBe listOf(FoundWord("cat", 7, listOf(0, 1, 2)))
+    accepted.lastFeedback shouldBe SubmissionFeedback.Accepted("cat", 7, listOf(0, 1, 2))
+    accepted.pendingPaths shouldBe emptySet()
+  }
+
+  test("WordRejected for a pending path (ADR 0014) rolls back the optimistic accept") {
+    var state = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart()) as MatchUiState.InRound
+    state = state.copy(
+      foundWords = listOf(FoundWord("cat", 7, listOf(0, 1, 2))),
+      runningScore = 7,
+      runningWords = 1,
+      lastFeedback = SubmissionFeedback.Accepted("cat", 7, listOf(0, 1, 2)),
+      pendingPaths = setOf(listOf(0, 1, 2)),
+    )
+
+    val rolledBack = MatchStateReducer.reduce(
+      state,
+      ServerMessage.WordRejected(RejectionReason.NotAWord, path = listOf(0, 1, 2)),
+    ) as MatchUiState.InRound
+
+    rolledBack.foundWords shouldBe emptyList()
+    rolledBack.runningScore shouldBe 0
+    rolledBack.runningWords shouldBe 0
+    rolledBack.pendingPaths shouldBe emptySet()
+    rolledBack.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 2))
   }
 })

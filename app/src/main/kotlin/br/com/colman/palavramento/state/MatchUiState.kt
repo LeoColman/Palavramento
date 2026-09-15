@@ -8,6 +8,7 @@ import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.protocol.FoundWord
 import br.com.colman.palavramento.domain.protocol.LabelledWord
 import br.com.colman.palavramento.domain.protocol.ServerMessage
+import br.com.colman.palavramento.domain.protocol.ValidWord
 import br.com.colman.palavramento.domain.stats.RoundStats
 import br.com.colman.palavramento.domain.submission.RejectionReason
 
@@ -28,6 +29,15 @@ sealed interface MatchUiState {
   /**
    * A round in progress (dossier 6.2). [foundWords] starts from `RoundStart.alreadyFound`, so a
    * client that reconnects mid-round restores exactly the words it had already found (dossier 5.3).
+   *
+   * [validWords] is `RoundStart.validWords` (ADR 0014): the round's own solution, empty for an old
+   * server or as a fallback, in which case [br.com.colman.palavramento.state.OptimisticSubmission]
+   * never produces a local verdict and every submission waits for the server as before this feature.
+   * [pendingPaths] is the set of just-submitted paths this client accepted locally but the server has
+   * not confirmed yet (matched against `WordAccepted`/`WordRejected.path`, which the server always
+   * echoes): reset to empty by any fresh `RoundStart`, fresh round or reconnect alike, since a
+   * reconnect's `alreadyFound`/`runningScore`/`runningWords` already reflect the server's own
+   * authoritative state.
    */
   data class InRound(
     val roundId: String,
@@ -43,6 +53,8 @@ sealed interface MatchUiState {
     val runningScore: Int,
     val runningWords: Int,
     val lastFeedback: SubmissionFeedback? = null,
+    val validWords: List<ValidWord> = emptyList(),
+    val pendingPaths: Set<List<Int>> = emptySet(),
   ) : MatchUiState
 
   /**

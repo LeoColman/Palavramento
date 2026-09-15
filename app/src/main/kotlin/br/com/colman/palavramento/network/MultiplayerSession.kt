@@ -3,6 +3,7 @@
 
 package br.com.colman.palavramento.network
 
+import android.util.Log
 import br.com.colman.palavramento.clock.ClockSyncEstimator
 import br.com.colman.palavramento.clock.ClockSyncSample
 import br.com.colman.palavramento.clock.ServerClock
@@ -10,6 +11,7 @@ import br.com.colman.palavramento.domain.protocol.ClientMessage
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.state.MatchStateReducer
 import br.com.colman.palavramento.state.MatchUiState
+import br.com.colman.palavramento.state.OptimisticSubmission
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -108,12 +110,43 @@ class MultiplayerSession(
   }
 
   /**
+   * Runs the optimistic local verdict (ADR 0014, [OptimisticSubmission]) for [path] against the
+   * current [state] before doing anything network-related: an [OptimisticSubmission.Decision.Accept]
+   * or [OptimisticSubmission.Decision.Reject] applies its `newState` to [state] immediately (found
+   * word/score/feedback, or just the rejection feedback), and only `Accept` still reaches
+   * [sendSubmission] below; `Reject` never does, since the same validator running on the server would
+   * reject it too. [OptimisticSubmission.Decision.Defer] (no [MatchUiState.InRound.validWords] yet,
+   * or the round is already over) - and a submission for a round [state] does not currently show -
+   * fall straight through to [sendSubmission], exactly as before this feature.
+   */
+  suspend fun submitWord(roundId: String, path: List<Int>, clientTimestampMs: Long) {
+    val current = stateFlow.value
+    if (current is MatchUiState.InRound && current.roundId == roundId) {
+      when (val decision = OptimisticSubmission.decide(current, path, clockFlow.value?.nowMs())) {
+        is OptimisticSubmission.Decision.Accept -> {
+          stateFlow.value = decision.newState
+          sendSubmission(roundId, path, clientTimestampMs)
+          return
+        }
+
+        is OptimisticSubmission.Decision.Reject -> {
+          stateFlow.value = decision.newState
+          return
+        }
+
+        OptimisticSubmission.Decision.Defer -> Unit
+      }
+    }
+    sendSubmission(roundId, path, clientTimestampMs)
+  }
+
+  /**
    * Sends [ClientMessage.SubmitWord] when connected; while disconnected, queues it in
    * [pendingSubmissions] instead (task brief 5), to be resent once a reconnect confirms the same
    * round is still running. A send that fails despite [connectionStatus] reading `Connected` (the
    * drop has not been detected yet) is queued the same way rather than silently lost.
    */
-  suspend fun submitWord(roundId: String, path: List<Int>, clientTimestampMs: Long) {
+  private suspend fun sendSubmission(roundId: String, path: List<Int>, clientTimestampMs: Long) {
     val message = ClientMessage.SubmitWord(roundId, path, clientTimestampMs)
     if (connectionStatusFlow.value != ConnectionStatus.Connected) {
       pendingSubmissions.enqueue(message)
@@ -160,6 +193,10 @@ class MultiplayerSession(
             stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
             flushPendingSubmissions(message.roundId)
           }
+          is ServerMessage.WordRejected -> {
+            logIfRollingBackAnOptimisticAccept(message)
+            stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
+          }
           else -> stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
         }
       }
@@ -167,6 +204,19 @@ class MultiplayerSession(
       throw cancellation
     } catch (failure: Exception) {
       // Falls through to run()'s reconnect path, same as a normal channel close.
+    }
+  }
+
+  /**
+   * ADR 0014: a `WordRejected` for a path this client already accepted locally means the server
+   * disagreed with the optimistic verdict - rare, the equivalence property test in `:domain` is the
+   * argument it should not happen - so it is worth a warning before [MatchStateReducer] rolls it
+   * back. Checked here, not inside the reducer, so the reducer itself stays free of Android/logging.
+   */
+  private fun logIfRollingBackAnOptimisticAccept(message: ServerMessage.WordRejected) {
+    val current = stateFlow.value
+    if (current is MatchUiState.InRound && message.path in current.pendingPaths) {
+      Log.w(Tag, "Server rejected a word accepted locally (${message.reason}), rolling back: ${message.path}")
     }
   }
 
@@ -200,5 +250,6 @@ class MultiplayerSession(
 
   private companion object {
     const val DefaultClockSyncSamples = 3
+    const val Tag = "MultiplayerSession"
   }
 }

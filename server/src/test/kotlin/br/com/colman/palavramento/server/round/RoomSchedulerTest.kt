@@ -139,6 +139,31 @@ class RoomSchedulerTest : FunSpec({
     started.message.runningWords shouldBe 1
   }
 
+  test("RoundStart carries the round's full solution as validWords (ADR 0014), for late join and reconnect") {
+    val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
+    val config =
+      testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, lateJoinMinRemaining = 10.seconds)
+    val roomId = testRoomId()
+    val scheduler = buildTestScheduler(database, clock, config, roomId)
+    val reconnector = PlayerRepository(database).insertGuest()
+    val lateJoiner = PlayerRepository(database).insertGuest()
+
+    val generated = RoundGenerationService(TestLexicon.lexicon, config, RoundRepository(database))
+      .generateAndPersist(roomId, clock.now(), RoundTiming.endsAt(clock.now(), config.roundDuration))
+    val expected = generated.solution.map { it.normalized to it.display }.toSet()
+    scheduler.activateForTesting(generated)
+    scheduler.activeRound!!.markParticipant(reconnector.id, generated.record.startsAt)
+
+    // Reconnect: isParticipant() branch of join().
+    val reconnect = scheduler.join(reconnector.id) as JoinResult.Started
+    reconnect.message.validWords.map { it.normalized to it.display }.toSet() shouldBe expected
+
+    // Late join: not-yet-a-participant branch of join(), with time to spare.
+    clock.advance(30_000)
+    val lateJoin = scheduler.join(lateJoiner.id) as JoinResult.Started
+    lateJoin.message.validWords.map { it.normalized to it.display }.toSet() shouldBe expected
+  }
+
   test("duplicate submission of the same word is rejected as JA_ENCONTRADA") {
     val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
     val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes)

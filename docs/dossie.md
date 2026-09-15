@@ -129,6 +129,12 @@ Trie (DAWG) carregada em memória a partir de um artefato binário pré-compilad
 ### 2.5 Cliente
 O cliente **não** embarca o léxico na v1 — validação é do servidor. O cliente só recebe a lista de palavras da grade no fim da rodada.
 
+**Nota (ADR 0014, decisão do dono do produto, 2026-09-15):** o cliente passou a receber a solução
+completa da rodada (`RoundStart.validWords`) desde o início dela, não só no fim, para validar
+localmente com o mesmo `SubmissionValidator` do servidor e mostrar o veredito de uma palavra sem
+esperar a viagem de ida e volta até o servidor. O servidor continua sendo a única fonte de verdade:
+ver a ADR 0014 para o que muda e o que não muda.
+
 ---
 
 ## 3. Geração de grade

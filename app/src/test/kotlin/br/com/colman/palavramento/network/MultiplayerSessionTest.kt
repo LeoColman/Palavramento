@@ -3,17 +3,24 @@
 
 package br.com.colman.palavramento.network
 
+import android.util.Log
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.protocol.ClientMessage
 import br.com.colman.palavramento.domain.protocol.FoundWord
 import br.com.colman.palavramento.domain.protocol.ServerMessage
+import br.com.colman.palavramento.domain.protocol.ValidWord
+import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.state.MatchUiState
+import br.com.colman.palavramento.state.SubmissionFeedback
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.kotest.matchers.types.shouldNotBeSameInstanceAs
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -34,6 +41,24 @@ private fun sampleRoundStart(alreadyFound: List<FoundWord>, roundId: String = "r
   runningScore = alreadyFound.sumOf { it.score },
   runningWords = alreadyFound.size,
 )
+
+// C A / T S: a 2x2 board fully connected by adjacency, so every path of 2-4 indices is valid on it.
+private fun catBoard() = listOf(Tile("C", 3), Tile("A", 1), Tile("T", 3), Tile("S", 1))
+
+/** A round whose own solution (ADR 0014's `validWords`) is just "cat", scored 7 (3+1+3) via [0, 1, 2]. */
+private fun sampleRoundStartWithValidWords(roundId: String = "round-1", endsAt: Long = 120_000) =
+  ServerMessage.RoundStart(
+    roundId = roundId,
+    board = catBoard(),
+    mutator = Mutator.NoMutator,
+    themeTitle = "Grade padrao",
+    themeSubtitle = "15 palavras comuns",
+    maxScore = 7,
+    maxWords = 1,
+    startsAt = 0,
+    endsAt = endsAt,
+    validWords = listOf(ValidWord("CAT", "cat")),
+  )
 
 class MultiplayerSessionTest : FunSpec({
 
@@ -223,6 +248,211 @@ class MultiplayerSessionTest : FunSpec({
       completeHandshake(transport)
       session.clock.value.shouldNotBeNull()
       session.clock.value shouldNotBeSameInstanceAs clockAfterFirstHandshake
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("A locally valid word (ADR 0014) updates state instantly and is still sent to the server") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStartWithValidWords())
+      advanceUntilIdle()
+
+      session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+      advanceUntilIdle()
+
+      val state = session.state.value as MatchUiState.InRound
+      state.foundWords shouldBe listOf(FoundWord("cat", 7, listOf(0, 1, 2)))
+      state.runningScore shouldBe 7
+      state.runningWords shouldBe 1
+      state.lastFeedback shouldBe SubmissionFeedback.Accepted("cat", 7, listOf(0, 1, 2))
+      state.pendingPaths shouldBe setOf(listOf(0, 1, 2))
+      transport.sent.filterIsInstance<ClientMessage.SubmitWord>().single().path shouldBe listOf(0, 1, 2)
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("A locally invalid word (ADR 0014) shows rejection feedback immediately and is never sent") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStartWithValidWords())
+      advanceUntilIdle()
+
+      // C A S: not in this round's solution (only "cat" is).
+      session.submitWord("round-1", listOf(0, 1, 3), clientTimestampMs = 1_000)
+      advanceUntilIdle()
+
+      val state = session.state.value as MatchUiState.InRound
+      state.foundWords shouldBe emptyList()
+      state.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 3))
+      transport.sent.none { it is ClientMessage.SubmitWord } shouldBe true
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("Empty validWords keeps today's behavior: no local verdict, straight to the server") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStart(alreadyFound = emptyList()))
+      advanceUntilIdle()
+
+      session.submitWord("round-1", listOf(0, 1, 2, 3), clientTimestampMs = 1_000)
+      advanceUntilIdle()
+
+      val state = session.state.value as MatchUiState.InRound
+      state.foundWords shouldBe emptyList()
+      state.lastFeedback shouldBe null
+      transport.sent.filterIsInstance<ClientMessage.SubmitWord>().single().path shouldBe listOf(0, 1, 2, 3)
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("After endsAt (synced server clock), no local verdict: the submission just goes to the server") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      // endsAt = 0: the handshake's synced clock (serverTime = 500 in completeHandshake) is already past it.
+      transport.push(sampleRoundStartWithValidWords(endsAt = 0))
+      advanceUntilIdle()
+
+      session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+      advanceUntilIdle()
+
+      val state = session.state.value as MatchUiState.InRound
+      state.foundWords shouldBe emptyList()
+      state.lastFeedback shouldBe null
+      transport.sent.filterIsInstance<ClientMessage.SubmitWord>().single().path shouldBe listOf(0, 1, 2)
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("A server confirmation for a locally accepted word reconciles totals without a second accept") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStartWithValidWords())
+      advanceUntilIdle()
+
+      session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+      advanceUntilIdle()
+      val afterLocalAccept = session.state.value as MatchUiState.InRound
+      afterLocalAccept.pendingPaths shouldBe setOf(listOf(0, 1, 2))
+
+      transport.push(ServerMessage.WordAccepted("cat", 7, runningScore = 7, runningWords = 1, path = listOf(0, 1, 2)))
+      advanceUntilIdle()
+
+      val state = session.state.value as MatchUiState.InRound
+      state.foundWords shouldBe listOf(FoundWord("cat", 7, listOf(0, 1, 2)))
+      state.runningScore shouldBe 7
+      state.runningWords shouldBe 1
+      state.pendingPaths shouldBe emptySet()
+      // Same feedback value as right after the local accept: no second flash/sound/haptic.
+      state.lastFeedback shouldBe afterLocalAccept.lastFeedback
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("A server rejection of a locally accepted word rolls it back") {
+    mockkStatic(Log::class)
+    every { Log.w(any(), any<String>()) } returns 0
+    try {
+      runTest {
+        val transport = FakeMultiplayerTransport()
+        var ticks = 0L
+        val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+        val job = launch { session.run() }
+
+        completeHandshake(transport)
+        transport.push(sampleRoundStartWithValidWords())
+        advanceUntilIdle()
+
+        session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+        advanceUntilIdle()
+
+        // Rare (the equivalence property test in :domain is the argument this should not happen):
+        // the server disagrees with the local accept.
+        transport.push(ServerMessage.WordRejected(RejectionReason.NotAWord, path = listOf(0, 1, 2)))
+        advanceUntilIdle()
+
+        val state = session.state.value as MatchUiState.InRound
+        state.foundWords shouldBe emptyList()
+        state.runningScore shouldBe 0
+        state.runningWords shouldBe 0
+        state.pendingPaths shouldBe emptySet()
+        state.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 2))
+
+        job.cancelAndJoin()
+      }
+    } finally {
+      unmockkStatic(Log::class)
+    }
+  }
+
+  test("A word accepted locally while disconnected is queued, then resent after reconnecting") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStartWithValidWords())
+      advanceUntilIdle()
+
+      transport.dropConnection()
+      advanceUntilIdle()
+      session.connectionStatus.value shouldBe ConnectionStatus.Reconnecting
+
+      // The local verdict does not require a live connection: applied right away, queued to send.
+      session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+      val afterLocalAccept = session.state.value as MatchUiState.InRound
+      afterLocalAccept.foundWords shouldBe listOf(FoundWord("cat", 7, listOf(0, 1, 2)))
+      afterLocalAccept.pendingPaths shouldBe setOf(listOf(0, 1, 2))
+      transport.sent.none { it is ClientMessage.SubmitWord } shouldBe true
+
+      completeHandshake(transport)
+      // The server's own RoundStart never learned about this word (it was never sent before the drop).
+      transport.push(sampleRoundStartWithValidWords())
+      advanceUntilIdle()
+
+      // Kept, not lost: PendingSubmissionQueue already resends anything queued for the round that is
+      // still running (docs/adr/0008-polimento-do-app.md); ADR 0014 reuses that one mechanism instead
+      // of inventing a second resend path.
+      transport.sent.filterIsInstance<ClientMessage.SubmitWord>().single().path shouldBe listOf(0, 1, 2)
+      val state = session.state.value as MatchUiState.InRound
+      // RoundStart rebuilds InRound from the server's own alreadyFound (empty here), clearing
+      // pendingPaths: the word reappears once the resend's WordAccepted confirms it.
+      state.foundWords shouldBe emptyList()
+      state.pendingPaths shouldBe emptySet()
 
       job.cancelAndJoin()
     }

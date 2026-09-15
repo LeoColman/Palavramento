@@ -92,6 +92,10 @@ class MultiplayerRouteTest : FunSpec({
             aliceRoundId = start.roundId
 
             val solution = RoundRepository(database).loadSolution(start.roundId)
+            // ADR 0014: a fresh RoundStart carries the round's full solution as validWords, the
+            // same set persisted in round_words, so the client can validate locally.
+            start.validWords.map { it.normalized to it.display }.toSet() shouldBe
+              solution.map { it.normalized to it.display }.toSet()
             val word = solution.first()
             sendClientMessage(ClientMessage.SubmitWord(start.roundId, word.path, System.currentTimeMillis()))
             val accepted = nextServerMessage() as ServerMessage.WordAccepted

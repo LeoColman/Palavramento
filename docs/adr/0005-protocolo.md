@@ -53,6 +53,15 @@ horário e um cliente que reconecta no meio passam pelo mesmo caminho de código
 os três campos ficam vazios/zerados no caso comum e `encodeDefaults = true` garante que eles sempre
 aparecem no JSON, mesmo vazios.
 
+**Atualização (ADR 0014, decisão do dono do produto, 2026-09-15):** `RoundStart` ganhou um quarto
+campo, `validWords: List<ValidWord> = emptyList()`, a solução completa da rodada (o mesmo conjunto
+persistido em `round_words`), para o cliente validar uma submissão localmente com o mesmo
+`SubmissionValidator` do servidor. `ValidWord(normalized: String, display: String)` é um DTO novo em
+`protocol`. O valor padrão vazio mantém compatibilidade nos dois sentidos: um servidor antigo nunca
+preenche o campo (o cliente novo cai de volta no comportamento de sempre, sem veredito local) e um
+cliente antigo o ignora (`ignoreUnknownKeys`). Ver a ADR 0014 para o que o cliente faz com esse
+campo e o que continua sendo decisão exclusiva do servidor.
+
 ### `RejectionReason` como tipo de domínio, não só de protocolo
 
 Os motivos de rejeição (`INVALIDA`, `JA_ENCONTRADA`, `CAMINHO_INVALIDO`, `CURTA`) vivem em

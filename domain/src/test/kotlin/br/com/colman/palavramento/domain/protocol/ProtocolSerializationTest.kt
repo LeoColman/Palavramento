@@ -40,7 +40,7 @@ class ProtocolSerializationTest : FunSpec({
     roundTrip(message) shouldBe message
   }
 
-  test("RoundStart round-trips, including reconnection fields") {
+  test("RoundStart round-trips, including reconnection fields and the round's validWords") {
     val message = ServerMessage.RoundStart(
       roundId = "round-1",
       board = sampleBoard(),
@@ -54,11 +54,12 @@ class ProtocolSerializationTest : FunSpec({
       alreadyFound = listOf(FoundWord("limo", 17, listOf(0, 5, 4, 1))),
       runningScore = 17,
       runningWords = 1,
+      validWords = listOf(ValidWord("LIMO", "limo"), ValidWord("LOA", "loâ")),
     )
     roundTrip(message) shouldBe message
   }
 
-  test("RoundStart defaults its reconnection fields to empty/zero, and the wire still carries them") {
+  test("RoundStart defaults its reconnection fields and validWords to empty/zero, and the wire still carries them") {
     val message = ServerMessage.RoundStart(
       roundId = "round-1",
       board = sampleBoard(),
@@ -72,6 +73,7 @@ class ProtocolSerializationTest : FunSpec({
     )
     val json = PalavramentoJson.encodeToString(ServerMessage.serializer(), message)
     json shouldContain "\"runningScore\":0"
+    json shouldContain "\"validWords\":[]"
     roundTrip(message) shouldBe message
   }
 

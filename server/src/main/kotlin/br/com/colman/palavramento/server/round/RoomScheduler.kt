@@ -7,6 +7,8 @@ import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.protocol.LabelledWord
 import br.com.colman.palavramento.domain.protocol.LeaderboardRow
 import br.com.colman.palavramento.domain.protocol.ServerMessage
+import br.com.colman.palavramento.domain.protocol.ValidWord
+import br.com.colman.palavramento.domain.solver.SolvedWord
 import br.com.colman.palavramento.domain.stats.Percentile
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.server.config.ServerConfig
@@ -145,14 +147,19 @@ class RoomScheduler(
       val snapshot = state.playerState(playerId).snapshot()
       val alreadyFound = snapshot.found.map { WireFoundWord(it.display, it.score, it.path) }
       return JoinResult.Started(
-        state.record.toRoundStartMessage(alreadyFound, snapshot.runningScore, snapshot.runningWords)
+        state.record.toRoundStartMessage(
+          state.generated.solution,
+          alreadyFound,
+          snapshot.runningScore,
+          snapshot.runningWords,
+        )
       )
     }
     if (state != null) {
       val now = clock.now()
       if (RoundTiming.canLateJoin(now, state.record.endsAt, config.lateJoinMinRemaining)) {
         state.markParticipant(playerId, maxOf(state.record.startsAt, now))
-        return JoinResult.Started(state.record.toRoundStartMessage())
+        return JoinResult.Started(state.record.toRoundStartMessage(state.generated.solution))
       }
     }
     return JoinResult.Waiting(
@@ -188,7 +195,7 @@ class RoomScheduler(
     }
 
     currentRoundState = state
-    connectionRegistry.broadcastTo(connectedIds, generated.record.toRoundStartMessage())
+    connectionRegistry.broadcastTo(connectedIds, generated.record.toRoundStartMessage(generated.solution))
     return state
   }
 
@@ -232,7 +239,13 @@ class RoomScheduler(
   }
 }
 
+/**
+ * [solution] is required, not defaulted: every caller has a [GeneratedRound] (or a [RoundState],
+ * which carries one) at hand, and ADR 0014 wants `validWords` on every `RoundStart` without a
+ * call site accidentally sending the empty-list fallback meant for old servers only.
+ */
 private fun RoundRecord.toRoundStartMessage(
+  solution: List<SolvedWord>,
   alreadyFound: List<WireFoundWord> = emptyList(),
   runningScore: Int = 0,
   runningWords: Int = 0,
@@ -249,4 +262,5 @@ private fun RoundRecord.toRoundStartMessage(
   alreadyFound = alreadyFound,
   runningScore = runningScore,
   runningWords = runningWords,
+  validWords = solution.map { ValidWord(it.normalized, it.display) },
 )

@@ -47,23 +47,61 @@ object MatchStateReducer {
     foundWords = message.alreadyFound,
     runningScore = message.runningScore,
     runningWords = message.runningWords,
+    validWords = message.validWords,
+    // Rebuilding InRound from scratch here already clears any locally-accepted, unconfirmed word
+    // (ADR 0014): a fresh round has none to carry over, and a reconnect's alreadyFound/runningScore/
+    // runningWords above are already the server's authoritative reply, so nothing was left pending.
   )
 
+  /**
+   * [message.path] in [MatchUiState.InRound.pendingPaths] means this confirms a word
+   * [br.com.colman.palavramento.state.OptimisticSubmission] already applied to [foundWords]/
+   * [runningScore]/[runningWords] locally (ADR 0014): only the running totals (now authoritative)
+   * and [pendingPaths] change, [lastFeedback] is left untouched so the accept flash/sound/haptics
+   * never fire a second time for the same word. Otherwise this is a genuinely new accept (no local
+   * verdict was possible, or a fallback server/client pair), handled exactly as before this feature.
+   */
   private fun onWordAccepted(state: MatchUiState, message: ServerMessage.WordAccepted): MatchUiState =
     if (state is MatchUiState.InRound) {
-      state.copy(
-        foundWords = state.foundWords + FoundWord(message.word, message.score, message.path),
-        runningScore = message.runningScore,
-        runningWords = message.runningWords,
-        lastFeedback = SubmissionFeedback.Accepted(message.word, message.score, message.path),
-      )
+      if (message.path in state.pendingPaths) {
+        state.copy(
+          runningScore = message.runningScore,
+          runningWords = message.runningWords,
+          pendingPaths = state.pendingPaths - setOf(message.path),
+        )
+      } else {
+        state.copy(
+          foundWords = state.foundWords + FoundWord(message.word, message.score, message.path),
+          runningScore = message.runningScore,
+          runningWords = message.runningWords,
+          lastFeedback = SubmissionFeedback.Accepted(message.word, message.score, message.path),
+        )
+      }
     } else {
       state
     }
 
+  /**
+   * [message.path] in [MatchUiState.InRound.pendingPaths] means the server disagreed with a word
+   * this client accepted locally (ADR 0014): rare (the equivalence property test in `:domain` is the
+   * argument it should not happen), so this rolls the optimistic accept back - removes it from
+   * [foundWords], subtracts its score and word count - and shows the rejection like any other one.
+   * Otherwise this is an ordinary rejection, unchanged from before this feature.
+   */
   private fun onWordRejected(state: MatchUiState, message: ServerMessage.WordRejected): MatchUiState =
     if (state is MatchUiState.InRound) {
-      state.copy(lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path))
+      if (message.path in state.pendingPaths) {
+        val rolledBack = state.foundWords.firstOrNull { it.path == message.path }
+        state.copy(
+          foundWords = state.foundWords.filterNot { it.path == message.path },
+          runningScore = state.runningScore - (rolledBack?.score ?: 0),
+          runningWords = state.runningWords - if (rolledBack != null) 1 else 0,
+          pendingPaths = state.pendingPaths - setOf(message.path),
+          lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path),
+        )
+      } else {
+        state.copy(lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path))
+      }
     } else {
       state
     }

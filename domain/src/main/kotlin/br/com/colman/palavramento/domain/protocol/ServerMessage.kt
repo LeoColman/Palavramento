@@ -28,6 +28,14 @@ sealed interface ServerMessage {
    * of a separate resync message) means a reconnecting client and a client joining on time run
    * through the exact same code path; the three fields default to empty/zero for a fresh round.
    * Documented in `docs/adr/0005-protocolo.md`.
+   *
+   * [validWords] is the round's full pre-computed solution (the same set persisted in
+   * `round_words`), added by ADR 0014 so the client can validate a submission locally, with the
+   * exact same [br.com.colman.palavramento.domain.submission.SubmissionValidator] the server uses,
+   * instead of waiting for the round trip. Sent in every `RoundStart` (fresh join, late join,
+   * reconnect). Defaults to empty so an old server (which never sets it) and an old client (which
+   * ignores it, `ignoreUnknownKeys`) stay compatible: an empty list means "no local verdict, wait for
+   * the server", exactly today's behavior.
    */
   @Serializable
   @SerialName("RoundStart")
@@ -44,6 +52,7 @@ sealed interface ServerMessage {
     val alreadyFound: List<FoundWord> = emptyList(),
     val runningScore: Int = 0,
     val runningWords: Int = 0,
+    val validWords: List<ValidWord> = emptyList(),
   ) : ServerMessage
 
   @Serializable
@@ -86,6 +95,16 @@ sealed interface ServerMessage {
 /** A word the player already found before this message was sent, replayed to a reconnecting client. */
 @Serializable
 data class FoundWord(val word: String, val score: Int, val path: List<Int>)
+
+/**
+ * One word of the round's pre-computed solution (ADR 0014), carried by every `RoundStart` so the
+ * client can build a local [br.com.colman.palavramento.domain.lexicon.Lexicon] and validate a
+ * submission with the same rules the server uses. [normalized] is the tile-spelled A-Z form
+ * ([br.com.colman.palavramento.domain.board.Path.spell]'s output), [display] the lexicon's own
+ * accented display form.
+ */
+@Serializable
+data class ValidWord(val normalized: String, val display: String)
 
 /** One row of the full, score-sorted solved word list `RoundEnd` sends (dossier 6.3). */
 @Serializable

@@ -5,13 +5,20 @@ package br.com.colman.palavramento.ui.room
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.colman.palavramento.audio.GameAudio
+import br.com.colman.palavramento.audio.MusicSpeedCurve
+import br.com.colman.palavramento.audio.RoomAudioPolicy
 import br.com.colman.palavramento.clock.ServerClock
 import br.com.colman.palavramento.data.SyncService
 import br.com.colman.palavramento.network.ConnectionStatus
 import br.com.colman.palavramento.network.MultiplayerSession
+import br.com.colman.palavramento.settings.SettingsRepository
 import br.com.colman.palavramento.state.MatchUiState
+import br.com.colman.palavramento.state.SubmissionFeedback
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -28,8 +35,21 @@ import kotlinx.coroutines.launch
  * Task brief 2 (sync policy): every time [state] reaches a new [MatchUiState.PostRound] (a fresh
  * `RoundEnd`, tracked by `roundId` so a `Leaderboard` update on the *same* round does not resync
  * again), [syncService] refreshes the local cache - the same trigger the lobby uses on open.
+ *
+ * Audio task brief: this is also where the background music and sound effects are driven from,
+ * folding every [state] update through [RoomAudioPolicy] (pure logic, see its KDoc) into calls on
+ * [gameAudio] - not [MatchScreen], so the track's lifetime is tied to the room, not to whether the
+ * match screen happens to be composed. [musicEnabled]/[effectsEnabled] gate those calls the same way
+ * [br.com.colman.palavramento.ui.settings.MatchSettingsSheet] gates haptics, and [updateMusicSpeed]
+ * is called from [MatchScreen]'s own countdown tick ([br.com.colman.palavramento.ui.common.rememberRemainingMs]),
+ * reusing that existing ticker instead of a second one here.
  */
-class RoomViewModel(private val session: MultiplayerSession, private val syncService: SyncService) : ViewModel() {
+class RoomViewModel(
+  private val session: MultiplayerSession,
+  private val syncService: SyncService,
+  private val gameAudio: GameAudio,
+  private val settingsRepository: SettingsRepository,
+) : ViewModel() {
 
   val state: StateFlow<MatchUiState> = session.state
   val clock: StateFlow<ServerClock?> = session.clock
@@ -38,8 +58,18 @@ class RoomViewModel(private val session: MultiplayerSession, private val syncSer
   /** Task brief 4 (orchestrator finding): lets [RoomScreen] show an error+retry state, not an infinite spinner. */
   val connectionAttempts: StateFlow<Int> = session.connectionAttempts
 
+  // Eagerly, not WhileSubscribed: these gate audio decisions made inside the state collector below,
+  // not something a composable collects, so they must stay live for the whole view model lifetime.
+  private val musicEnabled = settingsRepository.musicEnabled
+    .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+  private val effectsEnabled = settingsRepository.effectsEnabled
+    .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
   private var runJob: Job? = null
   private var lastSyncedRoundId: String? = null
+  private var musicRoundId: String? = null
+  private var lastPlayedFeedback: SubmissionFeedback? = null
+  private var lastMusicSpeed: Float? = null
 
   init {
     start()
@@ -49,6 +79,8 @@ class RoomViewModel(private val session: MultiplayerSession, private val syncSer
           lastSyncedRoundId = current.roundId
           syncService.sync()
         }
+        handleMusicTransition(current)
+        handleFeedbackSound(current)
       }
     }
   }
@@ -59,13 +91,23 @@ class RoomViewModel(private val session: MultiplayerSession, private val syncSer
     runJob = viewModelScope.launch { session.run() }
   }
 
-  /** Alias for [start], for the app-foreground lifecycle event. */
-  fun resume() = start()
+  /**
+   * Alias for [start], for the app-foreground lifecycle event. Also re-evaluates the music: [pause]
+   * stopped it unconditionally, and the room's [state] can still be the same [MatchUiState.InRound]
+   * as before backgrounding (nothing new has arrived over the socket yet), so nothing would
+   * otherwise fire [handleMusicTransition] again for it.
+   */
+  fun resume() {
+    start()
+    handleMusicTransition(session.state.value)
+  }
 
-  /** Cancels the loop and closes the current connection (task brief 5: app background). */
+  /** Cancels the loop, closes the current connection, and stops the music (task brief: app background). */
   fun pause() {
     runJob?.cancel()
     viewModelScope.launch { session.disconnect() }
+    gameAudio.stopMusic()
+    musicRoundId = null
   }
 
   /** Task brief 4: manual "Tentar novamente" after the first connection keeps failing. */
@@ -78,9 +120,24 @@ class RoomViewModel(private val session: MultiplayerSession, private val syncSer
     viewModelScope.launch { runCatching { session.submitWord(roundId, path, clientTimestampMs) } }
   }
 
+  /**
+   * Feeds the milliseconds left in the round into [MusicSpeedCurve], skipping the call to
+   * [gameAudio] entirely when the resulting speed has not changed since the last tick - most ticks,
+   * outside the ramp window, would otherwise reapply the exact same [android.media.PlaybackParams].
+   * Called from [MatchScreen]'s countdown tick, so it only ever runs while a round is showing.
+   */
+  fun updateMusicSpeed(remainingMs: Long) {
+    val speed = MusicSpeedCurve.speedFor(remainingMs)
+    if (speed == lastMusicSpeed) return
+    lastMusicSpeed = speed
+    gameAudio.updateRemaining(remainingMs)
+  }
+
   fun leaveRoom() {
     session.stop()
     runJob?.cancel()
+    gameAudio.stopMusic()
+    musicRoundId = null
     viewModelScope.launch {
       runCatching { session.leaveRoom() }
       session.disconnect()
@@ -90,5 +147,30 @@ class RoomViewModel(private val session: MultiplayerSession, private val syncSer
   override fun onCleared() {
     session.stop()
     runJob?.cancel()
+    gameAudio.release()
+  }
+
+  private fun handleMusicTransition(state: MatchUiState) {
+    when (val action = RoomAudioPolicy.musicAction(musicRoundId, state)) {
+      is RoomAudioPolicy.MusicAction.Start -> {
+        musicRoundId = action.roundId
+        lastMusicSpeed = null
+        if (musicEnabled.value) gameAudio.startMusic(action.roundId)
+      }
+
+      RoomAudioPolicy.MusicAction.Stop -> {
+        musicRoundId = null
+        gameAudio.stopMusic()
+      }
+
+      RoomAudioPolicy.MusicAction.None -> Unit
+    }
+  }
+
+  private fun handleFeedbackSound(state: MatchUiState) {
+    if (state !is MatchUiState.InRound) return
+    val effect = RoomAudioPolicy.effectAction(lastPlayedFeedback, state) ?: return
+    lastPlayedFeedback = state.lastFeedback
+    if (effectsEnabled.value) gameAudio.play(effect)
   }
 }

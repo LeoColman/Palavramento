@@ -89,6 +89,8 @@
   <!-- Match settings sheet (task brief 3) -->
   <string name="settings_title">Ajustes</string>
   <string name="settings_haptics_label">Vibração ao jogar</string>
+  <string name="settings_music_label">Música</string>
+  <string name="settings_effects_label">Efeitos sonoros</string>
   <string name="settings_about_label">Sobre</string>
 
   <!-- Sobre (task brief 6, LICENSES.md) -->

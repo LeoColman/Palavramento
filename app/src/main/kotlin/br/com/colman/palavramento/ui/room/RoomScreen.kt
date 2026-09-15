@@ -93,6 +93,7 @@ fun RoomScreen(onLeaveRoom: () -> Unit, onOpenAbout: () -> Unit = {}, viewModel:
           onLeaveRoom()
         },
         onOpenAbout = onOpenAbout,
+        onRemainingMsChanged = viewModel::updateMusicSpeed,
       )
 
       is MatchUiState.PostRound -> ResultsAndLeaderboardScreen(current, clock)

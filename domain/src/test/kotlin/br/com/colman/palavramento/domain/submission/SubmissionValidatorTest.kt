@@ -38,26 +38,15 @@ class SubmissionValidatorTest : FunSpec({
     result shouldBe SubmissionResult.Rejected(RejectionReason.InvalidPath)
   }
 
-  test("Rejects a word shorter than the minimum length before checking anything else") {
+  test("Rejects a word shorter than the dossier's minimum of 3 letters, before checking the lexicon") {
     val result = SubmissionValidator.validate(
       board(),
-      Mutator.MinimumLength(4),
-      InMemoryLexicon.of("cat"),
+      Mutator.NoMutator,
+      InMemoryLexicon.of("ca"),
       alreadyFound = emptySet(),
-      path = Path(listOf(0, 1, 2)),
+      path = Path(listOf(0, 1)),
     )
     result shouldBe SubmissionResult.Rejected(RejectionReason.TooShort)
-  }
-
-  test("Rejects a word blocked by a forbidden-letter mutator before checking the lexicon") {
-    val result = SubmissionValidator.validate(
-      board(),
-      Mutator.ForbiddenLetter('A'),
-      InMemoryLexicon.of("cat"),
-      alreadyFound = emptySet(),
-      path = Path(listOf(0, 1, 2)),
-    )
-    result shouldBe SubmissionResult.Rejected(RejectionReason.BlockedByMutator)
   }
 
   test("Rejects a path that does not spell a lexicon word") {

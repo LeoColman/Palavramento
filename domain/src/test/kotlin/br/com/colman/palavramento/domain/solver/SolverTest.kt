@@ -12,10 +12,8 @@ import br.com.colman.palavramento.domain.lexicon.InMemoryLexicon
 import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.lexicon.LexiconEntry
 import br.com.colman.palavramento.domain.lexicon.lookup
-import br.com.colman.palavramento.domain.mutator.Mutator
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.element
@@ -120,40 +118,32 @@ class SolverTest : FunSpec({
     words.map { it.normalized } shouldContain "QUALE"
   }
 
+  test("Finds a word starting with QUE through a QU digraph tile (ADR 0012)") {
+    // Q U / E .. a QU tile adjacent to E, I: spells QUE.
+    val board = Board(2, listOf(Tile("QU", 10), Tile("E", 1), Tile("I", 2), Tile("S", 1)))
+    val lexicon = InMemoryLexicon.of("que")
+    val words = Solver(lexicon).solve(board)
+    words.map { it.normalized } shouldContain "QUE"
+    // Score is the QU tile's own value (10) plus E's (1): the digraph is not looked up letter by
+    // letter, its whole tile value counts once.
+    words.first { it.normalized == "QUE" }.score shouldBe 11
+  }
+
   test("Keeps the best-scoring path when several paths spell the same word") {
-    // Two M's flank a shared LI, each a different value, so MLI... no: use a diamond so both
-    // "AB" paths exist with different tile values feeding the same word.
+    // A 2x2 diamond where two distinct B tiles, each a different value, both sit between the same
+    // pair of A tiles: two distinct paths spell "ABA", one through each B.
     val board = Board(2, listOf(Tile("A", 1), Tile("B", 1), Tile("B", 9), Tile("A", 1)))
-    val lexicon = InMemoryLexicon.of("ab")
-    // MinimumLength(2) so this 2-letter fixture is not filtered by the dossier's default of 3: the
-    // point of this test is dedup/best-path selection, not the minimum length check.
-    val words = Solver(lexicon).solve(board, mutator = Mutator.MinimumLength(2))
-    val ab = words.first { it.normalized == "AB" }
-    // Best path uses the high-value B (index 2, adjacent to index 0) rather than the low-value one.
-    ab.score shouldBe 10
+    val lexicon = InMemoryLexicon.of("aba")
+    val words = Solver(lexicon).solve(board)
+    val aba = words.first { it.normalized == "ABA" }
+    // Best path uses the high-value B (index 2, adjacent to both A's) rather than the low-value one.
+    aba.score shouldBe 11
   }
 
   test("A word is only returned once even though several paths spell it") {
     val board = Board(2, listOf(Tile("A", 1), Tile("B", 1), Tile("B", 9), Tile("A", 1)))
-    val lexicon = InMemoryLexicon.of("ab")
-    Solver(lexicon).solve(board, mutator = Mutator.MinimumLength(2)).count { it.normalized == "AB" } shouldBe 1
-  }
-
-  test("LETRA_PROIBIDA words are excluded from the solution entirely") {
-    val board = Board(2, listOf(Tile("C", 3), Tile("A", 1), Tile("T", 3), Tile("S", 1)))
-    val lexicon = InMemoryLexicon.of("cat", "cats")
-    val words = Solver(lexicon).solve(board, mutator = Mutator.ForbiddenLetter('A'))
-    words.map { it.normalized } shouldNotContain "CAT"
-    words.map { it.normalized } shouldNotContain "CATS"
-  }
-
-  test("TAMANHO_MINIMO raises the minimum length beyond the dossier default of 3") {
-    val board = Board(2, listOf(Tile("C", 3), Tile("A", 1), Tile("T", 3), Tile("S", 1)))
-    val lexicon = InMemoryLexicon.of("cat", "cats")
-    val withDefault = Solver(lexicon).solve(board).map { it.normalized }.toSet()
-    val withMinimum = Solver(lexicon).solve(board, mutator = Mutator.MinimumLength(4)).map { it.normalized }.toSet()
-    withDefault shouldBe setOf("CAT", "CATS")
-    withMinimum shouldBe setOf("CATS")
+    val lexicon = InMemoryLexicon.of("aba")
+    Solver(lexicon).solve(board).count { it.normalized == "ABA" } shouldBe 1
   }
 
   test("A word shorter than 3 letters is never returned, even if the lexicon has it") {

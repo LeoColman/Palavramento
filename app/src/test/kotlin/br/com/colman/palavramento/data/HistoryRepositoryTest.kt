@@ -3,11 +3,13 @@
 
 package br.com.colman.palavramento.data
 
+import android.util.Log
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver.Companion.IN_MEMORY
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.protocol.LabelledWord
+import br.com.colman.palavramento.domain.protocol.PalavramentoJson
 import br.com.colman.palavramento.domain.protocol.RoundHistoryEntry
 import br.com.colman.palavramento.domain.solver.WordTier
 import br.com.colman.palavramento.domain.stats.RoundStats
@@ -17,6 +19,9 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 
@@ -51,11 +56,13 @@ private fun sampleEntry(roundId: String = "round-1", startsAt: Long = 1_000L) = 
 /** [SqlDelightHistoryRepository] against the JVM SQLite driver (task brief: "repository tests on the JVM driver"). */
 class HistoryRepositoryTest : FunSpec({
 
-  fun newRepository(): HistoryRepository {
+  fun newDatabase(): Database {
     val driver = JdbcSqliteDriver(IN_MEMORY)
     Database.Schema.create(driver)
-    return SqlDelightHistoryRepository(Database(driver))
+    return Database(driver)
   }
+
+  fun newRepository(): HistoryRepository = SqlDelightHistoryRepository(newDatabase())
 
   test("rounds is empty before any upsert") {
     runTest {
@@ -137,6 +144,37 @@ class HistoryRepositoryTest : FunSpec({
       repository.clear()
 
       repository.rounds().first().shouldBeEmpty()
+    }
+  }
+
+  // android.util.Log is unmocked on the plain JVM (no Robolectric in this project, see
+  // LobbyViewModelTest): the repository logs a warning when it skips an undecodable cached row, so a
+  // bare Log.w call would throw "not mocked" before that decode-failure path could be exercised.
+  test("A cached round that no longer decodes (ADR 0012: a removed mutator type) is skipped, not crashed on") {
+    mockkStatic(Log::class)
+    every { Log.w(any(), any<String>()) } returns 0
+    try {
+      runTest {
+        val database = newDatabase()
+        val repository = SqlDelightHistoryRepository(database)
+        val goodEntry = sampleEntry(roundId = "good", startsAt = 2_000L)
+        repository.upsertAll(listOf(goodEntry))
+
+        // A payload the server could have written before ADR 0012 removed TAMANHO_MINIMO/LETRA_PROIBIDA:
+        // built by encoding a valid entry and swapping in the legacy discriminator, so this test does
+        // not hand-maintain a full RoundHistoryEntry JSON literal.
+        val legacyJson = PalavramentoJson.encodeToString(
+          RoundHistoryEntry.serializer(),
+          sampleEntry(roundId = "legacy", startsAt = 1_000L).copy(mutator = Mutator.NoMutator),
+        ).replace(""""type":"SEM_MUTADOR"""", """"type":"TAMANHO_MINIMO","length":5""")
+        database.roundHistoryQueries.upsert("legacy", 1_000L, legacyJson)
+
+        repository.rounds().first() shouldBe listOf(goodEntry)
+        repository.round("legacy").first() shouldBe null
+        repository.round("good").first() shouldBe goodEntry
+      }
+    } finally {
+      unmockkStatic(Log::class)
     }
   }
 

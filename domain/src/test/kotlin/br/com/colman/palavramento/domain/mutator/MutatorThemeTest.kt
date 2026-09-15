@@ -11,12 +11,21 @@ class MutatorThemeTest : FunSpec({
     MutatorTheme.title(Mutator.ValuableLetter('L', 10)) shouldBe "L de alto valor"
   }
 
+  test("Digraphs title is fixed regardless of count") {
+    MutatorTheme.title(Mutator.Digraphs(2)) shouldBe "Dígrafos"
+    MutatorTheme.title(Mutator.Digraphs(4)) shouldBe "Dígrafos"
+  }
+
+  test("LetterInCorners title names the letter in upper case") {
+    MutatorTheme.title(Mutator.LetterInCorners('O')) shouldBe "O nos cantos"
+  }
+
   test("Every mutator has a non-blank title") {
     listOf(
       Mutator.NoMutator,
       Mutator.ValuableLetter('L', 10),
-      Mutator.ForbiddenLetter('E'),
-      Mutator.MinimumLength(5),
+      Mutator.Digraphs(3),
+      Mutator.LetterInCorners('O'),
     ).forEach { mutator -> MutatorTheme.title(mutator).isNotBlank() shouldBe true }
   }
 

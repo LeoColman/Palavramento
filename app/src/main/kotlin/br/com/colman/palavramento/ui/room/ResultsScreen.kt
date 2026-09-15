@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.domain.board.Tile
-import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.protocol.LabelledWord
 import br.com.colman.palavramento.domain.solver.WordTier
 import br.com.colman.palavramento.domain.stats.RoundStats
@@ -42,7 +41,6 @@ private val ScoreSlotWidth = 24.dp
 @Composable
 fun ResultsScreen(
   board: List<Tile>,
-  mutator: Mutator,
   stats: RoundStats,
   maxScore: Int,
   maxWords: Int,
@@ -51,7 +49,7 @@ fun ResultsScreen(
   val colors = PalavramentoColors.current
   Column(Modifier.fillMaxSize().background(colors.resultsPrimary).padding(16.dp)) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-      MiniBoard(board, mutator, modifier = Modifier.weight(1f))
+      MiniBoard(board, modifier = Modifier.weight(1f))
       StatsPanel(stats, maxScore, maxWords, modifier = Modifier.weight(2f))
     }
     Row(
@@ -132,7 +130,7 @@ private fun WordColumn(title: String, words: List<LabelledWord>, modifier: Modif
 }
 
 @Composable
-private fun MiniBoard(tiles: List<Tile>, mutator: Mutator, modifier: Modifier = Modifier) {
+private fun MiniBoard(tiles: List<Tile>, modifier: Modifier = Modifier) {
   val colors = PalavramentoColors.current
   val gridSize = sqrt(tiles.size.toDouble()).toInt()
   Column(modifier.aspectRatio(1f)) {
@@ -140,19 +138,23 @@ private fun MiniBoard(tiles: List<Tile>, mutator: Mutator, modifier: Modifier = 
       Row(Modifier.weight(1f).fillMaxWidth()) {
         repeat(gridSize) { col ->
           val tile = tiles[row * gridSize + col]
-          val isForbidden = mutator is Mutator.ForbiddenLetter && mutator.letter in tile.letters
           Box(
             Modifier
               .weight(1f)
               .fillMaxHeight()
               .padding(1.dp)
-              .background(if (isForbidden) colors.tileForbidden else colors.tileBackground, RoundedCornerShape(4.dp)),
+              .background(colors.tileBackground, RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center,
           ) {
-            Text(tile.letters, color = colors.tileText, fontSize = 9.sp)
+            // A digraph tile (ADR 0012, e.g. "QU") gets a smaller font, same reasoning as BoardView.
+            val fontSize = if (tile.letters.length > 1) MiniTileFontSizeMultiLetter else MiniTileFontSize
+            Text(tile.letters, color = colors.tileText, fontSize = fontSize)
           }
         }
       }
     }
   }
 }
+
+private val MiniTileFontSize = 9.sp
+private val MiniTileFontSizeMultiLetter = 6.sp

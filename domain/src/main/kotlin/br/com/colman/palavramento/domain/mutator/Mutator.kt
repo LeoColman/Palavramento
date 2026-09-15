@@ -8,18 +8,21 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * A round-wide rule that changes scoring or the win condition for a grid (dossier 1.5).
+ * A round-wide rule that changes a grid's tiles or scoring (dossier 1.5, ADR 0012).
  *
  * Identifiers are English per project convention; the wire and save-file discriminators are the
- * exact tokens the dossier names ([SEM_MUTADOR], `LETRA_VALIOSA`, `LETRA_PROIBIDA`,
- * `TAMANHO_MINIMO`), carried by [SerialName] rather than by the Kotlin type name.
+ * exact tokens the dossier names ([SEM_MUTADOR], `LETRA_VALIOSA`, `DIGRAFOS`, `LETRA_NOS_CANTOS`),
+ * carried by [SerialName] rather than by the Kotlin type name.
  *
- * `SO_SUBSTANTIVOS` (dossier 1.5) is explicitly out of scope for v1 and has no case here.
+ * `LETRA_PROIBIDA` and `TAMANHO_MINIMO` existed in v1 and were removed by ADR 0012 (product owner
+ * decision, 2026-09-15): every accepted word is at least [DefaultMinimumLength] letters now, with no
+ * mutator override, and no letter ever blocks a word from scoring. `SO_SUBSTANTIVOS` (dossier 1.5) is
+ * explicitly out of scope for v1 and has no case here either.
  */
 @Serializable
 sealed interface Mutator {
 
-  /** The default grid: no letter value override, no forbidden letter, minimum length 3. */
+  /** The default grid: no letter value override, no structural change to the tiles. */
   @Serializable
   @SerialName("SEM_MUTADOR")
   object NoMutator : Mutator
@@ -38,30 +41,37 @@ sealed interface Mutator {
     }
   }
 
-  /** Words containing [letter] are found but never score (dossier: shown greyed out). */
+  /**
+   * The grid contains [count] digraph tiles, drawn from [br.com.colman.palavramento.domain.generator.DigraphTable]
+   * (ADR 0012): a two-letter tile like `QU` or `CH` that the solver consumes in one step (dossier
+   * 1.6). A digraph tile's value is the sum of its letters' base values, not looked up as a unit.
+   */
   @Serializable
-  @SerialName("LETRA_PROIBIDA")
-  data class ForbiddenLetter(val letter: Char) : Mutator {
+  @SerialName("DIGRAFOS")
+  data class Digraphs(val count: Int) : Mutator {
+    init {
+      require(count >= MinCount) { "Digraph count must be at least $MinCount, got $count" }
+    }
+
+    private companion object {
+      const val MinCount = 1
+    }
+  }
+
+  /**
+   * The four corner tiles (indices `0`, `size-1`, `size*(size-1)`, `size*size-1`) are [letter], at
+   * its normal value (ADR 0012), e.g. "O nos cantos".
+   */
+  @Serializable
+  @SerialName("LETRA_NOS_CANTOS")
+  data class LetterInCorners(val letter: Char) : Mutator {
     init {
       require(letter in 'A'..'Z') { "Mutator letter must be normalized A-Z, got '$letter'" }
     }
   }
-
-  /** Minimum word length, in letters, rises from 3 to [length]. */
-  @Serializable
-  @SerialName("TAMANHO_MINIMO")
-  data class MinimumLength(val length: Int) : Mutator {
-    init {
-      require(length >= MinLength) { "Minimum length must be at least $MinLength, got $length" }
-    }
-
-    private companion object {
-      const val MinLength = 1
-    }
-  }
 }
 
-/** Dossier 1.1 default minimum word length, before any [Mutator.MinimumLength] override. */
+/** Dossier 1.1 minimum word length, in letters: always 3, no mutator overrides it (ADR 0012). */
 const val DefaultMinimumLength = 3
 
 /** Points a [tile] is worth under this mutator: [Mutator.ValuableLetter] overrides a single-letter tile. */
@@ -71,9 +81,3 @@ fun Mutator.effectiveValueOf(tile: Tile): Int =
   } else {
     tile.value
   }
-
-/** Minimum accepted word length in letters, honoring a [Mutator.MinimumLength] override. */
-fun Mutator.minimumLength(): Int = if (this is Mutator.MinimumLength) length else DefaultMinimumLength
-
-/** True when a normalized (A-Z) [word] cannot score because it contains a [Mutator.ForbiddenLetter]. */
-fun Mutator.blocks(word: String): Boolean = this is Mutator.ForbiddenLetter && letter in word

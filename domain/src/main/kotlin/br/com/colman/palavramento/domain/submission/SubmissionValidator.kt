@@ -9,10 +9,9 @@ import br.com.colman.palavramento.domain.board.isValidOn
 import br.com.colman.palavramento.domain.board.spell
 import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.lexicon.lookup
+import br.com.colman.palavramento.domain.mutator.DefaultMinimumLength
 import br.com.colman.palavramento.domain.mutator.Mutator
-import br.com.colman.palavramento.domain.mutator.blocks
 import br.com.colman.palavramento.domain.mutator.effectiveValueOf
-import br.com.colman.palavramento.domain.mutator.minimumLength
 
 /**
  * Validates one client submission end to end (dossier 5.2): the server is the only source of
@@ -22,15 +21,15 @@ import br.com.colman.palavramento.domain.mutator.minimumLength
  * relevant single reason:
  * 1. **Path validity** ([RejectionReason.InvalidPath]): in bounds, adjacent steps, no tile reused.
  *    Checked first because every other check needs a real word to look at.
- * 2. **Length** ([RejectionReason.TooShort]): below 3 letters, or the mutator's minimum.
- * 3. **Mutator** ([RejectionReason.BlockedByMutator]): the word contains a forbidden letter.
- * 4. **Lexicon** ([RejectionReason.NotAWord]): the normalized word is not in the dictionary.
- * 5. **Duplicate** ([RejectionReason.AlreadyFound]): checked last, and by normalized word regardless
+ * 2. **Length** ([RejectionReason.TooShort]): below [DefaultMinimumLength] letters (ADR 0012: no
+ *    mutator overrides this any more).
+ * 3. **Lexicon** ([RejectionReason.NotAWord]): the normalized word is not in the dictionary.
+ * 4. **Duplicate** ([RejectionReason.AlreadyFound]): checked last, and by normalized word regardless
  *    of path, so a word already scored some other way cannot score again through a new path.
  */
 object SubmissionValidator {
 
-  // Five guard clauses plus the final Accepted return is the documented check order above: turning
+  // Four guard clauses plus the final Accepted return is the documented check order above: turning
   // this into a single expression would make that order much harder to read, not easier.
   @Suppress("ReturnCount")
   fun validate(
@@ -43,9 +42,7 @@ object SubmissionValidator {
     if (!path.isValidOn(board)) return SubmissionResult.Rejected(RejectionReason.InvalidPath)
 
     val normalized = path.spell(board)
-    if (normalized.length < mutator.minimumLength()) return SubmissionResult.Rejected(RejectionReason.TooShort)
-
-    if (mutator.blocks(normalized)) return SubmissionResult.Rejected(RejectionReason.BlockedByMutator)
+    if (normalized.length < DefaultMinimumLength) return SubmissionResult.Rejected(RejectionReason.TooShort)
 
     val entry = lexicon.lookup(normalized) ?: return SubmissionResult.Rejected(RejectionReason.NotAWord)
 

@@ -55,12 +55,15 @@ aparecem no JSON, mesmo vazios.
 
 ### `RejectionReason` como tipo de domínio, não só de protocolo
 
-Os motivos de rejeição (`INVALIDA`, `JA_ENCONTRADA`, `CAMINHO_INVALIDO`, `CURTA`,
-`BLOQUEADA_POR_MUTADOR`) vivem em `br.com.colman.palavramento.domain.submission.RejectionReason`,
-não em `protocol`: é o mesmo enum que `SubmissionValidator` retorna e que `WordRejected` serializa,
-para que validação e protocolo nunca divirjam. Os tokens de fio exigidos pelo dossiê entram via
-`@SerialName` em cada constante; os identificadores Kotlin (`NotAWord`, `AlreadyFound`,
-`InvalidPath`, `TooShort`, `BlockedByMutator`) seguem a convenção do projeto de nomes em inglês.
+Os motivos de rejeição (`INVALIDA`, `JA_ENCONTRADA`, `CAMINHO_INVALIDO`, `CURTA`) vivem em
+`br.com.colman.palavramento.domain.submission.RejectionReason`, não em `protocol`: é o mesmo enum
+que `SubmissionValidator` retorna e que `WordRejected` serializa, para que validação e protocolo
+nunca divirjam. Os tokens de fio exigidos pelo dossiê entram via `@SerialName` em cada constante; os
+identificadores Kotlin (`NotAWord`, `AlreadyFound`, `InvalidPath`, `TooShort`) seguem a convenção do
+projeto de nomes em inglês.
+**Atualização (ADR 0012, 2026-09-15):** `BLOQUEADA_POR_MUTADOR`/`BlockedByMutator` existia aqui na
+v1 e foi removido junto com o mutador `LETRA_PROIBIDA`; nenhum mutador bloqueia mais uma palavra de
+pontuar.
 
 ### Exclusão do pacote `protocol` do Pitest
 

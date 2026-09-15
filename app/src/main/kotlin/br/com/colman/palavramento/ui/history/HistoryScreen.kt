@@ -151,7 +151,6 @@ private fun HistoryDetailScreen(round: RoundHistoryEntry, onBack: () -> Unit) {
     Box(Modifier.weight(1f)) {
       ResultsScreen(
         board = round.board,
-        mutator = round.mutator,
         stats = round.stats,
         maxScore = round.maxScore,
         maxWords = round.maxWords,

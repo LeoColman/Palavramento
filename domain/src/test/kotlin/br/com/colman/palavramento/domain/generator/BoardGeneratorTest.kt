@@ -10,6 +10,8 @@ import br.com.colman.palavramento.domain.solver.Solver
 import br.com.colman.palavramento.domain.solver.WordTier
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeIn
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 
@@ -101,6 +103,83 @@ class BoardGeneratorTest : FunSpec({
     )
     result.board.tiles.forEach { tile -> tile.value shouldBe if (tile.letters == "C") 10 else 1 }
     result.board.tiles.any { it.letters == "C" } shouldBe true
+  }
+
+  test("cornersOf computes the exact four corner indices for a size, not just their count") {
+    cornersOf(4) shouldBe listOf(0, 3, 12, 15)
+    cornersOf(2) shouldBe listOf(0, 1, 2, 3) // every tile of a 2x2 board is a corner
+    cornersOf(1) shouldBe listOf(0, 0, 0, 0) // degenerate: the single tile is every corner at once
+  }
+
+  test("LetterInCorners puts the letter in all four corners, for any seed") {
+    (1L..15L).forEach { seed ->
+      val result = generator().generate(
+        seed = seed,
+        size = 4,
+        mutator = Mutator.LetterInCorners('O'),
+        commonCutoff = Int.MAX_VALUE,
+        criteria = reachableCriteria(),
+      )
+      cornersOf(4).forEach { corner -> result.board.tiles[corner].letters shouldBe "O" }
+    }
+  }
+
+  test("LetterInCorners gives the corner tiles their normal (non-inflated) value") {
+    val result = generator().generate(
+      seed = 3,
+      size = 4,
+      mutator = Mutator.LetterInCorners('O'),
+      commonCutoff = Int.MAX_VALUE,
+      criteria = reachableCriteria(),
+    )
+    cornersOf(4).forEach { corner -> result.board.tiles[corner].value shouldBe 1 } // uniformValues() = 1
+  }
+
+  test("Digraphs(n) yields exactly n two-letter tiles, all from the digraph table, for any seed") {
+    val digraphLetters = setOf("QU", "NH", "LH", "CH", "RR", "SS", "GU")
+    (1L..15L).forEach { seed ->
+      val result = generator().generate(
+        seed = seed,
+        size = 4,
+        mutator = Mutator.Digraphs(3),
+        commonCutoff = Int.MAX_VALUE,
+        criteria = reachableCriteria(),
+      )
+      val digraphTiles = result.board.tiles.filter { it.letters.length == 2 }
+      digraphTiles shouldHaveSize 3
+      digraphTiles.forEach { it.letters shouldBeIn digraphLetters }
+    }
+  }
+
+  test("A digraph tile's value is the sum of its letters' base values") {
+    val result = generator().generate(
+      seed = 5,
+      size = 4,
+      mutator = Mutator.Digraphs(4),
+      commonCutoff = Int.MAX_VALUE,
+      criteria = reachableCriteria(),
+    )
+    result.board.tiles.filter { it.letters.length == 2 }.forEach { tile ->
+      tile.value shouldBe tile.letters.sumOf { uniformValues().value(it) }
+    }
+  }
+
+  test("Digraphs positions are deterministic by seed, same as the rest of the board") {
+    val result1 = generator().generate(
+      seed = 9,
+      size = 4,
+      mutator = Mutator.Digraphs(3),
+      commonCutoff = Int.MAX_VALUE,
+      criteria = reachableCriteria(),
+    )
+    val result2 = generator().generate(
+      seed = 9,
+      size = 4,
+      mutator = Mutator.Digraphs(3),
+      commonCutoff = Int.MAX_VALUE,
+      criteria = reachableCriteria(),
+    )
+    result1.board shouldBe result2.board
   }
 
   test("Criteria relax when the original ones are not met within maxAttempts") {

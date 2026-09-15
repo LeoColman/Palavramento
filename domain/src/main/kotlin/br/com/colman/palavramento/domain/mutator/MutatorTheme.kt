@@ -14,8 +14,8 @@ object MutatorTheme {
   fun title(mutator: Mutator): String = when (mutator) {
     is Mutator.NoMutator -> "Grade padrão"
     is Mutator.ValuableLetter -> "${mutator.letter} de alto valor"
-    is Mutator.ForbiddenLetter -> "Letra ${mutator.letter} proibida"
-    is Mutator.MinimumLength -> "Mínimo de ${mutator.length} letras"
+    is Mutator.Digraphs -> "Dígrafos"
+    is Mutator.LetterInCorners -> "${mutator.letter} nos cantos"
   }
 
   /**

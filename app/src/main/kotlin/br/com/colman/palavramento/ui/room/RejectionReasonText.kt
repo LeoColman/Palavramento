@@ -14,5 +14,4 @@ fun RejectionReason.messageRes(): Int = when (this) {
   RejectionReason.AlreadyFound -> R.string.match_reason_already_found
   RejectionReason.InvalidPath -> R.string.match_reason_invalid_path
   RejectionReason.TooShort -> R.string.match_reason_too_short
-  RejectionReason.BlockedByMutator -> R.string.match_reason_blocked_by_mutator
 }

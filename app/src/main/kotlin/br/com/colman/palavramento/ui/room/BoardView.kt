@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Rotation
 import br.com.colman.palavramento.domain.board.Tile
@@ -63,9 +64,9 @@ const val BoardTestTag = "board"
 const val TracedWordTestTag = "tracedWord"
 
 /**
- * The 4x4 board (dossier 6.2): square orange tiles, value top-left, letter centered, a
- * [Mutator.ForbiddenLetter] tile shown grey (dossier 1.5), and the continuous drag-to-trace gesture
- * (dossier 6.2, task brief 1): the pointer's first tile is registered right at touch-down (see the
+ * The 4x4 board (dossier 6.2): square orange tiles, value top-left, letter (or digraph, ADR 0012)
+ * centered, and the continuous drag-to-trace gesture (dossier 6.2, task brief 1): the pointer's
+ * first tile is registered right at touch-down (see the
  * `awaitFirstDown`/[drag] gesture below, which skips `detectDragGestures`' touch-slop gate so the
  * first tile is never missed or misplaced); entering a tile's hit radius (40% of the tile size from
  * its center) after that appends it when adjacent to the last tile and unused; re-entering the
@@ -177,7 +178,6 @@ private fun TileGrid(
           BoardTile(
             tile = tile,
             value = mutator.effectiveValueOf(tile),
-            isForbidden = mutator.isForbiddenTile(tile),
             isTraced = logicalIndex in path,
             flashKind = flashState.flash.kindFor(logicalIndex),
             shakeOffsetPx = flashState.shakeOffsetPx,
@@ -283,7 +283,6 @@ private fun SubmissionFeedback.pathOrEmpty(): List<Int> = when (this) {
 private fun BoardTile(
   tile: Tile,
   value: Int,
-  isForbidden: Boolean,
   isTraced: Boolean,
   flashKind: TileFlashKind,
   shakeOffsetPx: Float,
@@ -294,7 +293,6 @@ private fun BoardTile(
     flashKind == TileFlashKind.Accepted -> colors.accepted
     flashKind == TileFlashKind.Rejected -> colors.rejected
     flashKind == TileFlashKind.Duplicate -> colors.duplicate
-    isForbidden -> colors.tileForbidden
     isTraced -> colors.highlight
     else -> colors.tileBackground
   }
@@ -322,12 +320,13 @@ private fun BoardTile(
     Text(
       text = tile.letters,
       color = colors.tileText,
+      // A digraph tile (ADR 0012, e.g. "QU") has twice the characters of a normal tile: a smaller
+      // font keeps both letters clear of the tile's edges instead of crowding or clipping them.
+      fontSize = if (tile.letters.length > 1) TileLetterFontSizeMultiLetter else TileLetterFontSize,
       modifier = Modifier.align(Alignment.Center),
     )
   }
 }
-
-private fun Mutator.isForbiddenTile(tile: Tile): Boolean = this is Mutator.ForbiddenLetter && letter in tile.letters
 
 private const val MinSubmittablePathLength = 2
 private const val MinDrawablePathLength = 2
@@ -341,3 +340,5 @@ private val TileGap = 3.dp
 private val TileCornerRadius = 8.dp
 private val TileValuePadding = PaddingValues(4.dp)
 private val PathStrokeWidth = 6.dp
+private val TileLetterFontSize = 20.sp
+private val TileLetterFontSizeMultiLetter = 14.sp

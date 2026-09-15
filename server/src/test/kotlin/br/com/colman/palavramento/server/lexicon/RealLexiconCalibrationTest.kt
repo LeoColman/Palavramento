@@ -6,7 +6,9 @@ package br.com.colman.palavramento.server.lexicon
 import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.generator.BoardGenerator
+import br.com.colman.palavramento.domain.generator.GenerationResult
 import br.com.colman.palavramento.domain.generator.LetterWeightTable
+import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.scoring.LetterValueTable
 import br.com.colman.palavramento.domain.solver.Solver
 import br.com.colman.palavramento.domain.solver.WordTier
@@ -16,6 +18,7 @@ import io.kotest.matchers.doubles.shouldBeLessThan
 import io.kotest.matchers.shouldBe
 import kotlin.random.Random
 import kotlin.system.measureNanoTime
+import kotlin.system.measureTimeMillis
 
 private const val NanosPerMilli = 1_000_000.0
 
@@ -63,5 +66,56 @@ class RealLexiconCalibrationTest : FunSpec({
       solution.count { it.tier == WordTier.Common }.toDouble() / maxOf(1, solution.size)
     }
     shares.percentile(0.5).shouldBeBetween(0.4, 0.6, 0.0)
+  }
+
+  // ADR 0012: the two new structural mutators overwrite tiles after the normal letter draw, which
+  // could plausibly starve a board of common words (a digraph tile that never participates in any
+  // lexicon word, or four corners locked to one letter). These checks prove that is not the case
+  // with the real lexicon, and report attempts/time per board for the orchestrator.
+  test("Digraphs generation settles on boards that meet the dossier's criteria, with the real lexicon") {
+    val generator = BoardGenerator(Solver(LexiconLoader.load()))
+    var totalAttempts = 0
+    val millis = (1L..10L).map { seed ->
+      lateinit var result: GenerationResult
+      val elapsed = measureTimeMillis {
+        result = generator.generate(seed = seed, mutator = Mutator.Digraphs(3))
+      }
+      totalAttempts += result.attempts
+      val criteria = result.criteriaUsed
+      (result.solution.count { it.tier == WordTier.Common } >= criteria.commonMin) shouldBe true
+      (result.solution.size >= criteria.totalWordsMin) shouldBe true
+      (result.solution.sumOf { it.score } in criteria.maxScoreRange) shouldBe true
+      result.board.tiles.count { it.letters.length == 2 } shouldBe 3
+      elapsed
+    }
+    println(
+      "Digraphs(3): avg ${totalAttempts / 10} attempts/board, " +
+        "avg ${millis.average().toInt()} ms/board, total ${millis.sum()} ms for 10 boards",
+    )
+  }
+
+  test("LetterInCorners generation settles on boards that meet the dossier's criteria, with the real lexicon") {
+    val generator = BoardGenerator(Solver(LexiconLoader.load()))
+    var totalAttempts = 0
+    val millis = (1L..10L).map { seed ->
+      lateinit var result: GenerationResult
+      val elapsed = measureTimeMillis {
+        result = generator.generate(seed = seed, mutator = Mutator.LetterInCorners('O'))
+      }
+      totalAttempts += result.attempts
+      val criteria = result.criteriaUsed
+      (result.solution.count { it.tier == WordTier.Common } >= criteria.commonMin) shouldBe true
+      (result.solution.size >= criteria.totalWordsMin) shouldBe true
+      (result.solution.sumOf { it.score } in criteria.maxScoreRange) shouldBe true
+      val size = result.board.size
+      listOf(0, size - 1, size * (size - 1), size * size - 1).forEach { corner ->
+        result.board.tiles[corner].letters shouldBe "O"
+      }
+      elapsed
+    }
+    println(
+      "LetterInCorners('O'): avg ${totalAttempts / 10} attempts/board, " +
+        "avg ${millis.average().toInt()} ms/board, total ${millis.sum()} ms for 10 boards",
+    )
   }
 })

@@ -93,6 +93,30 @@ class ProtocolSerializationTest : FunSpec({
     }
   }
 
+  test("Every mutator round-trips through JSON, unchanged") {
+    listOf(
+      Mutator.NoMutator,
+      Mutator.ValuableLetter('L', 10),
+      Mutator.Digraphs(3),
+      Mutator.LetterInCorners('O'),
+    ).forEach { mutator ->
+      val json = PalavramentoJson.encodeToString(Mutator.serializer(), mutator)
+      PalavramentoJson.decodeFromString(Mutator.serializer(), json) shouldBe mutator
+    }
+  }
+
+  test("Every mutator carries the dossier's wire token as its type discriminator (ADR 0012)") {
+    val cases = mapOf(
+      "SEM_MUTADOR" to Mutator.NoMutator,
+      "LETRA_VALIOSA" to Mutator.ValuableLetter('L', 10),
+      "DIGRAFOS" to Mutator.Digraphs(3),
+      "LETRA_NOS_CANTOS" to Mutator.LetterInCorners('O'),
+    )
+    cases.forEach { (type, mutator) ->
+      PalavramentoJson.encodeToString(Mutator.serializer(), mutator) shouldContain "\"type\":\"$type\""
+    }
+  }
+
   test("RoundEnd round-trips its labelled word list") {
     val message = ServerMessage.RoundEnd(
       roundId = "round-1",

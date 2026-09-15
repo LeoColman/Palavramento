@@ -88,6 +88,8 @@ Mutadores da v1 (enum fechado, extensível):
 
 A segunda linha ("19 palavras comuns") é a **restrição de geração**: a grade é gerada até conter pelo menos N palavras da faixa "comum". N é parte do descritor da rodada e deve ser exibido literalmente.
 
+**Conjunto de mutadores alterado pela ADR 0012** (decisão do dono do projeto, 2026-09-15): `LETRA_PROIBIDA` e `TAMANHO_MINIMO` foram removidos (o comprimento mínimo volta a ser sempre 3 letras, sem override); dois mutadores novos entraram no lugar, `DIGRAFOS` e `LETRA_NOS_CANTOS`. Ver a ADR para a definição de cada um, a tabela de dígrafos e a migração dos dados antigos.
+
 ### 1.6 Normalização e dígrafos
 - Os tiles contêm letras **sem acento**. Palavras acentuadas do léxico casam com o caminho após remoção de diacríticos: `loâ → LOA`, `moiâ → MOIA`, `ç → C`. A forma **exibida** ao jogador é a forma canônica acentuada do léxico.
 - Se duas formas do léxico colapsam na mesma forma normalizada (`pais`/`país`), elas são **a mesma entrada de pontuação**; exibir a de maior frequência.

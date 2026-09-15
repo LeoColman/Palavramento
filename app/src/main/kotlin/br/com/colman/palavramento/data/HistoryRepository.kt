@@ -3,6 +3,7 @@
 
 package br.com.colman.palavramento.data
 
+import android.util.Log
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.coroutines.mapToOneOrNull
@@ -12,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 
 /** How many rounds the local cache keeps (dossier 7: "as ultimas 50 rodadas"), newest first. */
 const val MaxCachedRounds = 50
@@ -34,10 +36,10 @@ class SqlDelightHistoryRepository(private val database: Database) : HistoryRepos
   private val queries = database.roundHistoryQueries
 
   override fun rounds(): Flow<List<RoundHistoryEntry>> =
-    queries.selectAll().asFlow().mapToList(Dispatchers.IO).map { rows -> rows.map { it.toDomain() } }
+    queries.selectAll().asFlow().mapToList(Dispatchers.IO).map { rows -> rows.mapNotNull { it.toDomainOrNull() } }
 
   override fun round(roundId: String): Flow<RoundHistoryEntry?> =
-    queries.selectById(roundId).asFlow().mapToOneOrNull(Dispatchers.IO).map { it?.toDomain() }
+    queries.selectById(roundId).asFlow().mapToOneOrNull(Dispatchers.IO).map { it?.toDomainOrNull() }
 
   override suspend fun upsertAll(entries: List<RoundHistoryEntry>) = withContext(Dispatchers.IO) {
     queries.transaction {
@@ -58,5 +60,18 @@ class SqlDelightHistoryRepository(private val database: Database) : HistoryRepos
   }
 }
 
-private fun RoundHistory.toDomain(): RoundHistoryEntry =
+private const val Tag = "HistoryRepository"
+
+/**
+ * Decodes [payload], or null with a log line if it fails (ADR 0012: a cache row written before a
+ * mutator type was removed, e.g. a legacy `TAMANHO_MINIMO`/`LETRA_PROIBIDA` round, no longer decodes
+ * under the current `Mutator` sealed interface). Skipping it, rather than crashing the whole
+ * `rounds()`/`round()` flow, means the History screen still shows every other cached round; the next
+ * successful [HistoryRepository.upsertAll] naturally replaces this stale row with a fresh one.
+ */
+private fun RoundHistory.toDomainOrNull(): RoundHistoryEntry? = try {
   PalavramentoJson.decodeFromString(RoundHistoryEntry.serializer(), payload)
+} catch (exception: SerializationException) {
+  Log.w(Tag, "Skipping cached round $roundId that failed to decode: ${exception.message}")
+  null
+}

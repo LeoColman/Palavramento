@@ -79,7 +79,6 @@ fun ResultsAndLeaderboardScreen(postRound: MatchUiState.PostRound, clock: Server
       LeaderboardTabIndex -> postRound.leaderboard?.let { LeaderboardScreen(it) }
       else -> ResultsScreen(
         board = postRound.board,
-        mutator = postRound.mutator,
         stats = postRound.stats,
         maxScore = postRound.maxScore,
         maxWords = postRound.maxWords,

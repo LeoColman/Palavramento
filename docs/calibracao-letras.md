@@ -111,9 +111,10 @@ de Q, o peso ponderado de U (4,690%) já reflete isso; nenhum ajuste especial pa
 aqui; QU/NH/LH/ÃO como tiles de dígrafo (dossiê §1.6) são modelo e geração da fase 2, fora do escopo
 deste documento.
 
-Se um mutador proibir uma letra (`LETRA_PROIBIDA`, dossiê §1.5) ou a grade continuar sem vogal
-suficiente, os pesos remanescentes devem ser renormalizados antes do sorteio; isso é responsabilidade
-do gerador (fase 2), não muda os pesos base aqui.
+Se a grade continuar sem vogal suficiente, os pesos remanescentes devem ser renormalizados antes do
+sorteio; isso é responsabilidade do gerador (fase 2), não muda os pesos base aqui. (O mutador
+`LETRA_PROIBIDA`, citado aqui em versões anteriores deste documento, foi removido pela ADR 0012;
+nenhum mutador atual proíbe uma letra.)
 
 ## Calibração adotada (integração das fases 1 e 2)
 

@@ -46,7 +46,6 @@
   <string name="match_reason_already_found">Já encontrada</string>
   <string name="match_reason_invalid_path">Caminho inválido</string>
   <string name="match_reason_too_short">Palavra muito curta</string>
-  <string name="match_reason_blocked_by_mutator">Bloqueada pelo mutador</string>
 
   <!-- Results (dossie 6.3) -->
   <string name="results_tab_results">Resultados</string>

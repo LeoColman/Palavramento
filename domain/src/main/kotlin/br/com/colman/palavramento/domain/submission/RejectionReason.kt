@@ -10,6 +10,9 @@ import kotlinx.serialization.Serializable
  * Why a [br.com.colman.palavramento.domain.board.Path] submission was rejected (dossier 5.1). The
  * dossier names these exact wire tokens for the `WordRejected` message, carried by [SerialName]
  * rather than by the Kotlin identifier.
+ *
+ * `BLOQUEADA_POR_MUTADOR` existed in v1 and was removed by ADR 0012 (product owner decision,
+ * 2026-09-15) along with the `LETRA_PROIBIDA` mutator: no mutator blocks a word from scoring any more.
  */
 @Serializable
 enum class RejectionReason {
@@ -24,7 +27,4 @@ enum class RejectionReason {
 
   @SerialName("CURTA")
   TooShort,
-
-  @SerialName("BLOQUEADA_POR_MUTADOR")
-  BlockedByMutator,
 }

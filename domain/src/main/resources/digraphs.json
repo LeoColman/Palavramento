@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "entries": [
+    { "letters": "QU", "weight": 18.0 },
+    { "letters": "CH", "weight": 16.0 },
+    { "letters": "SS", "weight": 15.0 },
+    { "letters": "RR", "weight": 13.0 },
+    { "letters": "NH", "weight": 11.0 },
+    { "letters": "GU", "weight": 9.0 },
+    { "letters": "LH", "weight": 8.0 }
+  ]
+}

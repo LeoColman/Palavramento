@@ -20,9 +20,15 @@ data class RoundDescriptor(val mutator: Mutator, val commonMin: Int)
  */
 object RoundDescriptorPicker {
   private val commonMinOptions = listOf(10, 15, 20, 25)
-  private val minimumLengthOptions = listOf(4, 5, 6)
   private val valuableLetterValues = listOf(8, 10, 12)
   private val candidateLetters = "AEIOURSTNLMD".toList()
+
+  /** Pool for [Mutator.LetterInCorners] (ADR 0012): dossier example is "O nos cantos". */
+  private val cornerLetters = "AEIOSR".toList()
+
+  /** [Mutator.Digraphs] draws between 2 and 4 digraph tiles (ADR 0012), inclusive. */
+  private const val MinDigraphCount = 2
+  private const val MaxDigraphCountExclusive = 5
 
   /** Number of equally likely mutator outcomes, one of which is [Mutator.NoMutator]. */
   private const val MutatorOutcomeCount = 4
@@ -32,8 +38,8 @@ object RoundDescriptorPicker {
     val mutator = when (random.nextInt(MutatorOutcomeCount)) {
       0 -> Mutator.NoMutator
       1 -> Mutator.ValuableLetter(candidateLetters.random(random), valuableLetterValues.random(random))
-      2 -> Mutator.ForbiddenLetter(candidateLetters.random(random))
-      else -> Mutator.MinimumLength(minimumLengthOptions.random(random))
+      2 -> Mutator.Digraphs(random.nextInt(MinDigraphCount, MaxDigraphCountExclusive))
+      else -> Mutator.LetterInCorners(cornerLetters.random(random))
     }
     val commonMin = commonMinOptions.random(random)
     return RoundDescriptor(mutator, commonMin)

@@ -72,6 +72,7 @@ Derivados da frequência em pt-BR. Tabela base proposta; deve ser um recurso de 
 ### 1.4 Rodada e cadência
 - Duração da rodada: **120 segundos**, cronômetro regressivo.
 - Intervalo entre rodadas: **60 segundos** ("Próxima partida em 00:43"), durante o qual a tela de Resultados/Placar fica visível.
+  **Alterado para 25 segundos** (decisão do dono do produto, 2026-09-15): padrão de `INTERMISSION_DURATION_SECONDS` no servidor.
 - A cadência é **global por sala**: todos os jogadores da mesma sala jogam a mesma grade, começando e terminando no mesmo instante (relógio do servidor).
 - Entrar no meio de uma rodada: o jogador aguarda na tela de resultados/espera e entra na próxima. Não há entrada tardia.
   **Regra alterada pela ADR 0010** (decisão do dono do produto, 2026-09-15): entrada tardia passou a ser permitida, com exceção de pouco tempo restante.

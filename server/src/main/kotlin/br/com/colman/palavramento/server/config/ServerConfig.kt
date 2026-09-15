@@ -35,7 +35,8 @@ data class ServerConfig(
   val accessTokenTtl: Duration = 15.minutes,
   val refreshTokenTtl: Duration = 30.days,
   val roundDuration: Duration = 120.seconds,
-  val intermissionDuration: Duration = 60.seconds,
+  // 25 s, not the dossier's 60 s (§1.4): the owner shortened the results break on 2026-09-15.
+  val intermissionDuration: Duration = 25.seconds,
   val lateSubmissionTolerance: Duration = 500.milliseconds,
   val submitRateLimitPerSecond: Int = DefaultRateLimit,
   val commonCutoff: Int = Solver.DefaultCommonCutoff,

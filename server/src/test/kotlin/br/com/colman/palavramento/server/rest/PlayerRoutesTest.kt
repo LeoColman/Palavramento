@@ -40,7 +40,7 @@ import io.ktor.server.testing.testApplication
 class PlayerRoutesTest : FunSpec({
   val database = testDatabase()
 
-  test("players/me returns the guest's profile with level 0 and zero XP") {
+  test("players/me returns the guest's profile at level 1 with zero XP and a 100 XP target") {
     val roomId = testRoomId()
     testApplication {
       application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
@@ -56,8 +56,12 @@ class PlayerRoutesTest : FunSpec({
 
       profile.playerId shouldBe guest.playerId
       profile.isGuest shouldBe true
-      profile.level shouldBe 0
+      // Dossier 9's curve is 0-indexed math (xpForLevel(0) == 0); the lobby header (dossier 6.1)
+      // shows a 1-indexed level, so a fresh player is "Nivel 1" with 100 XP to the next one, not
+      // "Nivel 0" (see the comment in PlayerRoutes.kt and ADR 0009).
+      profile.level shouldBe 1
       profile.totalXp shouldBe 0L
+      profile.xpForNextLevel shouldBe 100L
     }
   }
 

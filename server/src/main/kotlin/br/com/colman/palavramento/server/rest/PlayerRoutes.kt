@@ -43,8 +43,13 @@ fun Route.playerRoutes(
       val token = call.principal<JWTPrincipal>()!!.toVerifiedAccessToken()
       val player = playerRepository.findById(token.playerId) ?: return@get call.respond(HttpStatusCode.NotFound)
       val totalXp = if (player.isGuest) 0L else playerStatsRepository.get(player.id)?.totalXp ?: 0L
-      val level = LevelCurve.levelForXp(totalXp.coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
-      val xpForNextLevel = LevelCurve.xpForLevel(level + 1).toLong()
+      // LevelCurve itself is 0-indexed (levelForXp(0) == 0, dossier 9's xp_para_nivel(n) = 100 * n^1.5
+      // is the XP needed to cross threshold n): a brand new player has crossed zero thresholds. The
+      // lobby header (dossier 6.1) instead displays a 1-indexed level, like most games ("Nivel 1", not
+      // "Nivel 0", at 0 XP), so the threshold count is shifted by one only here, at the REST boundary.
+      val thresholdsCrossed = LevelCurve.levelForXp(totalXp.coerceIn(0, Int.MAX_VALUE.toLong()).toInt())
+      val level = thresholdsCrossed + 1
+      val xpForNextLevel = LevelCurve.xpForLevel(level).toLong()
       call.respond(PlayerProfile(player.id, player.displayName, player.isGuest, level, totalXp, xpForNextLevel))
     }
 

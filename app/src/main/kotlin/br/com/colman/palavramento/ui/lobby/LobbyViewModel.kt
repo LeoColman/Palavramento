@@ -3,49 +3,84 @@
 
 package br.com.colman.palavramento.ui.lobby
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import br.com.colman.palavramento.data.TokenRepository
+import br.com.colman.palavramento.data.AuthController
+import br.com.colman.palavramento.data.ProfileRepository
+import br.com.colman.palavramento.data.SyncService
 import br.com.colman.palavramento.domain.protocol.LifetimeStats
 import br.com.colman.palavramento.domain.protocol.PlayerProfile
-import br.com.colman.palavramento.network.RestApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * Bootstraps a guest identity on first launch (`POST /auth/guest`, dossier 8) and loads the lobby
- * header/stats (dossier 6.1). Login/promotion is phase 5 (task brief); [onLoginClicked] is a stub
- * on purpose.
+ * Bootstraps a guest identity on first launch (`POST /auth/guest`, dossier 8), then syncs the local
+ * cache (dossier 7, task brief 2) and exposes it for the lobby header/stats panel (dossier 6.1). The
+ * cache, not the last network response, is what [uiState] shows: [profileRepository] keeps emitting
+ * whatever it last had even when a [refresh] fails, which is what makes the lobby (and, through the
+ * same cache, the history screen) work with the network off.
  */
-class LobbyViewModel(private val restApi: RestApi, private val tokenRepository: TokenRepository) : ViewModel() {
+class LobbyViewModel(
+  private val authController: AuthController,
+  private val syncService: SyncService,
+  profileRepository: ProfileRepository,
+) : ViewModel() {
 
   private val mutableUiState = MutableStateFlow(LobbyUiState())
   val uiState: StateFlow<LobbyUiState> = mutableUiState
 
   init {
-    viewModelScope.launch { bootstrap() }
-  }
-
-  private suspend fun bootstrap() {
-    val existing = tokenRepository.tokens.first()
-    // A failed guestAuth() (no connectivity on first launch) must not crash viewModelScope: fall
-    // back to an empty, still-guest lobby instead of an uncaught exception.
-    val tokens = existing ?: runCatching { restApi.guestAuth() }.getOrNull()?.also { tokenRepository.save(it) }
-    if (tokens == null) {
-      mutableUiState.value = mutableUiState.value.copy(isLoading = false)
-      return
+    viewModelScope.launch {
+      profileRepository.profile().collect { p ->
+        mutableUiState.update {
+          it.copy(
+            profile = p
+          )
+        }
+      }
     }
-
-    mutableUiState.value = mutableUiState.value.copy(isGuest = tokens.isGuest, isLoading = true)
-    val profile = runCatching { restApi.playerProfile(tokens.accessToken) }.getOrNull()
-    val stats = runCatching { restApi.lifetimeStats(tokens.accessToken) }.getOrNull()
-    mutableUiState.value = mutableUiState.value.copy(profile = profile, stats = stats, isLoading = false)
+    viewModelScope.launch { profileRepository.stats().collect { s -> mutableUiState.update { it.copy(stats = s) } } }
+    refresh()
   }
 
-  /** Stub: guest promotion / email login is phase 5 (task brief). Intentionally a no-op for now. */
-  fun onLoginClicked() = Unit
+  /**
+   * (Re)runs guest bootstrap + cache sync (task brief 2: "after each RoundEnd and when the lobby
+   * opens"; [br.com.colman.palavramento.ui.lobby.LobbyScreen] also calls this on `ON_RESUME`, which
+   * covers returning from Login/History). A failure never clears [uiState]'s already-cached
+   * profile/stats - it only raises [LobbyUiState.loadError] so the screen can offer a retry, per the
+   * orchestrator's end-to-end finding that a silent failure here left "Jogar" spinning forever with
+   * no explanation.
+   */
+  fun refresh() {
+    viewModelScope.launch {
+      mutableUiState.update { it.copy(isLoading = true, loadError = false) }
+      val tokens = authController.bootstrap()
+      if (tokens == null) {
+        Log.w(Tag, "Guest bootstrap failed: no connectivity or the server is unreachable")
+        mutableUiState.update { it.copy(isLoading = false, loadError = true) }
+        return@launch
+      }
+      mutableUiState.update { it.copy(isGuest = tokens.isGuest) }
+      val synced = syncService.sync()
+      if (!synced) Log.w(Tag, "Lobby cache sync failed; showing the last cached data, if any")
+      mutableUiState.update { it.copy(isLoading = false, loadError = !synced) }
+    }
+  }
+
+  /** Task brief 4: "Logout returns to a fresh guest". */
+  fun onLogoutClicked() {
+    viewModelScope.launch {
+      authController.logout()
+      refresh()
+    }
+  }
+
+  private companion object {
+    const val Tag = "LobbyViewModel"
+  }
 }
 
 data class LobbyUiState(
@@ -53,4 +88,5 @@ data class LobbyUiState(
   val isGuest: Boolean = true,
   val profile: PlayerProfile? = null,
   val stats: LifetimeStats? = null,
+  val loadError: Boolean = false,
 )

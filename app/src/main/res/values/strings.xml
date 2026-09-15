@@ -20,9 +20,13 @@
   <string name="lobby_stat_empty">-</string>
   <string name="lobby_guest_invite">Entre para salvar suas estatísticas</string>
   <string name="lobby_login_button">Entrar</string>
+  <string name="lobby_logout_button">Sair</string>
+  <string name="lobby_history_button">Histórico</string>
   <string name="lobby_language_label">Idioma</string>
   <string name="lobby_language_value" translatable="false">Português</string>
   <string name="lobby_play_button">Jogar</string>
+  <string name="lobby_load_error">Não foi possível carregar seus dados. Verifique sua conexão.</string>
+  <string name="lobby_retry_button">Tentar novamente</string>
 
   <!-- Waiting (dossie 6.1, entre rodadas) -->
   <string name="waiting_next_round_format">Próxima partida em %1$s</string>
@@ -61,7 +65,9 @@
 
   <!-- Leaderboard (dossie 6.4) -->
   <string name="leaderboard_rank_format">%1$dº</string>
-  <string name="leaderboard_percentile_format">Top %1$d%%</string>
+  <!-- Percentil = (N - rank) / (N - 1) * 100 (dossie 6.4): a share of players beaten, not a rank
+       bucket, so the room's winner reads "Percentil 100", not "Top 100%" (orchestrator finding). -->
+  <string name="leaderboard_percentile_format">Percentil %1$d</string>
   <string name="leaderboard_top_players_title">Jogadores Top</string>
   <plurals name="leaderboard_words_short">
     <item quantity="one">%1$d palavra</item>
@@ -72,6 +78,10 @@
 
   <!-- Unstable network (task brief 5) -->
   <string name="room_reconnecting">Reconectando...</string>
+
+  <!-- Connection error + retry (task brief 4, orchestrator finding: no infinite silent spinner) -->
+  <string name="room_connection_error">Não foi possível conectar ao servidor. Verifique sua internet.</string>
+  <string name="room_retry_button">Tentar novamente</string>
 
   <!-- Shared "Próxima partida em MM:SS" label, next to the flip countdown (dossie 6.1/6.3, task brief 4) -->
   <string name="next_round_label">Próxima partida em</string>
@@ -96,4 +106,29 @@
   <string name="about_frequency_title">Lista de frequência</string>
   <string name="about_frequency_body">Lista de frequência pt_BR de FrequencyWords, por Hermit Dave, CC BY-SA 4.0,
     derivada do corpus OpenSubtitles2018 (OPUS).</string>
+
+  <!-- Historico (dossie 7, task brief deliverable 3) -->
+  <string name="history_title">Histórico</string>
+  <string name="history_back_content_description">Voltar</string>
+  <string name="history_empty">Nenhuma partida encontrada ainda.</string>
+  <string name="history_rank_format">%1$dº de %2$d</string>
+
+  <!-- Login/Registro (dossie 8, task brief deliverable 4) -->
+  <string name="auth_title_login">Entrar</string>
+  <string name="auth_title_register">Cadastrar</string>
+  <string name="auth_back_content_description">Voltar</string>
+  <string name="auth_email_label">E-mail</string>
+  <string name="auth_password_label">Senha</string>
+  <string name="auth_display_name_label">Nome de exibição</string>
+  <string name="auth_submit_login">Entrar</string>
+  <string name="auth_submit_register">Cadastrar</string>
+  <string name="auth_switch_to_register">Não tem conta? Cadastre-se</string>
+  <string name="auth_switch_to_login">Já tem conta? Entrar</string>
+  <string name="auth_error_invalid_email">Informe um e-mail válido</string>
+  <string name="auth_error_short_password">A senha deve ter pelo menos 8 caracteres</string>
+  <string name="auth_error_blank_display_name">Informe um nome de exibição</string>
+  <string name="auth_error_email_taken">Este e-mail já está cadastrado</string>
+  <string name="auth_error_invalid_credentials">E-mail ou senha inválidos</string>
+  <string name="auth_error_guest_session_not_found">Sessão de convidado não encontrada. Tente novamente.</string>
+  <string name="auth_error_network">Não foi possível conectar ao servidor</string>
 </resources>

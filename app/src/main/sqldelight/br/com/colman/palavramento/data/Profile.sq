@@ -1,0 +1,25 @@
+-- Cached PlayerProfile (dossier 6.1/7): a single row, always id 0, for whichever player the device
+-- is currently signed in as (guest or registered). Overwritten wholesale on every sync, never
+-- merged field by field, because the server is the only source of truth (ADR 0009).
+-- isGuest is a plain 0/1 INTEGER, not "AS Boolean": that mapping needs a ColumnAdapter wired into
+-- every Database(...) call site (production and every JVM test), which is more ceremony than one
+-- `!= 0L` conversion in the repository is worth for a single column (ADR 0009).
+CREATE TABLE Profile(
+  id INTEGER NOT NULL PRIMARY KEY,
+  playerId TEXT NOT NULL,
+  displayName TEXT NOT NULL,
+  isGuest INTEGER NOT NULL,
+  level INTEGER NOT NULL,
+  totalXp INTEGER NOT NULL,
+  xpForNextLevel INTEGER NOT NULL
+);
+
+upsert:
+INSERT OR REPLACE INTO Profile(id, playerId, displayName, isGuest, level, totalXp, xpForNextLevel)
+VALUES (0, ?, ?, ?, ?, ?, ?);
+
+selectProfile:
+SELECT * FROM Profile WHERE id = 0;
+
+clear:
+DELETE FROM Profile;

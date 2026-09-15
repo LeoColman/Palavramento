@@ -8,9 +8,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,6 +39,16 @@ import org.koin.androidx.compose.koinViewModel
 /** Semantics test tag for the "Reconectando..." banner, used by instrumented tests. */
 const val ReconnectingBannerTestTag = "reconnectingBanner"
 
+/** Test tag for the connection-error retry button, used by instrumented tests. */
+const val ConnectionErrorRetryButtonTestTag = "connectionErrorRetryButton"
+
+/**
+ * Consecutive failed first-connection attempts (task brief 4, orchestrator finding) before
+ * [ConnectingIndicator] gives way to [ConnectionErrorScreen]: a couple of quick retries are normal
+ * even on a healthy network (a cold TLS handshake, a server mid-deploy), so this is not 1.
+ */
+private const val ConnectionErrorThreshold = 3
+
 /**
  * Room screen (task brief flow: Lobby -> (Waiting) -> Match -> Results/Leaderboard -> next round
  * automatically -> ...). One route hosts every room sub-screen because they share one
@@ -52,6 +66,7 @@ fun RoomScreen(onLeaveRoom: () -> Unit, onOpenAbout: () -> Unit = {}, viewModel:
   val state by viewModel.state.collectAsState()
   val clock by viewModel.clock.collectAsState()
   val connectionStatus by viewModel.connectionStatus.collectAsState()
+  val connectionAttempts by viewModel.connectionAttempts.collectAsState()
 
   PauseAndResumeOnLifecycle(viewModel)
 
@@ -62,7 +77,12 @@ fun RoomScreen(onLeaveRoom: () -> Unit, onOpenAbout: () -> Unit = {}, viewModel:
 
   Box(Modifier.fillMaxSize()) {
     when (val current = state) {
-      is MatchUiState.Disconnected -> ConnectingIndicator()
+      is MatchUiState.Disconnected -> if (connectionAttempts >= ConnectionErrorThreshold) {
+        ConnectionErrorScreen(onRetry = viewModel::retryConnection)
+      } else {
+        ConnectingIndicator()
+      }
+
       is MatchUiState.Lobby -> WaitingScreen(current.nextRoundStartsAt, current.playersWaiting, clock)
       is MatchUiState.InRound -> MatchScreen(
         round = current,
@@ -120,17 +140,38 @@ private fun ReconnectingBanner(modifier: Modifier = Modifier) {
     textAlign = TextAlign.Center,
     modifier = modifier
       .testTag(ReconnectingBannerTestTag)
+      .windowInsetsPadding(WindowInsets.safeDrawing)
       .fillMaxWidth()
       .background(colors.rejected)
       .padding(8.dp),
   )
 }
 
+/**
+ * Shown instead of [ConnectingIndicator] once the very first connection has failed
+ * [ConnectionErrorThreshold] times in a row (task brief 4, orchestrator finding: no more infinite
+ * silent spinner when the server is unreachable or no access token could be obtained at all).
+ */
+@Composable
+private fun ConnectionErrorScreen(onRetry: () -> Unit) {
+  val colors = PalavramentoColors.current
+  Column(
+    Modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center,
+  ) {
+    Text(stringResource(R.string.room_connection_error), color = colors.textPrimary, textAlign = TextAlign.Center)
+    Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp).testTag(ConnectionErrorRetryButtonTestTag)) {
+      Text(stringResource(R.string.room_retry_button))
+    }
+  }
+}
+
 @Composable
 private fun ConnectingIndicator() {
   val colors = PalavramentoColors.current
   Column(
-    Modifier.fillMaxSize().background(colors.background),
+    Modifier.fillMaxSize().background(colors.background).windowInsetsPadding(WindowInsets.safeDrawing),
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
   ) {

@@ -1,0 +1,30 @@
+-- Cached LifetimeStats (dossier 6.1/7): a single row, always id 0. Never populated for a guest
+-- (the server itself answers 403 for a guest's /players/me/stats, ADR 0007), so a guest simply
+-- never has a row here; the lobby stats panel treats a missing row the same as "no data yet".
+CREATE TABLE LifetimeStatsCache(
+  id INTEGER NOT NULL PRIMARY KEY,
+  totalScore INTEGER NOT NULL,
+  totalWords INTEGER NOT NULL,
+  bestGameScore INTEGER NOT NULL,
+  bestWord TEXT,
+  bestWordScore INTEGER NOT NULL,
+  gamesCompleted INTEGER NOT NULL,
+  gamesPlayed INTEGER NOT NULL,
+  averageScore REAL NOT NULL,
+  averageWords REAL NOT NULL,
+  averagePointsPerWord REAL NOT NULL,
+  bestRank INTEGER
+);
+
+upsert:
+INSERT OR REPLACE INTO LifetimeStatsCache(
+  id, totalScore, totalWords, bestGameScore, bestWord, bestWordScore, gamesCompleted, gamesPlayed,
+  averageScore, averageWords, averagePointsPerWord, bestRank
+)
+VALUES (0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+selectStats:
+SELECT * FROM LifetimeStatsCache WHERE id = 0;
+
+clear:
+DELETE FROM LifetimeStatsCache;

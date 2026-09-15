@@ -10,4 +10,10 @@ object Routes {
 
   /** "Sobre" (task brief 6), reachable from the match settings sheet. */
   const val About = "about"
+
+  /** Login/registro (dossier 8, task brief 4), reachable from the lobby's "Entrar" button. */
+  const val Login = "login"
+
+  /** Historico local (dossier 7, task brief 3), reachable from the lobby. */
+  const val History = "history"
 }

@@ -1,0 +1,29 @@
+-- Cached RoundHistoryEntry rows (dossier 7: "historico das ultimas 50 rodadas com a grade e as
+-- palavras"). [payload] is the whole RoundHistoryEntry, kotlinx.serialization JSON encoded
+-- (ADR 0009): the entry nests Board/Mutator/RoundStats/LabelledWord, all already @Serializable for
+-- the wire protocol, so decomposing them into their own columns would only duplicate that shape for
+-- no query benefit here. [roundId]/[startsAt] are pulled out as real columns because they are what
+-- upsert-by-id and newest-first ordering/trimming actually need.
+CREATE TABLE RoundHistory(
+  roundId TEXT NOT NULL PRIMARY KEY,
+  startsAt INTEGER NOT NULL,
+  payload TEXT NOT NULL
+);
+
+upsert:
+INSERT OR REPLACE INTO RoundHistory(roundId, startsAt, payload) VALUES (?, ?, ?);
+
+selectAll:
+SELECT * FROM RoundHistory ORDER BY startsAt DESC;
+
+selectById:
+SELECT * FROM RoundHistory WHERE roundId = ?;
+
+-- Keeps only the :keep newest rows by startsAt (dossier 7: "cache... das ultimas 50 rodadas").
+trimToNewest:
+DELETE FROM RoundHistory WHERE roundId NOT IN (
+  SELECT roundId FROM RoundHistory ORDER BY startsAt DESC LIMIT :keep
+);
+
+clear:
+DELETE FROM RoundHistory;

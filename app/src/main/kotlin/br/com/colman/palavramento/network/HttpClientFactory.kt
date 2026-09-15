@@ -18,6 +18,11 @@ import io.ktor.serialization.kotlinx.json.json
 object HttpClientFactory {
 
   fun create(): HttpClient = HttpClient(OkHttp) {
+    // Explicit rather than relying on Ktor's own default (task brief 4): a non-2xx REST response
+    // throws ClientRequestException/ServerResponseException, which is what lets
+    // br.com.colman.palavramento.data.AuthController tell a rejected token/credentials apart from a
+    // network failure by inspecting the response status.
+    expectSuccess = true
     install(WebSockets)
     install(ContentNegotiation) {
       json(PalavramentoJson)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,7 +43,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Rotation
 import br.com.colman.palavramento.domain.board.Tile
@@ -299,7 +299,7 @@ private fun BoardTile(
   val scale by animateFloatAsState(if (isTraced) TracedScale else 1f, tween(scaleDurationMs), label = "tileScale")
   val shakeX = if (flashKind == TileFlashKind.Rejected) shakeOffsetPx else 0f
 
-  Box(
+  BoxWithConstraints(
     modifier
       .padding(TileGap)
       .graphicsLayer {
@@ -309,17 +309,23 @@ private fun BoardTile(
       }
       .background(background, RoundedCornerShape(TileCornerRadius)),
   ) {
+    // Text sizes follow the tile's own height instead of fixed sp: letters fill a big tile on any
+    // screen, and a large system font scale cannot push them past the tile's edges. A digraph tile
+    // (ADR 0012, e.g. "QU") has two characters, so it gets a smaller fraction to keep both clear.
+    val density = LocalDensity.current
+    val letterFraction = if (tile.letters.length > 1) MultiLetterHeightFraction else LetterHeightFraction
+    val letterSize = with(density) { (maxHeight * letterFraction).toSp() }
+    val valueSize = with(density) { (maxHeight * ValueHeightFraction).toSp() }
     Text(
       text = value.toString(),
       color = colors.tileValueText,
+      fontSize = valueSize,
       modifier = Modifier.align(Alignment.TopStart).padding(TileValuePadding),
     )
     Text(
       text = tile.letters,
       color = colors.tileText,
-      // A digraph tile (ADR 0012, e.g. "QU") has twice the characters of a normal tile: a smaller
-      // font keeps both letters clear of the tile's edges instead of crowding or clipping them.
-      fontSize = if (tile.letters.length > 1) TileLetterFontSizeMultiLetter else TileLetterFontSize,
+      fontSize = letterSize,
       modifier = Modifier.align(Alignment.Center),
     )
   }
@@ -337,5 +343,6 @@ private val TileGap = 3.dp
 private val TileCornerRadius = 8.dp
 private val TileValuePadding = PaddingValues(4.dp)
 private val PathStrokeWidth = 6.dp
-private val TileLetterFontSize = 20.sp
-private val TileLetterFontSizeMultiLetter = 14.sp
+private const val LetterHeightFraction = 0.4f
+private const val MultiLetterHeightFraction = 0.3f
+private const val ValueHeightFraction = 0.19f

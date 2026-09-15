@@ -85,8 +85,9 @@ private suspend fun buildHistoryEntry(
   val submissions = submissionRepository.findByRoundAndPlayer(result.roundId, result.playerId)
   val accepted = submissions.map { AcceptedWord(it.score, it.normalized.length, it.acceptedAt.toEpochMilli()) }
   // xp is overwritten with the value actually awarded (round_results.xp), so it never drifts from a
-  // reconfigured XpFormula default computed here after the fact.
-  val stats = RoundStatsCalculator.compute(record.startsAt.toEpochMilli(), accepted).copy(xp = result.xp)
+  // reconfigured XpFormula default computed here after the fact. secondsPerWord uses this player's
+  // own entry time (ADR 0010: late join), not the round's own startsAt.
+  val stats = RoundStatsCalculator.compute(result.enteredAt.toEpochMilli(), accepted).copy(xp = result.xp)
   val foundSet = submissions.map { it.normalized }.toSet()
   val words = roundRepository.loadSolution(result.roundId)
     .map { solved ->

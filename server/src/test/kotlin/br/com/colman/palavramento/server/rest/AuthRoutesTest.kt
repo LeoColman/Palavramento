@@ -36,6 +36,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import java.time.Instant
 
 private const val Password = "correct horse battery staple"
 
@@ -118,7 +119,7 @@ class AuthRoutesTest : FunSpec({
       playerRepository.transaction {
         roundResultRepository.insert(
           this,
-          RoundResultRow(round, guest.playerId, score = 42, words = 3, rank = 1, xp = 8)
+          RoundResultRow(round, guest.playerId, score = 42, words = 3, rank = 1, xp = 8, enteredAt = Instant.now())
         )
       }
 
@@ -187,19 +188,28 @@ class AuthRoutesTest : FunSpec({
       playerRepository.transaction {
         roundResultRepository.insert(
           this,
-          RoundResultRow(sharedRound, targetId, score = 100, words = 5, rank = 1, xp = 20)
+          RoundResultRow(sharedRound, targetId, score = 100, words = 5, rank = 1, xp = 20, enteredAt = Instant.now())
         )
       }
 
       val guest = client.guest("MigratingGuest")
+      val enteredAt = Instant.now()
       playerRepository.transaction {
         roundResultRepository.insert(
           this,
-          RoundResultRow(sharedRound, guest.playerId, score = 50, words = 2, rank = 2, xp = 10)
+          RoundResultRow(sharedRound, guest.playerId, score = 50, words = 2, rank = 2, xp = 10, enteredAt = enteredAt)
         )
         roundResultRepository.insert(
           this,
-          RoundResultRow(guestOnlyRound, guest.playerId, score = 70, words = 3, rank = 1, xp = 14)
+          RoundResultRow(
+            guestOnlyRound,
+            guest.playerId,
+            score = 70,
+            words = 3,
+            rank = 1,
+            xp = 14,
+            enteredAt = enteredAt,
+          )
         )
       }
 

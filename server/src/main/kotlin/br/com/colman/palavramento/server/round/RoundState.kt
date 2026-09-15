@@ -31,13 +31,26 @@ class RoundState(val generated: GeneratedRound, private val onAccepted: suspend 
   /** Players present (joined) when this round started, or who reconnected mid-round (dossier §5.3). */
   private val participantIds = ConcurrentHashMap.newKeySet<String>()
 
-  fun markParticipant(playerId: String) {
+  // When each participant actually started playing this round (ADR 0010: late join), so
+  // RoundStatsCalculator.compute can measure secondsPerWord from a late joiner's own entry instead
+  // of the round's own startsAt. Never persisted separately from `round_results.entered_at` (written
+  // once, at finalize time): a restart mid-round loses this map along with every other live
+  // in-memory connection, same as `RoundState` itself; the restart-recovery path in
+  // RoomScheduler.activate re-marks a reconstructed participant with the round's own startsAt as an
+  // approximation, documented there (same accepted-debt shape as ADR 0007's finalization-crash gap).
+  private val entryTimes = ConcurrentHashMap<String, Instant>()
+
+  fun markParticipant(playerId: String, entryTime: Instant) {
     participantIds.add(playerId)
+    entryTimes[playerId] = entryTime
   }
 
   fun isParticipant(playerId: String): Boolean = playerId in participantIds
 
   fun participantSnapshot(): Set<String> = participantIds.toSet()
+
+  /** [playerId]'s recorded entry time, or null if they were never marked a participant. */
+  fun entryTimeOf(playerId: String): Instant? = entryTimes[playerId]
 
   fun playerState(playerId: String): PlayerRoundState = players.computeIfAbsent(playerId) { PlayerRoundState() }
 

@@ -17,6 +17,7 @@ import kotlin.time.Duration.Companion.seconds
 fun testServerConfig(
   roundDuration: kotlin.time.Duration = 3.seconds,
   intermissionDuration: kotlin.time.Duration = 2.seconds,
+  lateJoinMinRemaining: kotlin.time.Duration = 10.seconds,
 ): ServerConfig = ServerConfig(
   roundDuration = roundDuration,
   intermissionDuration = intermissionDuration,
@@ -26,4 +27,5 @@ fun testServerConfig(
   refreshTokenTtl = 1.days,
   submitRateLimitPerSecond = 10,
   leaderboardSize = 10,
+  lateJoinMinRemaining = lateJoinMinRemaining,
 )

@@ -41,7 +41,8 @@ parênteses): `PORT` (8080), `DATABASE_URL`
 (`palavramento`/`palavramento`), `JWT_SECRET` (**trocar em produção**), `JWT_ISSUER`, `JWT_AUDIENCE`,
 `ACCESS_TOKEN_TTL_SECONDS` (900), `REFRESH_TOKEN_TTL_SECONDS` (2592000), `ROUND_DURATION_SECONDS`
 (120), `INTERMISSION_DURATION_SECONDS` (60), `LATE_SUBMISSION_TOLERANCE_MILLIS` (500),
-`SUBMIT_RATE_LIMIT_PER_SECOND` (10), `COMMON_CUTOFF`, `LEADERBOARD_SIZE` (20). TLS é responsabilidade
+`SUBMIT_RATE_LIMIT_PER_SECOND` (10), `COMMON_CUTOFF`, `LEADERBOARD_SIZE` (20),
+`LATE_JOIN_MIN_REMAINING_SECONDS` (10, ver ADR 0010). TLS é responsabilidade
 do ambiente de implantação (proxy reverso), não do processo Ktor (ver ADR 0007).
 
 Os testes de integração do servidor (`./gradlew :server:test`) precisam de Docker: cada execução sobe

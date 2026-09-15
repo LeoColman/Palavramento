@@ -74,6 +74,7 @@ Derivados da frequência em pt-BR. Tabela base proposta; deve ser um recurso de 
 - Intervalo entre rodadas: **60 segundos** ("Próxima partida em 00:43"), durante o qual a tela de Resultados/Placar fica visível.
 - A cadência é **global por sala**: todos os jogadores da mesma sala jogam a mesma grade, começando e terminando no mesmo instante (relógio do servidor).
 - Entrar no meio de uma rodada: o jogador aguarda na tela de resultados/espera e entra na próxima. Não há entrada tardia.
+  **Regra alterada pela ADR 0010** (decisão do dono do produto, 2026-09-15): entrada tardia passou a ser permitida, com exceção de pouco tempo restante.
 
 ### 1.5 Temas / mutadores
 Cada rodada tem um tema exibido no cabeçalho, em duas linhas: **nome do mutador** e **restrição da grade**. Ex.: "L de alto valor" / "19 palavras comuns".

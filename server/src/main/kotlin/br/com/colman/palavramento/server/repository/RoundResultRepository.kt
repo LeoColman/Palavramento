@@ -15,8 +15,13 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.time.Instant
+import java.time.ZoneOffset
 
-/** A `round_results` row (dossier §7). */
+/**
+ * A `round_results` row (dossier §7). [enteredAt] is when this player actually started playing the
+ * round (ADR 0010: late join), used to compute their own `secondsPerWord` instead of the round's.
+ */
 data class RoundResultRow(
   val roundId: String,
   val playerId: String,
@@ -24,6 +29,7 @@ data class RoundResultRow(
   val words: Int,
   val rank: Int,
   val xp: Int,
+  val enteredAt: Instant,
   val doubleXp: Boolean = false,
 )
 
@@ -40,6 +46,7 @@ class RoundResultRepository(private val database: Database) {
         it[rank] = row.rank
         it[xp] = row.xp
         it[doubleXp] = row.doubleXp
+        it[enteredAt] = row.enteredAt.atOffset(ZoneOffset.UTC)
       }
     }
   }
@@ -97,5 +104,6 @@ class RoundResultRepository(private val database: Database) {
     rank = this[RoundResultsTable.rank],
     xp = this[RoundResultsTable.xp],
     doubleXp = this[RoundResultsTable.doubleXp],
+    enteredAt = this[RoundResultsTable.enteredAt].toInstant(),
   )
 }

@@ -89,7 +89,7 @@
     modificar e redistribuir o aplicativo e o servidor, desde que mantenha a mesma licença e disponibilize o
     código-fonte correspondente, inclusive para quem usa o servidor pela rede.</string>
   <string name="about_source_link_label">Ver código-fonte</string>
-  <string name="about_source_url" translatable="false">https://github.com/leonardocolman/palavramento</string>
+  <string name="about_source_url" translatable="false">https://github.com/LeoColman/Palavramento</string>
   <string name="about_lexicon_title">Dicionário</string>
   <string name="about_lexicon_body">Palavras validadas com o dicionário Hunspell pt_BR do projeto VERO, por Raimundo
     Santos Moura e colaboradores, sob LGPLv3.</string>

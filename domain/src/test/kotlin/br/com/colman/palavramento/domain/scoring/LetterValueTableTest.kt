@@ -10,19 +10,24 @@ import io.kotest.matchers.shouldBe
 class LetterValueTableTest : FunSpec({
   test("The default table has a version and a positive value for every letter") {
     val table = LetterValueTable.default
-    table.version shouldBe 1
+    table.version shouldBe 2
     ('A'..'Z').forEach { letter -> (table.value(letter) > 0) shouldBe true }
   }
 
-  test("The default table matches the dossier's resolved ambiguities") {
+  test("The default table is the one calibrated in docs/calibracao-letras.md") {
     val table = LetterValueTable.default
-    // O resolved to the smaller of its two listed values (dossier 1.3), grouped with A/E/S.
-    table.value('O') shouldBe 1
-    // T and C resolved to their row-3 value, grouped with M.
-    table.value('T') shouldBe 3
-    table.value('C') shouldBe 3
-    // L kept its only listed value despite the asterisk.
-    table.value('L') shouldBe 3
+    "AES".forEach { table.value(it) shouldBe 1 }
+    "INOR".forEach { table.value(it) shouldBe 2 }
+    "CDLMTU".forEach { table.value(it) shouldBe 3 }
+    "HP".forEach { table.value(it) shouldBe 4 }
+    "BG".forEach { table.value(it) shouldBe 5 }
+    "FVZ".forEach { table.value(it) shouldBe 6 }
+    "JQX".forEach { table.value(it) shouldBe 8 }
+    "KWY".forEach { table.value(it) shouldBe 10 }
+  }
+
+  test("Lookups ignore letter case") {
+    LetterValueTable.default.value('q') shouldBe 8
   }
 
   test("Parses a minimal custom table from JSON") {

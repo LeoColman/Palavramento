@@ -21,7 +21,7 @@ private const val PercentScale = 100.0
  *   counts the same as `casa`. This is what a "how many playable words contain this letter" question
  *   asks.
  * - [weightedCounts]: the same, but every ranked entry's occurrences are multiplied by its corpus
- *   count from `pt_br_50k.txt` (not its rank), so common words dominate as they would in actual play.
+ *   count from the frequency list (not its rank), so common words dominate as they would in actual play.
  *   Unranked ("especialista") entries do not contribute here: they have no corpus count to weight by.
  */
 class LetterFrequencyReport private constructor(val plainCounts: LongArray, val weightedCounts: LongArray) {

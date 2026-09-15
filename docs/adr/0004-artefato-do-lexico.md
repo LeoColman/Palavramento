@@ -5,7 +5,7 @@
 ## Contexto
 
 A fase 0 (ADR 0002) decidiu as fontes: Hunspell pt_BR do VERO (`.dic`+`.aff`) e a lista de frequência
-`pt_br_50k.txt`. A fase 1 (dossiê §2, §11) pede um expansor Hunspell próprio, filtros sobre as formas
+do FrequencyWords (hoje `pt_br_full.txt`; a fase 1 foi medida com `pt_br_50k.txt`). A fase 1 (dossiê §2, §11) pede um expansor Hunspell próprio, filtros sobre as formas
 expandidas, ranks de frequência com colapso de formas que compartilham a forma normalizada, um TSV
 intermediário e uma trie binária compacta carregada pelo servidor em menos de 1 segundo.
 
@@ -45,8 +45,8 @@ sobrescritos, e entradas de múltiplas palavras como `água de cheiro`).
 
 ### Frequência e colapso (dossiê §2.3, §1.6)
 
-Rank de uma forma = linha 1-based da sua **própria grafia em minúsculas** (com acento) em
-`pt_br_50k.txt`; ausente da lista, rank é infinito (`LexiconEntry.Unranked`, especialista). Formas que
+Rank de uma forma = linha 1-based da sua **própria grafia em minúsculas** (com acento) na lista de
+frequência; ausente da lista, rank é infinito (`LexiconEntry.Unranked`, especialista). Formas que
 colapsam na mesma forma normalizada (`pais`/`país`) viram uma entrada só: rank = melhor rank entre as
 formas do grupo, display = a forma que atingiu esse rank.
 
@@ -81,7 +81,7 @@ arrays acima em blocos de bytes lidos/escritos em lote (via `ByteBuffer`), não 
 ### Build (`server/build.gradle.kts`)
 
 `compileLexicon` (`JavaExec`) roda o expansor sobre os três arquivos versionados (`.dic`, `.aff`,
-`pt_br_50k.txt`), entradas e saídas declaradas (cacheável). `processResources` depende dele e empacota
+`pt_br_full.txt`), entradas e saídas declaradas (cacheável). `processResources` depende dele e empacota
 só o binário, em `/lexicon/pt-BR.bin` no jar; `forms.tsv` não é embarcado, só usado pelos testes do
 `:server` (que recebem o caminho via propriedade de sistema).
 

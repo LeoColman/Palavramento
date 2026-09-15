@@ -106,9 +106,9 @@ class Solver(private val lexicon: Lexicon) {
 
   companion object {
     /**
-     * Provisional common/expert cutoff (dossier 1.7). Calibrate once the real lexicon's frequency
-     * rank distribution is known; callers should generally pass their own value explicitly.
+     * Common/expert cutoff (dossier 1.7) as a frequency rank. Calibrated against the real lexicon so
+     * typical boards split close to 1:1 (docs/calibracao-letras.md); the server exposes it as config.
      */
-    const val DefaultCommonCutoff = 5000
+    const val DefaultCommonCutoff = 300_000
   }
 }

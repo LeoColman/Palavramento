@@ -12,9 +12,11 @@ O ponto aberto §12.1 bloqueia essa separação até a licença ser decidida.
 
 - **Dicionário:** Hunspell pt_BR do projeto VERO, copiado do repositório de dicionários do
   LibreOffice para `server/src/lexicon/`. Usado sob LGPLv3. Detalhes em `LICENSES.md`.
-- **Frequência:** `pt_br_50k.txt` do FrequencyWords (OpenSubtitles 2018), CC BY-SA 4.0. As 50 mil
-  formas mais frequentes são mais que suficientes, porque o corte comum/especialista fica bem abaixo
-  disso; formas válidas fora da lista recebem rank infinito (especialista).
+- **Frequência:** `pt_br_full.txt` do FrequencyWords (OpenSubtitles 2018, cerca de 848 mil formas),
+  CC BY-SA 4.0, sem modificação. A primeira versão usava só as 50 mil primeiras (`pt_br_50k.txt`),
+  mas a calibração contra o léxico real (`docs/calibracao-letras.md`) mostrou que com elas a fração de
+  palavras comuns numa grade típica satura em 27%, longe do 1:1 que o dossiê §1.7 pede. Formas válidas
+  fora da lista recebem rank infinito (especialista).
 - **Arquivos versionados no repositório**, não baixados no build: o build não depende de rede e as
   fontes ficam auditáveis ao lado do código.
 - **Expansão própria em Kotlin**, sem `unmunch`. O `.aff` do VERO usa `FLAG UTF-8`, 103 classes de
@@ -24,5 +26,5 @@ O ponto aberto §12.1 bloqueia essa separação até a licença ser decidida.
 
 ## Consequências
 
-- O repositório carrega cerca de 6 MB de dados de léxico.
+- O repositório carrega cerca de 15 MB de dados de léxico (dicionário e lista de frequência).
 - Atualizar o dicionário é copiar os arquivos novos e rodar o build; o artefato binário é regenerado.

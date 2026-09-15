@@ -27,7 +27,9 @@ mesma expansão.
   em pontos** da letra (lógica clássica de Scrabble: quanto menos palavras dá para formar com ela,
   mais vale).
 - **Ponderado por frequência de corpus** ("% ponderado"): as mesmas ocorrências, mas cada entrada
-  ranqueada (dossiê §2.3) é multiplicada pela contagem bruta dela em `pt_br_50k.txt` (não pelo rank).
+  ranqueada (dossiê §2.3) é multiplicada pela contagem bruta dela na lista de frequência (não pelo
+  rank). As tabelas abaixo foram medidas com `pt_br_50k.txt`, antes da troca pela lista completa; como
+  a lista de 50 mil é o topo da completa, os pesos praticamente não mudam.
   Entradas especialistas (fora da lista) não entram aqui. Isso aproxima quantas vezes a letra
   apareceria de fato numa partida: é a pergunta certa para o **peso de sorteio** de letras na geração
   de grade (dossiê §3.1: "ponderada pela frequência de letras em pt-BR").
@@ -112,3 +114,58 @@ deste documento.
 Se um mutador proibir uma letra (`LETRA_PROIBIDA`, dossiê §1.5) ou a grade continuar sem vogal
 suficiente, os pesos remanescentes devem ser renormalizados antes do sorteio; isso é responsabilidade
 do gerador (fase 2), não muda os pesos base aqui.
+
+## Calibração adotada (integração das fases 1 e 2)
+
+Medida com o léxico real sobre 1000 grades sorteadas como o gerador sorteia, antes do filtro de
+aceite. Os números são guardados por `RealLexiconCalibrationTest` (`:server`).
+
+### Pesos de sorteio
+
+`letter-weights.json` versão 2 = coluna "% ponderado" acima, sem ajuste.
+
+### Valores das letras
+
+A tabela proposta acima mantém a ordem por raridade, mas numa escala baixa: 7,9 pontos por palavra em
+média, grade mediana com 2090 pontos, e só 35% das grades sorteadas cabem em `pontuação_máxima ∈
+[2500, 6000]` (dossiê §3). A rodada de referência das capturas tem 15,4 pontos por palavra, com tiles
+como O=2, M=3, C=4, T=4, P=5, V=6. A tabela adotada (`letter-values.json` versão 2) conserva as faixas
+de raridade medidas, mas na escala do dossiê:
+
+| Valor | Letras |
+|---|---|
+| 1 | A, E, S |
+| 2 | I, N, O, R |
+| 3 | C, D, L, M, T, U |
+| 4 | H, P |
+| 5 | B, G |
+| 6 | F, V, Z |
+| 8 | J, Q, X |
+| 10 | K, W, Y |
+
+Resultado: 9,75 pontos por palavra, grade mediana com 2545 pontos, 44% das grades sorteadas passam
+direto nos critérios do §3. O gerador leva cerca de 1 ms por tentativa, então a taxa de aceite não é
+gargalo.
+
+### Corte comum/especialista
+
+O dossiê §1.7 pede proporção próxima de 1:1. Mediana da fração de palavras comuns por grade, conforme
+o corte de rank na lista completa:
+
+| Corte | Fração comum (mediana) |
+|---|---|
+| 50 000 | 0,27 |
+| 100 000 | 0,36 |
+| 200 000 | 0,44 |
+| 300 000 | 0,49 |
+| 500 000 | 0,55 |
+
+Adotado **300 000** (`Solver.DefaultCommonCutoff`, configurável no servidor). Consequência honesta:
+"comum" aqui significa "aparece em legendas", não "palavra do dia a dia"; ranks acima de 100 mil já são
+formas raras. É o preço de seguir o 1:1 do dossiê; se o jogo pedir um "comum" mais estrito, basta
+baixar o corte, sem mudar dados.
+
+### Desempenho do solver
+
+Solve completo de uma grade 4×4 no léxico real: p50 0,19 ms, p99 0,6 ms, pior caso 3,4 ms, contra o
+limite de 50 ms do dossiê §2.4.

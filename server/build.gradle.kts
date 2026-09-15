@@ -55,7 +55,7 @@ detekt {
 val lexiconSourceDir = layout.projectDirectory.dir("src/lexicon")
 val dicFile = lexiconSourceDir.file("pt_BR.dic")
 val affFile = lexiconSourceDir.file("pt_BR.aff")
-val frequencyFile = lexiconSourceDir.file("pt_br_50k.txt")
+val frequencyFile = lexiconSourceDir.file("pt_br_full.txt")
 
 val generatedLexiconDir = layout.buildDirectory.dir("generated/lexicon")
 val lexiconBinFile = generatedLexiconDir.map { it.file("lexicon.bin") }

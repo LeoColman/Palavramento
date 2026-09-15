@@ -15,12 +15,9 @@ import kotlinx.serialization.json.Json
  * The constructor also accepts a plain map directly, so tests do not need a resource file on the
  * classpath to build a small fixture table.
  *
- * The dossier's starting table lists O at both value 1 and 2, and C/T/L at both value 3 and 4
- * (marked with an asterisk as still undecided). This resource resolves every such ambiguity by
- * keeping the smaller of the two listed values, which also tracks pt-BR letter frequency: O, at
- * roughly 10.7% of letters, sits with the value-1 vowels (A, E, S) rather than the value-2 cluster;
- * T (4.3%) and C (3.9%) sit closer to M's 4.7% (value 3) than to B/G's ~1% (value 4). L keeps its
- * only listed value, 3, even though it carries the same asterisk.
+ * Version 2 of the resource is calibrated against the real lexicon (docs/calibracao-letras.md):
+ * letters are banded by how many playable forms use them, on the dossier's own 1..10 scale, which
+ * keeps typical boards inside the generator's 2500..6000 score window.
  */
 class LetterValueTable(val version: Int, private val values: Map<Char, Int>) {
   init {

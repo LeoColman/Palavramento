@@ -4,7 +4,7 @@
 package br.com.colman.palavramento.server.lexicon
 
 /**
- * `pt_br_50k.txt` (FrequencyWords/OpenSubtitles 2018, ADR 0002): one `word count` pair per line,
+ * `pt_br_full.txt` (FrequencyWords/OpenSubtitles 2018, ADR 0002): one `word count` pair per line,
  * most frequent first, already lowercase. Rank is the 1-based line number of a word's own lowercase
  * spelling, diacritics kept, per dossier §2.3: `país` and `pais` are looked up separately, because
  * that difference is exactly what the collapsing tie-break in [CanonicalForms] needs to resolve.

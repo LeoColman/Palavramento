@@ -11,7 +11,7 @@ import kotlin.random.Random
 class LetterWeightTableTest : FunSpec({
   test("The default table has a version and only samples A-Z") {
     val table = LetterWeightTable.default
-    table.version shouldBe 1
+    table.version shouldBe 2
     val random = Random(42)
     repeat(200) { (table.sample(random) in 'A'..'Z') shouldBe true }
   }

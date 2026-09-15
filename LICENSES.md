@@ -33,8 +33,8 @@ adicionais, e a AGPLv3 §13 permite combinar obras AGPLv3 com obras GPLv3. Não 
 
 | Item | Valor |
 |---|---|
-| Arquivo | `server/src/lexicon/pt_br_50k.txt` |
-| Origem | <https://github.com/hermitdave/FrequencyWords/blob/master/content/2018/pt_br/pt_br_50k.txt> (baixado em 2026-09-14) |
+| Arquivo | `server/src/lexicon/pt_br_full.txt` (sem modificação) |
+| Origem | <https://github.com/hermitdave/FrequencyWords/blob/master/content/2018/pt_br/pt_br_full.txt> (baixado em 2026-09-14) |
 | Autor | Hermit Dave |
 | Licença do conteúdo | **CC BY-SA 4.0** (o código do gerador é MIT e não é usado aqui) |
 | Corpus de base | OpenSubtitles2018, via OPUS (P. Lison e J. Tiedemann, 2016) |

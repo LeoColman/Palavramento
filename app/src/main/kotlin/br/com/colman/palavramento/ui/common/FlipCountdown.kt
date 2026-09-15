@@ -69,10 +69,13 @@ private fun FlipDigit(digit: Int, textColor: Color, cardColor: Color, fontSize: 
   LaunchedEffect(digit) {
     if (digit == displayedDigit) return@LaunchedEffect
     if (halfDuration > 0) {
+      // Old digit folds away until the card is edge-on, then the new digit unfolds from the other
+      // edge. Going on from 90 to 180 instead would show the card's back: the new digit upside down
+      // until the final snap.
       rotation.animateTo(HalfFlipDegrees, tween(halfDuration))
       displayedDigit = digit
-      rotation.animateTo(FullFlipDegrees, tween(halfDuration))
-      rotation.snapTo(0f)
+      rotation.snapTo(-HalfFlipDegrees)
+      rotation.animateTo(0f, tween(halfDuration))
     } else {
       displayedDigit = digit
     }
@@ -112,7 +115,6 @@ val SmallDigitSize = 20.sp
 
 private const val MinutesDigitCount = 2
 private const val HalfFlipDegrees = 90f
-private const val FullFlipDegrees = 180f
 private const val FlipHalfDurationMillis = 150
 private const val CameraDistanceFactor = 12f
 private const val DigitWidthFactor = 0.9f

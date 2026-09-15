@@ -48,6 +48,7 @@ import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.board.logicalIndexAt
 import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.mutator.effectiveValueOf
+import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.game.PathTracer
 import br.com.colman.palavramento.state.SubmissionFeedback
 import br.com.colman.palavramento.ui.common.animationDurationMillis
@@ -220,11 +221,14 @@ private fun TracedWordLabel(path: List<Int>, tiles: List<Tile>, mutator: Mutator
   )
 }
 
-/** Which color a tile should flash for the last submission result (task brief 2), if any. */
-private enum class TileFlashKind { None, Accepted, Rejected }
+/**
+ * Which color a tile should flash for the last submission result (task brief 2), if any. A word the
+ * player already found flashes yellow, not the error red: it is a valid word, just not new.
+ */
+private enum class TileFlashKind { None, Accepted, Rejected, Duplicate }
 
 /** The tiles a `WordAccepted`/`WordRejected` path currently flashes, and which color. */
-private data class TileFlash(val path: Set<Int>, val accepted: Boolean)
+private data class TileFlash(val path: Set<Int>, val kind: TileFlashKind)
 
 /** [TileFlash] in progress, if any, plus the current shake offset (task brief 2: reject shakes). */
 private data class TileFlashState(val flash: TileFlash?, val shakeOffsetPx: Float)
@@ -245,9 +249,14 @@ private fun rememberTileFlashState(feedback: SubmissionFeedback?): TileFlashStat
     val current = feedback ?: return@LaunchedEffect
     val flashedPath = current.pathOrEmpty().toSet()
     if (flashedPath.isEmpty()) return@LaunchedEffect
-    val accepted = current is SubmissionFeedback.Accepted
-    flash = TileFlash(flashedPath, accepted)
-    if (!accepted) {
+    val kind = when (current) {
+      is SubmissionFeedback.Accepted -> TileFlashKind.Accepted
+      is SubmissionFeedback.Rejected ->
+        if (current.reason == RejectionReason.AlreadyFound) TileFlashKind.Duplicate else TileFlashKind.Rejected
+    }
+    flash = TileFlash(flashedPath, kind)
+    // Only a real mistake shakes; a repeated word just flashes.
+    if (kind == TileFlashKind.Rejected) {
       if (shakeStepDurationMs > 0) {
         for (offset in ShakeOffsetsPx) shakeOffsetPx.animateTo(offset, tween(shakeStepDurationMs))
       }
@@ -262,7 +271,7 @@ private fun rememberTileFlashState(feedback: SubmissionFeedback?): TileFlashStat
 
 private fun TileFlash?.kindFor(logicalIndex: Int): TileFlashKind {
   if (this == null || logicalIndex !in path) return TileFlashKind.None
-  return if (accepted) TileFlashKind.Accepted else TileFlashKind.Rejected
+  return kind
 }
 
 private fun SubmissionFeedback.pathOrEmpty(): List<Int> = when (this) {
@@ -284,6 +293,7 @@ private fun BoardTile(
   val targetColor = when {
     flashKind == TileFlashKind.Accepted -> colors.accepted
     flashKind == TileFlashKind.Rejected -> colors.rejected
+    flashKind == TileFlashKind.Duplicate -> colors.duplicate
     isForbidden -> colors.tileForbidden
     isTraced -> colors.highlight
     else -> colors.tileBackground

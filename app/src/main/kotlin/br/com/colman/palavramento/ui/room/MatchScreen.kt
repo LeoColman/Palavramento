@@ -3,7 +3,7 @@
 
 package br.com.colman.palavramento.ui.room
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -22,9 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.clock.ServerClock
 import br.com.colman.palavramento.domain.board.Rotation
+import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.state.MatchUiState
 import br.com.colman.palavramento.state.SubmissionFeedback
 import br.com.colman.palavramento.ui.common.FlipCountdown
@@ -49,7 +50,6 @@ import br.com.colman.palavramento.ui.common.rememberRemainingMs
 import br.com.colman.palavramento.ui.settings.MatchSettingsSheet
 import br.com.colman.palavramento.ui.settings.SettingsViewModel
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
-import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 /** Match screen (dossie 6.2): header, countdown, score strip, board, gesture, feedback, Girar. */
@@ -156,7 +156,8 @@ private fun FeedbackRow(feedback: SubmissionFeedback?) {
   }
   val color = when (feedback) {
     is SubmissionFeedback.Accepted -> colors.accepted
-    is SubmissionFeedback.Rejected -> colors.rejected
+    is SubmissionFeedback.Rejected ->
+      if (feedback.reason == RejectionReason.AlreadyFound) colors.duplicate else colors.rejected
     null -> colors.textSecondary
   }
   Text(text, color = color, modifier = Modifier.padding(top = 8.dp).testTag(MatchFeedbackTestTag))
@@ -184,44 +185,32 @@ private fun PlayFeedbackHaptics(feedback: SubmissionFeedback?, hapticsEnabled: B
 }
 
 /**
- * [rotation] (logical, fed to [BoardView]) and [visualDegrees] (cosmetic spin), plus the action to
- * trigger one turn.
+ * [rotation] (logical, fed to [BoardView]) and [visualDegrees] (cosmetic offset), plus the action to
+ * trigger one clockwise quarter turn.
  */
 private class RotationController(val rotation: Rotation, val visualDegrees: Float, val rotate: () -> Unit)
 
 /**
- * Spins the board visually a full 90 degrees before flipping the logical [Rotation] (task brief 2):
- * [BoardView]'s tile arrangement only snaps once the spin has already covered that same 90 degrees,
- * so nothing jumps - a physical 90-degree turn of the grid is, by construction, the same picture as
- * the index remap `logicalIndexAt` already does. An in-flight flag blocks overlapping taps instead
- * of letting a second `animateTo` interrupt (and silently drop) the first one's pending flip.
+ * One quarter-turn counter drives both halves of "Girar" in the same frame: the logical [Rotation]
+ * switches at once, and [RotationController.visualDegrees] starts at -90 (the new arrangement turned
+ * back, the very picture shown before the tap) and animates to 0.
+ *
+ * Nothing is snapped. Switching the arrangement after a spin and then snapping the spin back takes
+ * two frames, and the frame in between shows the new arrangement still spun by 90 degrees: the board
+ * upside down for an instant. Taps during a turn just add another quarter.
  */
 @Composable
 private fun rememberRotationController(): RotationController {
-  var rotation by remember { mutableStateOf(Rotation.Deg0) }
-  var rotating by remember { mutableStateOf(false) }
-  val visualRotation = remember { Animatable(0f) }
-  val scope = rememberCoroutineScope()
-  val durationMs = animationDurationMillis(RotationAnimationMillis)
-
-  fun rotate() {
-    if (rotating) return
-    rotating = true
-    scope.launch {
-      visualRotation.animateTo(visualRotation.value + RotationStepDegrees, tween(durationMs))
-      rotation = rotation.rotatedClockwise()
-      visualRotation.snapTo(0f)
-      rotating = false
-    }
-  }
-
-  return RotationController(rotation, visualRotation.value, ::rotate)
+  var quarterTurns by remember { mutableIntStateOf(0) }
+  val targetDegrees = quarterTurns * RotationStepDegrees
+  val animatedDegrees by animateFloatAsState(
+    targetValue = targetDegrees,
+    animationSpec = tween(animationDurationMillis(RotationAnimationMillis)),
+    label = "boardRotation",
+  )
+  val rotation = Rotation.entries[quarterTurns % Rotation.entries.size]
+  return RotationController(rotation, animatedDegrees - targetDegrees) { quarterTurns++ }
 }
 
 private const val RotationStepDegrees = 90f
 private const val RotationAnimationMillis = 300
-
-private fun Rotation.rotatedClockwise(): Rotation {
-  val values = Rotation.entries
-  return values[(ordinal + 1) % values.size]
-}

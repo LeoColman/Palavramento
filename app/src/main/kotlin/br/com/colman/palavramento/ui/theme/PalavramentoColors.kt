@@ -30,6 +30,8 @@ data class PalavramentoColorPalette(
   val accepted: Color,
   val rejected: Color,
   val highlight: Color,
+  /** A word the player had already found: valid but not new, so neither accept green nor error red. */
+  val duplicate: Color,
 )
 
 val DarkPalavramentoColors = PalavramentoColorPalette(
@@ -50,6 +52,7 @@ val DarkPalavramentoColors = PalavramentoColorPalette(
   accepted = Color(0xFF4CAF7D),
   rejected = Color(0xFFD9534F),
   highlight = Color(0xFFE0B84A),
+  duplicate = Color(0xFFFFE14D),
 )
 
 val LocalPalavramentoColors = staticCompositionLocalOf { DarkPalavramentoColors }

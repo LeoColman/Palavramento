@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Merged over src/main for debug builds only; release keeps Android's TLS-only default. -->
+  <application android:networkSecurityConfig="@xml/network_security_config_debug" />
+
+</manifest>

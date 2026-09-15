@@ -47,6 +47,22 @@ do ambiente de implantação (proxy reverso), não do processo Ktor (ver ADR 000
 Os testes de integração do servidor (`./gradlew :server:test`) precisam de Docker: cada execução sobe
 seu próprio PostgreSQL via Testcontainers (compartilhado entre as specs, não o do `docker-compose`).
 
+## Jogando num aparelho físico
+
+Por padrão o app de debug procura o servidor em `http://10.0.2.2:8080`, que é o computador visto de
+dentro do emulador. Num telefone na mesma rede Wi-Fi, aponte para o IP do computador em
+`local.properties` (arquivo por máquina, fora do git) ou com `-P`:
+
+```properties
+palavramento.serverUrl=http://192.168.0.10:8080
+```
+
+```bash
+./gradlew :app:installDebug   # ou: ./gradlew :app:installDebug -Ppalavramento.serverUrl=http://...
+```
+
+O build de debug aceita HTTP sem TLS para qualquer host; o de release continua exigindo TLS.
+
 ## Licença
 
 AGPL-3.0-or-later. Léxico e lista de frequência têm licenças próprias, descritas em

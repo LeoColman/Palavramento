@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 Leonardo Colman Lopes
 
+import java.util.Properties
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.android)
@@ -9,6 +11,17 @@ plugins {
   alias(libs.plugins.detekt)
   alias(libs.plugins.sqldelight)
 }
+
+/**
+ * Server the app talks to. A real phone on the developer's network needs the machine's LAN address,
+ * so it is set per machine: `palavramento.serverUrl` as a Gradle property (-P) or in the unversioned
+ * `local.properties`. Defaults to the emulator's view of the host.
+ */
+val serverUrl: String = providers.gradleProperty("palavramento.serverUrl").orNull
+  ?: rootProject.file("local.properties").takeIf { it.exists() }?.let { file ->
+    Properties().apply { file.inputStream().use { load(it) } }.getProperty("palavramento.serverUrl")
+  }
+  ?: "http://10.0.2.2:8080"
 
 android {
   namespace = "br.com.colman.palavramento"
@@ -24,9 +37,8 @@ android {
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-    // The emulator's own view of the host machine (dossier 5, task brief). Overridable per build
-    // type/flavor once phase 5 or later needs a real staging/production server.
-    buildConfigField("String", "SERVER_URL", "\"http://10.0.2.2:8080\"")
+    // See serverUrl above. A production build will need its own HTTPS address.
+    buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
   }
 
   buildTypes {

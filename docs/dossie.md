@@ -286,7 +286,8 @@ Obrigatório, com Kotest:
 - **Normalização**: `loâ`, `moiâ`, `ação`, `pêssego` casam com caminhos sem acento; `ç → c`.
 - **Protocolo**: serialização round-trip de todas as mensagens.
 - **Servidor**: testes de integração com Testcontainers (Postgres) cobrindo ciclo completo de rodada, reconexão no meio da rodada, submissão após o fim, submissão duplicada.
-- **Mutação**: Pitest sobre `:domain`, mínimo **80% de mutantes mortos**, falhando o build abaixo disso.
+- **Mutação**: Pitest nos três módulos, falhando o build abaixo do limite: **90% de mutantes mortos**
+  em `:domain` e `:server`, **50%** no `:app` (ADR 0016, que lista as exclusões e o motivo de cada uma).
 - **UI**: testes de Compose para o gesto de traçado (anexar, desfazer ao retroceder, rejeitar não adjacente).
 
 Detekt com configuração estrita, sem supressões sem comentário justificando.

@@ -29,7 +29,6 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlin.time.Duration.Companion.seconds
 
@@ -62,8 +61,11 @@ private fun MockRequestHandleScope.jsonOkTokens() = respond(
  */
 class LoginViewModelTest : FunSpec({
 
-  beforeTest { Dispatchers.setMain(UnconfinedTestDispatcher()) }
-  afterTest { Dispatchers.resetMain() }
+  // Installed for the whole spec and deliberately never reset: a view model started by one test can
+  // still be cancelling while the next one runs (RoomViewModel's session loop never ends on its own),
+  // and resetting Main out from under it dispatches that cancellation into a Main dispatcher that no
+  // longer exists, which on the JVM fails as "Looper not mocked". There is no real Main to restore.
+  beforeSpec { Dispatchers.setMain(UnconfinedTestDispatcher()) }
 
   test("starts in Login mode with empty fields and no error") {
     val viewModel = LoginViewModel(controllerOf { error("no network expected") })

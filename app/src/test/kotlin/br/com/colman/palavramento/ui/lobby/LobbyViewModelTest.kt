@@ -34,7 +34,6 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.serialization.builtins.ListSerializer
 import kotlin.time.Duration.Companion.seconds
@@ -82,15 +81,16 @@ class LobbyViewModelTest : FunSpec({
   // android.util.Log is unmocked on the plain JVM (no Robolectric in this project): a bare Log.w
   // call throws "not mocked" and would silently kill LobbyViewModel's launch{} coroutine before it
   // ever reaches the loadError update, which is exactly the failure path these tests exercise.
+  // Installed for the whole spec and deliberately never reset: a view model started by one test can
+  // still be cancelling while the next one runs (RoomViewModel's session loop never ends on its own),
+  // and resetting Main out from under it dispatches that cancellation into a Main dispatcher that no
+  // longer exists, which on the JVM fails as "Looper not mocked". There is no real Main to restore.
+  beforeSpec { Dispatchers.setMain(UnconfinedTestDispatcher()) }
   beforeTest {
-    Dispatchers.setMain(UnconfinedTestDispatcher())
     mockkStatic(Log::class)
     every { Log.w(any(), any<String>()) } returns 0
   }
-  afterTest {
-    Dispatchers.resetMain()
-    unmockkStatic(Log::class)
-  }
+  afterTest { unmockkStatic(Log::class) }
 
   test("bootstraps a guest, syncs, and clears isLoading with no error") {
     val profile = PlayerProfile(

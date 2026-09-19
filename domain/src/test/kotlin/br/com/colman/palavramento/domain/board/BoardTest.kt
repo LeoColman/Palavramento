@@ -15,6 +15,22 @@ private fun tile(letter: Char) = Tile(letter.toString(), 1)
 private fun square(size: Int) = Board(size, List(size * size) { tile('A' + (it % 26)) })
 
 class BoardTest : FunSpec({
+  test("size is the grid side, not the tile count") {
+    val board = square(4)
+    board.size shouldBe 4
+    board.tiles.size shouldBe 16
+  }
+
+  test("Neighbors come back in ascending index order") {
+    // The solver walks this array for every DFS step, so a stable order is what makes solving the
+    // same board twice produce the same word order.
+    val board = square(4)
+    for (index in board.tiles.indices) {
+      val neighbors = board.neighborsOf(index).toList()
+      neighbors shouldBe neighbors.sorted()
+    }
+  }
+
   test("Index is row-major") {
     val board = square(4)
     board.indexOf(0, 0) shouldBe 0

@@ -201,4 +201,55 @@ class ProtocolSerializationTest : FunSpec({
     val json = """{"type":"LeaveRoom","somethingNew":42}"""
     PalavramentoJson.decodeFromString(ClientMessage.serializer(), json) shouldBe ClientMessage.LeaveRoom
   }
+
+  test("A message type this build has no case for decodes as Unknown instead of throwing (ADR 0018)") {
+    val fromANewerServer = """{"type":"RoundPaused","roundId":"round-1","reason":"MANUTENCAO"}"""
+
+    val decoded = PalavramentoJson.decodeFromString(ServerMessage.serializer(), fromANewerServer)
+
+    decoded shouldBe ServerMessage.Unknown
+  }
+
+  test("A mutator this build has no case for decodes as Unknown, keeping the rest of RoundStart") {
+    val known = ServerMessage.RoundStart(
+      roundId = "round-1",
+      board = sampleBoard(),
+      mutator = Mutator.ValuableLetter('L', 10),
+      themeTitle = "Palavras ao contrario",
+      themeSubtitle = "19 palavras comuns",
+      maxScore = 4193,
+      maxWords = 272,
+      startsAt = 1_000,
+      endsAt = 121_000,
+      alreadyFound = emptyList(),
+      runningScore = 0,
+      runningWords = 0,
+      validWords = listOf(ValidWord("LIMO", "limo")),
+    )
+    val fromANewerServer = PalavramentoJson.encodeToString(ServerMessage.serializer(), known)
+      .replace(""""type":"LETRA_VALIOSA","letter":"L","value":10""", """"type":"AO_CONTRARIO"""")
+
+    val decoded = PalavramentoJson.decodeFromString(ServerMessage.serializer(), fromANewerServer)
+
+    decoded shouldBe known.copy(mutator = Mutator.Unknown)
+  }
+
+  test("Unknown is only a decoding fallback: the round-trip of a known mutator never produces it") {
+    val message = ServerMessage.RoundStart(
+      roundId = "round-1",
+      board = sampleBoard(),
+      mutator = Mutator.OneOrOther('A', 'F'),
+      themeTitle = "Uma ou outra: A/F",
+      themeSubtitle = "19 palavras comuns",
+      maxScore = 10,
+      maxWords = 2,
+      startsAt = 0,
+      endsAt = 1,
+      alreadyFound = emptyList(),
+      runningScore = 0,
+      runningWords = 0,
+      validWords = emptyList(),
+    )
+    roundTrip(message) shouldBe message
+  }
 })

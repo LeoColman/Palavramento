@@ -31,7 +31,12 @@ class MutatorThemeTest : FunSpec({
       Mutator.Digraphs(3),
       Mutator.LetterInCorners('O'),
       Mutator.OneOrOther('A', 'F'),
+      Mutator.Unknown,
     ).forEach { mutator -> MutatorTheme.title(mutator).isNotBlank() shouldBe true }
+  }
+
+  test("A rule this build does not know still has a title to show (ADR 0018)") {
+    MutatorTheme.title(Mutator.Unknown) shouldBe "Grade especial"
   }
 
   test("Subtitle states the generation restriction literally, dossier example") {

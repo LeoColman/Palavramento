@@ -90,6 +90,15 @@ sealed interface ServerMessage {
   @Serializable
   @SerialName("ClockSyncResponse")
   data class ClockSyncResponse(val clientSentAt: Long, val serverTime: Long) : ServerMessage
+
+  /**
+   * A message type this build has no case for, which is what [PalavramentoJson] decodes an
+   * unrecognized `type` into (ADR 0018). A client ignores it instead of dropping the connection,
+   * which is what lets the server ship a new message before every installed app knows it.
+   */
+  @Serializable
+  @SerialName("Unknown")
+  object Unknown : ServerMessage
 }
 
 /** A word the player already found before this message was sent, replayed to a reconnecting client. */

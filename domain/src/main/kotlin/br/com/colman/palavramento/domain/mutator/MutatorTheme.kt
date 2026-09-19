@@ -17,6 +17,9 @@ object MutatorTheme {
     is Mutator.Digraphs -> "Dígrafos"
     is Mutator.LetterInCorners -> "${mutator.letter} nos cantos"
     is Mutator.OneOrOther -> "Uma ou outra: ${mutator.first}/${mutator.second}"
+    // Only a round from a newer server carries one (ADR 0018), and its own RoundStart already
+    // names it: this title is the fallback for a client that formats the header itself.
+    is Mutator.Unknown -> "Grade especial"
   }
 
   /**

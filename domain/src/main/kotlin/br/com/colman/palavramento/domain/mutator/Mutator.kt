@@ -89,6 +89,16 @@ sealed interface Mutator {
       require(second in 'A'..'Z') { "Mutator letter must be normalized A-Z, got '$second'" }
     }
   }
+
+  /**
+   * A rule this build has no case for, which is what `PalavramentoJson` decodes an unrecognized
+   * discriminator into (ADR 0018). The generator never produces it and no server ever sends it: it
+   * only ever comes from a round created by a newer server, whose tiles already carry whatever the
+   * rule did to them, so the grid stays playable under a name this build cannot state.
+   */
+  @Serializable
+  @SerialName("DESCONHECIDO")
+  object Unknown : Mutator
 }
 
 /** Dossier 1.1 minimum word length, in letters: always 3, no mutator overrides it (ADR 0012). */

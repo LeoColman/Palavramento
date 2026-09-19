@@ -96,7 +96,9 @@ class BoardGenerator(
       is Mutator.Digraphs -> applyDigraphs(random, tiles, size, mutator.count)
       is Mutator.LetterInCorners -> applyCorners(tiles, size, mutator.letter)
       is Mutator.OneOrOther -> listOf(applyOneOrOther(random, tiles, size, mutator))
-      Mutator.NoMutator -> emptyList()
+      // Unknown only ever exists on a client that decoded a newer server's round (ADR 0018); the
+      // generator is handed the real rule, so here it draws the plain grid.
+      Mutator.NoMutator, Mutator.Unknown -> emptyList()
     }
     return BoardDraw(Board(size, tiles), specialPositions)
   }
@@ -162,7 +164,7 @@ class BoardGenerator(
     solution: List<SolvedWord>,
     thresholds: SpecialTileCriteria,
   ): Boolean = when (mutator) {
-    Mutator.NoMutator -> true
+    Mutator.NoMutator, Mutator.Unknown -> true
 
     is Mutator.ValuableLetter ->
       wordsUsing(draw.specialPositions.single(), solution).size >= thresholds.minWordsPerTile

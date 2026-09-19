@@ -3,6 +3,7 @@
 
 package br.com.colman.palavramento.network
 
+import android.util.Log
 import br.com.colman.palavramento.domain.protocol.ClientMessage
 import br.com.colman.palavramento.domain.protocol.PalavramentoJson
 import br.com.colman.palavramento.domain.protocol.ServerMessage
@@ -14,9 +15,9 @@ import io.ktor.websocket.close
 import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.serialization.SerializationException
 
 /**
  * Real [MultiplayerTransport] over Ktor's WebSocket client (task brief: Ktor + OkHttp + WebSockets,
@@ -42,7 +43,7 @@ class KtorMultiplayerTransport(private val client: HttpClient, httpBaseUrl: Stri
     val activeSession = requireNotNull(session) { "connect() was not called" }
     return activeSession.incoming.receiveAsFlow()
       .mapNotNull { it as? Frame.Text }
-      .map { PalavramentoJson.decodeFromString(ServerMessage.serializer(), it.readText()) }
+      .mapNotNull { decodeServerMessageOrNull(it.readText()) }
   }
 
   override suspend fun send(message: ClientMessage) {
@@ -54,4 +55,20 @@ class KtorMultiplayerTransport(private val client: HttpClient, httpBaseUrl: Stri
     session?.close()
     session = null
   }
+}
+
+private const val Tag = "MultiplayerTransport"
+
+/**
+ * Decodes one frame, or null with a log line when this build cannot read it at all (ADR 0018).
+ * `PalavramentoJson` already turns an unknown message type and an unknown mutator into their
+ * `Unknown` members, so what reaches here is a payload whose shape changed. Dropping that one frame
+ * keeps the session: letting it fail the flow would close the socket and reconnect to the same
+ * server, which would send the same frame again.
+ */
+internal fun decodeServerMessageOrNull(text: String): ServerMessage? = try {
+  PalavramentoJson.decodeFromString(ServerMessage.serializer(), text)
+} catch (failure: SerializationException) {
+  Log.w(Tag, "Skipping a server message this build cannot decode: ${failure.message}")
+  null
 }

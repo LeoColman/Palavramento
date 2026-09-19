@@ -147,10 +147,29 @@ class HistoryRepositoryTest : FunSpec({
     }
   }
 
+  test("A cached round whose mutator this build no longer knows still shows, under Unknown (ADR 0018)") {
+    runTest {
+      val database = newDatabase()
+      val repository = SqlDelightHistoryRepository(database)
+
+      // A payload the server could have written before ADR 0012 removed TAMANHO_MINIMO: built by
+      // encoding a valid entry and swapping in the legacy discriminator, so this test does not
+      // hand-maintain a full RoundHistoryEntry JSON literal.
+      val legacy = sampleEntry(roundId = "legacy", startsAt = 1_000L).copy(mutator = Mutator.NoMutator)
+      val legacyJson = PalavramentoJson.encodeToString(RoundHistoryEntry.serializer(), legacy)
+        .replace(""""type":"SEM_MUTADOR"""", """"type":"TAMANHO_MINIMO","length":5""")
+      database.roundHistoryQueries.upsert("legacy", 1_000L, legacyJson)
+
+      // The round itself is intact: only the rule's name was lost, and the entry carries the title
+      // the server wrote back when it played.
+      repository.round("legacy").first() shouldBe legacy.copy(mutator = Mutator.Unknown)
+    }
+  }
+
   // android.util.Log is unmocked on the plain JVM (no Robolectric in this project, see
   // LobbyViewModelTest): the repository logs a warning when it skips an undecodable cached row, so a
   // bare Log.w call would throw "not mocked" before that decode-failure path could be exercised.
-  test("A cached round that no longer decodes (ADR 0012: a removed mutator type) is skipped, not crashed on") {
+  test("A cached round that does not decode at all is skipped, not crashed on (ADR 0012)") {
     mockkStatic(Log::class)
     every { Log.w(any(), any<String>()) } returns 0
     try {
@@ -160,17 +179,15 @@ class HistoryRepositoryTest : FunSpec({
         val goodEntry = sampleEntry(roundId = "good", startsAt = 2_000L)
         repository.upsertAll(listOf(goodEntry))
 
-        // A payload the server could have written before ADR 0012 removed TAMANHO_MINIMO/LETRA_PROIBIDA:
-        // built by encoding a valid entry and swapping in the legacy discriminator, so this test does
-        // not hand-maintain a full RoundHistoryEntry JSON literal.
-        val legacyJson = PalavramentoJson.encodeToString(
+        // A row whose shape changed, not just its mutator: RoundHistoryEntry cannot be built from it.
+        val corruptJson = PalavramentoJson.encodeToString(
           RoundHistoryEntry.serializer(),
-          sampleEntry(roundId = "legacy", startsAt = 1_000L).copy(mutator = Mutator.NoMutator),
-        ).replace(""""type":"SEM_MUTADOR"""", """"type":"TAMANHO_MINIMO","length":5""")
-        database.roundHistoryQueries.upsert("legacy", 1_000L, legacyJson)
+          sampleEntry(roundId = "corrupt", startsAt = 1_000L),
+        ).replace(""""maxScore":4193,""", "")
+        database.roundHistoryQueries.upsert("corrupt", 1_000L, corruptJson)
 
         repository.rounds().first() shouldBe listOf(goodEntry)
-        repository.round("legacy").first() shouldBe null
+        repository.round("corrupt").first() shouldBe null
         repository.round("good").first() shouldBe goodEntry
       }
     } finally {

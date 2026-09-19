@@ -25,6 +25,9 @@ object MatchStateReducer {
     // Clock sync is a side channel consumed by the session before it reaches the reducer
     // (docs/adr/0006-arquitetura-do-app.md); passing through keeps the fold total either way.
     is ServerMessage.ClockSyncResponse -> state
+    // A message a newer server sent that this build has no case for (ADR 0018): ignoring it keeps
+    // the match running on everything else the server says.
+    is ServerMessage.Unknown -> state
   }
 
   private fun onLobbyState(state: MatchUiState, message: ServerMessage.LobbyState): MatchUiState =

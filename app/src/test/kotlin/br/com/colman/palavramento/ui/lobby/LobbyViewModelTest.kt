@@ -199,4 +199,35 @@ class LobbyViewModelTest : FunSpec({
 
     eventually(EventuallyTimeout) { viewModel.uiState.value.isGuest shouldBe true }
   }
+
+  test("a registered player whose session was rejected lands on a new guest with the expired notice") {
+    val registered = AuthTokens("player-1", "Ana", isGuest = false, "old-access", 0L, "old-refresh")
+    val freshGuest = guestTokens()
+    val guestProfile = PlayerProfile(freshGuest.playerId, freshGuest.displayName, true, 1, 0, 100)
+    val restApi = restApiOf { request ->
+      emptyRoundsResponse(request, this) ?: when (request.url.encodedPath) {
+        "/auth/refresh" -> respond("", HttpStatusCode.Unauthorized)
+        "/auth/guest" -> jsonOk(PalavramentoJson.encodeToString(AuthTokens.serializer(), freshGuest))
+        "/players/me" -> jsonOk(PalavramentoJson.encodeToString(PlayerProfile.serializer(), guestProfile))
+        else -> error("Unexpected request: ${request.url}")
+      }
+    }
+    val profileRepository = FakeProfileRepository()
+    val historyRepository = FakeHistoryRepository()
+    // A fixed clock: the fixtures' far-off expiry (999_999_999_999 ms) is already past by the real one.
+    val authController =
+      AuthController(restApi, FakeTokenRepository(registered), profileRepository, historyRepository, nowMs = { 0L })
+    val syncService = SyncService(restApi, authController, profileRepository, historyRepository)
+    val viewModel = LobbyViewModel(authController, syncService, profileRepository)
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.sessionExpired shouldBe true }
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isLoading shouldBe false }
+    viewModel.uiState.value.isGuest shouldBe true
+    viewModel.uiState.value.loadError shouldBe false
+    eventually(EventuallyTimeout) { viewModel.uiState.value.profile shouldBe guestProfile }
+
+    viewModel.onSessionExpiredDismissed()
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.sessionExpired shouldBe false }
+  }
 })

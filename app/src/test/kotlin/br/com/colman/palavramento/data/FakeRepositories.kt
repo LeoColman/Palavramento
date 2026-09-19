@@ -12,9 +12,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
 /** In-memory [TokenRepository] for [AuthController]/[SyncService]/view model tests. */
-class FakeTokenRepository(initial: AuthTokens? = null) : TokenRepository {
+class FakeTokenRepository(initial: AuthTokens? = null, sessionExpired: Boolean = false) : TokenRepository {
   private val state = MutableStateFlow(initial)
   override val tokens: Flow<AuthTokens?> = state
+
+  private val sessionExpiredState = MutableStateFlow(sessionExpired)
+  override val sessionExpired: Flow<Boolean> = sessionExpiredState
 
   override suspend fun save(tokens: AuthTokens) {
     state.value = tokens
@@ -22,6 +25,10 @@ class FakeTokenRepository(initial: AuthTokens? = null) : TokenRepository {
 
   override suspend fun clear() {
     state.value = null
+  }
+
+  override suspend fun setSessionExpired(expired: Boolean) {
+    sessionExpiredState.value = expired
   }
 }
 

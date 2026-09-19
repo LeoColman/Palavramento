@@ -5,6 +5,7 @@ package br.com.colman.palavramento.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import br.com.colman.palavramento.domain.protocol.AuthTokens
@@ -33,7 +34,16 @@ class DataStoreTokenRepository(private val dataStore: DataStore<Preferences>) : 
     dataStore.edit { preferences -> preferences.remove(TokensKey) }
   }
 
+  override val sessionExpired: Flow<Boolean> = dataStore.data.map { preferences ->
+    preferences[SessionExpiredKey] ?: false
+  }
+
+  override suspend fun setSessionExpired(expired: Boolean) {
+    dataStore.edit { preferences -> preferences[SessionExpiredKey] = expired }
+  }
+
   private companion object {
     val TokensKey: Preferences.Key<String> = stringPreferencesKey("auth_tokens")
+    val SessionExpiredKey: Preferences.Key<Boolean> = booleanPreferencesKey("session_expired")
   }
 }

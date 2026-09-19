@@ -59,4 +59,24 @@ class DataStoreTokenRepositoryTest : FunSpec({
       repository.tokens.first() shouldBe null
     }
   }
+
+  test("sessionExpired is false until it is set") {
+    runTest {
+      val repository = DataStoreTokenRepository(tempDataStore())
+      repository.sessionExpired.first() shouldBe false
+    }
+  }
+
+  test("setSessionExpired persists the flag both ways, independently of the tokens") {
+    runTest {
+      val repository = DataStoreTokenRepository(tempDataStore())
+
+      repository.setSessionExpired(true)
+      repository.clear()
+      repository.sessionExpired.first() shouldBe true
+
+      repository.setSessionExpired(false)
+      repository.sessionExpired.first() shouldBe false
+    }
+  }
 })

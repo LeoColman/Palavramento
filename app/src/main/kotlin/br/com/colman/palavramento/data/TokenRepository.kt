@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Persists the current [AuthTokens] (dossier 8): a guest identity by default, created on first
- * launch via `POST /auth/guest`. Deliberately minimal for phase 4 - just get/save/clear - so phase
- * 5's login/promotion/refresh flow can extend it without reshaping what already depends on it.
+ * launch via `POST /auth/guest`. Also keeps whether a registered player's session was rejected, so
+ * the lobby can still ask them to log in again after the app restarts.
  */
 interface TokenRepository {
 
@@ -19,4 +19,9 @@ interface TokenRepository {
   suspend fun save(tokens: AuthTokens)
 
   suspend fun clear()
+
+  /** True once a registered player's session was rejected, until [setSessionExpired] resets it. */
+  val sessionExpired: Flow<Boolean>
+
+  suspend fun setSessionExpired(expired: Boolean)
 }

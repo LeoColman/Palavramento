@@ -22,8 +22,12 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import java.util.concurrent.atomic.AtomicInteger
 
 private fun tokens(
   playerId: String = "p1",
@@ -35,6 +39,12 @@ private fun tokens(
 
 private fun MockRequestHandleScope.jsonOk(body: AuthTokens) = respond(
   content = PalavramentoJson.encodeToString(AuthTokens.serializer(), body),
+  status = HttpStatusCode.OK,
+  headers = headersOf(HttpHeaders.ContentType, "application/json"),
+)
+
+private fun MockRequestHandleScope.jsonOk(body: PlayerProfile) = respond(
+  content = PalavramentoJson.encodeToString(PlayerProfile.serializer(), body),
   status = HttpStatusCode.OK,
   headers = headersOf(HttpHeaders.ContentType, "application/json"),
 )
@@ -130,22 +140,59 @@ class AuthControllerTest : FunSpec({
       // A guest recovering from a rejected refresh token starts over: no stale cache from "guest-1".
       profileRepository.clearCount shouldBe 1
       historyRepository.clearCount shouldBe 1
+      // A guest had no account to go back to, so there is nothing to ask them to log in again for.
+      controller.sessionExpired.first() shouldBe false
     }
   }
 
-  test("validAccessToken clears the session and returns null when a registered player's refresh token is rejected") {
+  test("a registered player whose refresh token is rejected carries on as a new guest, flagged as expired") {
     runTest {
       val expired = tokens(playerId = "player-1", isGuest = false, accessTokenExpiresAt = 0L)
-      val restApi = restApiOf { respondError(HttpStatusCode.Unauthorized) }
-      val tokenRepository = FakeTokenRepository(expired)
+      val freshGuest = tokens(playerId = "guest-2", isGuest = true, accessToken = "fresh-guest-token")
+      val restApi = restApiOf { request ->
+        if (request.url.encodedPath == "/auth/refresh") {
+          respondError(HttpStatusCode.Unauthorized)
+        } else {
+          jsonOk(freshGuest)
+        }
+      }
+      val profileRepository = FakeProfileRepository()
+      val historyRepository = FakeHistoryRepository()
       val controller =
-        AuthController(restApi, tokenRepository, FakeProfileRepository(), FakeHistoryRepository(), nowMs = {
-          0L
-        })
+        AuthController(restApi, FakeTokenRepository(expired), profileRepository, historyRepository, nowMs = { 0L })
 
-      controller.validAccessToken() shouldBe null
-      // task brief: "for a registered player, ask them to log in again".
-      tokenRepository.tokens.first() shouldBe null
+      // Still a usable token, so Jogar keeps working; the lobby asks them to log in again meanwhile.
+      controller.validAccessToken() shouldBe "fresh-guest-token"
+      controller.session.first() shouldBe freshGuest
+      controller.sessionExpired.first() shouldBe true
+      profileRepository.clearCount shouldBe 1
+      historyRepository.clearCount shouldBe 1
+    }
+  }
+
+  test("concurrent callers share one refresh instead of replaying the refresh token the server just rotated") {
+    runTest {
+      val current = tokens(accessToken = "old", refreshToken = "refresh-old", accessTokenExpiresAt = 10_000L)
+      val rotated = tokens(accessToken = "new", refreshToken = "refresh-new", accessTokenExpiresAt = 20 * MinuteMs)
+      val refreshCalls = AtomicInteger()
+      val restApi = restApiOf {
+        refreshCalls.incrementAndGet()
+        // Keeps the first refresh in flight long enough for the second caller to arrive meanwhile.
+        delay(100)
+        jsonOk(rotated)
+      }
+      val controller = AuthController(
+        restApi,
+        FakeTokenRepository(current),
+        FakeProfileRepository(),
+        FakeHistoryRepository(),
+        nowMs = { 0L },
+      )
+
+      val accessTokens = List(2) { async { controller.validAccessToken() } }.awaitAll()
+
+      accessTokens shouldBe listOf("new", "new")
+      refreshCalls.get() shouldBe 1
     }
   }
 
@@ -197,6 +244,54 @@ class AuthControllerTest : FunSpec({
     }
   }
 
+  test("callAuthenticated retries with a token another caller rotated meanwhile, without refreshing again") {
+    runTest {
+      val current = tokens(accessToken = "stale", refreshToken = "refresh-1", accessTokenExpiresAt = 10 * MinuteMs)
+      val rotated = tokens(accessToken = "rotated", refreshToken = "refresh-2", accessTokenExpiresAt = 20 * MinuteMs)
+      val profile = PlayerProfile("p1", "Ana", isGuest = false, level = 1, totalXp = 0, xpForNextLevel = 100)
+      val tokenRepository = FakeTokenRepository(current)
+      val refreshCalls = AtomicInteger()
+      val restApi = restApiOf { request ->
+        when (request.url.encodedPath) {
+          "/auth/refresh" -> {
+            refreshCalls.incrementAndGet()
+            respondError(HttpStatusCode.Unauthorized)
+          }
+
+          "/players/me" -> if (request.headers[HttpHeaders.Authorization] == "Bearer stale") {
+            // Another caller finished its own refresh while this request was in flight.
+            tokenRepository.save(rotated)
+            respondError(HttpStatusCode.Unauthorized)
+          } else {
+            jsonOk(profile)
+          }
+
+          else -> error("Unexpected request: ${request.url}")
+        }
+      }
+      val controller =
+        AuthController(restApi, tokenRepository, FakeProfileRepository(), FakeHistoryRepository(), nowMs = { 0L })
+
+      controller.callAuthenticated { token -> restApi.playerProfile(token) } shouldBe profile
+      refreshCalls.get() shouldBe 0
+    }
+  }
+
+  test("callAuthenticated gives up when the session is gone by the time it would retry") {
+    runTest {
+      val current = tokens(accessToken = "stale", accessTokenExpiresAt = 10 * MinuteMs)
+      val tokenRepository = FakeTokenRepository(current)
+      val restApi = restApiOf {
+        tokenRepository.clear()
+        respondError(HttpStatusCode.Unauthorized)
+      }
+      val controller =
+        AuthController(restApi, tokenRepository, FakeProfileRepository(), FakeHistoryRepository(), nowMs = { 0L })
+
+      controller.callAuthenticated { token -> restApi.playerProfile(token) } shouldBe null
+    }
+  }
+
   test("callAuthenticated returns null when it cannot get a token at all") {
     runTest {
       val restApi = restApiOf { respondError(HttpStatusCode.Unauthorized) }
@@ -211,7 +306,8 @@ class AuthControllerTest : FunSpec({
 
   test("register success saves the promoted tokens and clears the local cache") {
     runTest {
-      val guest = tokens(playerId = "guest-1", isGuest = true, accessToken = "guest-token")
+      val guest =
+        tokens(playerId = "guest-1", isGuest = true, accessToken = "guest-token", accessTokenExpiresAt = 10 * MinuteMs)
       val promoted = tokens(playerId = "guest-1", isGuest = false, accessToken = "promoted-token")
       var sentBearer: String? = null
       val restApi = restApiOf { request ->
@@ -220,7 +316,8 @@ class AuthControllerTest : FunSpec({
       }
       val tokenRepository = FakeTokenRepository(guest)
       val profileRepository = FakeProfileRepository()
-      val controller = AuthController(restApi, tokenRepository, profileRepository, FakeHistoryRepository())
+      val controller =
+        AuthController(restApi, tokenRepository, profileRepository, FakeHistoryRepository(), nowMs = { 0L })
 
       val result = controller.register("ana@example.com", "correct horse battery staple", "Ana")
 
@@ -259,17 +356,81 @@ class AuthControllerTest : FunSpec({
     }
   }
 
-  test("login success saves the migrated tokens and clears the local cache") {
+  test("login success saves the migrated tokens, clears the local cache and the expired-session notice") {
     runTest {
       val migrated = tokens(playerId = "target-1", isGuest = false)
       val restApi = restApiOf { jsonOk(migrated) }
-      val tokenRepository = FakeTokenRepository()
+      val tokenRepository = FakeTokenRepository(sessionExpired = true)
       val historyRepository = FakeHistoryRepository()
       val controller = AuthController(restApi, tokenRepository, FakeProfileRepository(), historyRepository)
 
       controller.login("ana@example.com", "correct horse battery staple") shouldBe AuthCallResult.Success
       tokenRepository.tokens.first() shouldBe migrated
       historyRepository.clearCount shouldBe 1
+      tokenRepository.sessionExpired.first() shouldBe false
+    }
+  }
+
+  test("login refreshes an expiring guest token first, so the server can still migrate that guest") {
+    runTest {
+      val guest = tokens(playerId = "guest-1", accessToken = "guest-old", refreshToken = "refresh-old")
+      val rotatedGuest = tokens(
+        playerId = "guest-1",
+        accessToken = "guest-new",
+        refreshToken = "refresh-new",
+        accessTokenExpiresAt = 20 * MinuteMs,
+      )
+      val account = tokens(playerId = "target-1", isGuest = false, accessToken = "account-token")
+      var loginBearer: String? = null
+      val restApi = restApiOf { request ->
+        when (request.url.encodedPath) {
+          "/auth/refresh" -> jsonOk(rotatedGuest)
+          "/auth/login" -> {
+            loginBearer = request.headers[HttpHeaders.Authorization]
+            jsonOk(account)
+          }
+
+          else -> error("Unexpected request: ${request.url}")
+        }
+      }
+      val tokenRepository = FakeTokenRepository(guest)
+      val controller =
+        AuthController(restApi, tokenRepository, FakeProfileRepository(), FakeHistoryRepository(), nowMs = { 0L })
+
+      controller.login("ana@example.com", "correct horse battery staple") shouldBe AuthCallResult.Success
+      // An expired bearer is a 401 even on /auth/login, which would read as a wrong password.
+      loginBearer shouldBe "Bearer guest-new"
+      tokenRepository.tokens.first() shouldBe account
+    }
+  }
+
+  test("login from a registered session sends no guest token") {
+    runTest {
+      val registered = tokens(playerId = "player-1", isGuest = false, accessToken = "player-token")
+      var loginBearer: String? = "not sent yet"
+      val restApi = restApiOf { request ->
+        loginBearer = request.headers[HttpHeaders.Authorization]
+        jsonOk(tokens(playerId = "player-2", isGuest = false))
+      }
+      val controller =
+        AuthController(restApi, FakeTokenRepository(registered), FakeProfileRepository(), FakeHistoryRepository())
+
+      controller.login("bia@example.com", "correct horse battery staple") shouldBe AuthCallResult.Success
+      loginBearer shouldBe null
+    }
+  }
+
+  test("dismissSessionExpired hides the notice without touching the session") {
+    runTest {
+      val guest = tokens(playerId = "guest-1")
+      val restApi = restApiOf { error("Dismissing the notice must not call the network") }
+      val tokenRepository = FakeTokenRepository(guest, sessionExpired = true)
+      val controller = AuthController(restApi, tokenRepository, FakeProfileRepository(), FakeHistoryRepository())
+
+      controller.dismissSessionExpired()
+
+      controller.sessionExpired.first() shouldBe false
+      tokenRepository.tokens.first() shouldBe guest
     }
   }
 

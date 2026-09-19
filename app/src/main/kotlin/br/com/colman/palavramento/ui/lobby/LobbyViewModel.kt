@@ -43,6 +43,14 @@ class LobbyViewModel(
       }
     }
     viewModelScope.launch { profileRepository.stats().collect { s -> mutableUiState.update { it.copy(stats = s) } } }
+    // Follows the stored session rather than what [refresh] bootstrapped: a rejected refresh token
+    // can swap a registered player for a new guest in the middle of a sync.
+    viewModelScope.launch {
+      authController.session.collect { tokens -> mutableUiState.update { it.copy(isGuest = tokens?.isGuest ?: true) } }
+    }
+    viewModelScope.launch {
+      authController.sessionExpired.collect { expired -> mutableUiState.update { it.copy(sessionExpired = expired) } }
+    }
     refresh()
   }
 
@@ -63,7 +71,6 @@ class LobbyViewModel(
         mutableUiState.update { it.copy(isLoading = false, loadError = true) }
         return@launch
       }
-      mutableUiState.update { it.copy(isGuest = tokens.isGuest) }
       val synced = syncService.sync()
       if (!synced) Log.w(Tag, "Lobby cache sync failed; showing the last cached data, if any")
       mutableUiState.update { it.copy(isLoading = false, loadError = !synced) }
@@ -78,6 +85,11 @@ class LobbyViewModel(
     }
   }
 
+  /** The player whose session expired chose to keep playing as a guest for now. */
+  fun onSessionExpiredDismissed() {
+    viewModelScope.launch { authController.dismissSessionExpired() }
+  }
+
   private companion object {
     const val Tag = "LobbyViewModel"
   }
@@ -89,4 +101,5 @@ data class LobbyUiState(
   val profile: PlayerProfile? = null,
   val stats: LifetimeStats? = null,
   val loadError: Boolean = false,
+  val sessionExpired: Boolean = false,
 )

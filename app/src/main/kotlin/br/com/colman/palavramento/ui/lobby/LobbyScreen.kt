@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -72,15 +74,22 @@ fun LobbyScreen(
       .fillMaxSize()
       .background(colors.background)
       .windowInsetsPadding(WindowInsets.safeDrawing)
+      // The session-expired notice makes the lobby taller than a small phone's screen.
+      .verticalScroll(rememberScrollState())
       .padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
     LobbyHeader(uiState.profile, uiState.isGuest, onLogoutClicked = viewModel::onLogoutClicked)
+    if (uiState.sessionExpired) {
+      SessionExpiredNotice(onLoginClicked = onLoginClicked, onDismiss = viewModel::onSessionExpiredDismissed)
+    }
     TextButton(onClick = onHistoryClicked) { Text(stringResource(R.string.lobby_history_button)) }
     if (uiState.loadError && uiState.profile == null) {
       LoadErrorState(onRetry = viewModel::refresh)
     } else {
-      StatsPanel(uiState.stats, uiState.isGuest, uiState.isLoading, onLoginClicked = onLoginClicked)
+      // The notice above already offers "Entrar"; a second invite below it would only repeat it.
+      val showGuestInvite = uiState.isGuest && !uiState.sessionExpired
+      StatsPanel(uiState.stats, uiState.isGuest, showGuestInvite, uiState.isLoading, onLoginClicked = onLoginClicked)
     }
     LanguageSelector()
     Button(onClick = onPlayClicked, modifier = Modifier.fillMaxWidth()) {
@@ -102,6 +111,25 @@ private fun LoadErrorState(onRetry: () -> Unit) {
     Text(stringResource(R.string.lobby_load_error), color = colors.textPrimary)
     Button(onClick = onRetry, modifier = Modifier.testTag(LobbyRetryButtonTestTag)) {
       Text(stringResource(R.string.lobby_retry_button))
+    }
+  }
+}
+
+/** A registered player's session was rejected and they are now a guest (see AuthController). */
+@Composable
+private fun SessionExpiredNotice(onLoginClicked: () -> Unit, onDismiss: () -> Unit) {
+  val colors = PalavramentoColors.current
+  Column(
+    Modifier
+      .fillMaxWidth()
+      .background(colors.surface, RoundedCornerShape(12.dp))
+      .padding(16.dp),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
+    Text(stringResource(R.string.lobby_session_expired), color = colors.textPrimary)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Button(onClick = onLoginClicked) { Text(stringResource(R.string.lobby_login_button)) }
+      TextButton(onClick = onDismiss) { Text(stringResource(R.string.lobby_session_expired_dismiss)) }
     }
   }
 }
@@ -137,7 +165,13 @@ private fun LobbyHeader(profile: PlayerProfile?, isGuest: Boolean, onLogoutClick
 }
 
 @Composable
-private fun StatsPanel(stats: LifetimeStats?, isGuest: Boolean, isLoading: Boolean, onLoginClicked: () -> Unit) {
+private fun StatsPanel(
+  stats: LifetimeStats?,
+  isGuest: Boolean,
+  showGuestInvite: Boolean,
+  isLoading: Boolean,
+  onLoginClicked: () -> Unit,
+) {
   val colors = PalavramentoColors.current
   Column(
     Modifier
@@ -169,7 +203,7 @@ private fun StatsPanel(stats: LifetimeStats?, isGuest: Boolean, isLoading: Boole
       StatRow(stringResource(R.string.lobby_stat_best_rank), stats?.bestRank?.toString() ?: empty)
       StatRow(stringResource(R.string.lobby_stat_games_played), stats?.gamesPlayed?.toString() ?: empty)
     }
-    if (isGuest) {
+    if (showGuestInvite) {
       Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,

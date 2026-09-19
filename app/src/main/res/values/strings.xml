@@ -25,6 +25,8 @@
   <string name="lobby_guest_invite">Entre para salvar suas estatísticas</string>
   <string name="lobby_login_button">Entrar</string>
   <string name="lobby_logout_button">Sair</string>
+  <string name="lobby_session_expired">Sua sessão expirou. Entre de novo para voltar à sua conta. O que você jogar até lá vai junto.</string>
+  <string name="lobby_session_expired_dismiss">Agora não</string>
   <string name="lobby_history_button">Histórico</string>
   <string name="lobby_language_label">Idioma</string>
   <string name="lobby_language_value" translatable="false">Português</string>

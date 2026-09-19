@@ -24,6 +24,24 @@ servidor).
 ./gradlew :app:installDebug  # app num aparelho ou emulador
 ```
 
+`check` inclui teste de mutação (Pitest) nos três módulos, e o limite falha o build: 90% de mutantes
+mortos em `:domain` e `:server`, 50% no `:app`, onde metade do código é Compose e só os testes
+instrumentados alcançam. Detalhes e exclusões em [ADR 0015](docs/adr/0015-testes-de-mutacao.md).
+
+## APK assinado para distribuir
+
+A chave de assinatura está no repositório cifrada com git-secret ([ADR
+0016](docs/adr/0016-assinatura-de-release.md)). Quem tem uma chave GPG autorizada
+(`git secret whoknows`) publica assim:
+
+```bash
+git secret reveal                  # escreve keystore.properties e app/palavramento-release.jks
+./gradlew :app:assembleRelease     # app/build/outputs/apk/release/app-release.apk
+```
+
+Sem o `reveal` o build continua funcionando, mas o APK de release sai **sem assinatura** e não
+instala. O de debug (`:app:assembleDebug`) não depende de nada disso.
+
 ## Rodando o servidor localmente
 
 O servidor precisa de um PostgreSQL. `docker-compose.yml` na raiz sobe um, com as credenciais que os

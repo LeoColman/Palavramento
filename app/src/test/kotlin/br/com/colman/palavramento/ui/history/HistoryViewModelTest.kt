@@ -14,7 +14,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlin.time.Duration.Companion.seconds
 
@@ -36,8 +35,11 @@ private fun sampleRound() = RoundHistoryEntry(
 /** [HistoryViewModel] reads straight from the cache (task brief 3: "Historico visivel offline"). */
 class HistoryViewModelTest : FunSpec({
 
-  beforeTest { Dispatchers.setMain(UnconfinedTestDispatcher()) }
-  afterTest { Dispatchers.resetMain() }
+  // Installed for the whole spec and deliberately never reset: a view model started by one test can
+  // still be cancelling while the next one runs (RoomViewModel's session loop never ends on its own),
+  // and resetting Main out from under it dispatches that cancellation into a Main dispatcher that no
+  // longer exists, which on the JVM fails as "Looper not mocked". There is no real Main to restore.
+  beforeSpec { Dispatchers.setMain(UnconfinedTestDispatcher()) }
 
   test("rounds starts empty when the cache has nothing") {
     val viewModel = HistoryViewModel(FakeHistoryRepository())

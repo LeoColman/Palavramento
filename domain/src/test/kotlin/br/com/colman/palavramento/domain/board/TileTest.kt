@@ -29,6 +29,11 @@ class TileTest : FunSpec({
     Tile("A", 1).value shouldBe 1
   }
 
+  test("Accepts both ends of the A-Z range") {
+    Tile("A", 1).letters shouldBe "A"
+    Tile("Z", 1).letters shouldBe "Z"
+  }
+
   test("Accepts a digraph tile") {
     Tile("NH", 5).letters shouldBe "NH"
   }

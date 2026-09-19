@@ -38,6 +38,13 @@ class PathTest : FunSpec({
     Path(listOf(-1)).isValidOn(referenceBoard()) shouldBe false
   }
 
+  test("One index past the last tile is out of bounds, the last tile itself is not") {
+    // Single tile paths, so the bounds check is the only clause that can reject them: a two tile
+    // path with an out-of-bounds index also fails the adjacency check, which hides the boundary.
+    Path(listOf(16)).isValidOn(referenceBoard()) shouldBe false
+    Path(listOf(15)).isValidOn(referenceBoard()) shouldBe true
+  }
+
   test("A path that reuses a tile is invalid") {
     Path(listOf(0, 1, 0)).isValidOn(referenceBoard()) shouldBe false
   }

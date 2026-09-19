@@ -48,14 +48,14 @@ detekt {
 }
 
 /**
- * Mutation testing, gated at 80% killed mutants (dossier §10).
+ * Mutation testing, gated at 90% killed mutants (dossier §10, ADR 0015).
  *
  * The `info.solidsoft.pitest` plugin does not apply on Gradle 9 (it reads the removed
  * `ReportingExtension.baseDir`), so PIT runs from its command line entrypoint instead.
  */
 val pitestTask = tasks.register<JavaExec>("pitest") {
   group = "verification"
-  description = "Runs PIT mutation testing and fails below 80% killed mutants"
+  description = "Runs PIT mutation testing and fails below 90% killed mutants"
 
   val testSourceSet = sourceSets.test.get()
   val mutableCodePaths = sourceSets.main.get().output.classesDirs
@@ -89,7 +89,7 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
     // parameter defaults, equals/hashCode) that round-trip tests do not exercise line by line.
     "--excludedClasses=*\$\$serializer,*\$inlined\$*,br.com.colman.palavramento.domain.protocol.*",
     "--testPlugin=Kotest",
-    "--mutationThreshold=80",
+    "--mutationThreshold=90",
     // Property based specs are slow enough that PIT's 4s default kills healthy minions.
     "--timeoutConst=10000",
     "--outputFormats=HTML,XML",

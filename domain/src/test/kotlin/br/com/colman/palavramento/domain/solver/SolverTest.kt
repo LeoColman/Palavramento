@@ -7,18 +7,22 @@ import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Path
 import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.board.isValidOn
-import br.com.colman.palavramento.domain.board.spell
+import br.com.colman.palavramento.domain.board.spellings
 import br.com.colman.palavramento.domain.lexicon.InMemoryLexicon
 import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.lexicon.LexiconEntry
 import br.com.colman.palavramento.domain.lexicon.lookup
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
+import io.kotest.property.arbitrary.choice
 import io.kotest.property.arbitrary.element
+import io.kotest.property.arbitrary.filter
 import io.kotest.property.arbitrary.list
 import io.kotest.property.arbitrary.map
+import io.kotest.property.arbitrary.pair
 import io.kotest.property.arbitrary.stringPattern
 import io.kotest.property.checkAll
 import kotlin.random.Random
@@ -39,11 +43,31 @@ private fun referenceBoard() = Board(
 )
 
 private val letterArb = Arb.element(('A'..'E').toList())
-private val boardArb: Arb<Board> = Arb.list(letterArb, 9..9).map { letters ->
-  Board(3, letters.map { Tile(it.toString(), 1) })
-}
+private val plainTileArb: Arb<Tile> = letterArb.map { Tile(it.toString(), 1) }
+
+/**
+ * An alternatives tile (ADR 0015) drawn from the same small alphabet as [plainTileArb], so the naive
+ * reference and the real solver both have a realistic chance of matching a lexicon word through
+ * either option. A real board only ever carries a handful of these; [plainTileArb] appears far more
+ * often in [boardArb] below, matching that.
+ */
+private val alternativesTileArb: Arb<Tile> =
+  Arb.pair(letterArb, letterArb).filter { (first, second) -> first != second }
+    .map { (first, second) -> Tile("$first/$second", 1) }
+private val tileArb: Arb<Tile> = Arb.choice(plainTileArb, plainTileArb, plainTileArb, plainTileArb, alternativesTileArb)
+private val boardArb: Arb<Board> = Arb.list(tileArb, 9..9).map { tiles -> Board(3, tiles) }
 private val lexiconArb: Arb<Lexicon> = Arb.list(Arb.stringPattern("[A-E]{3,6}"), 0..40).map { words ->
   InMemoryLexicon(words.distinct().associateWith { LexiconEntry(it, 1) })
+}
+
+/** Every word [path] can spell on [board] (ADR 0015): the cartesian product of each tile's options. */
+private fun spellingsOf(path: List<Int>, board: Board): List<String> {
+  var results = listOf("")
+  for (index in path) {
+    val options = board.tiles[index].options
+    results = results.flatMap { prefix -> options.map { option -> prefix + option } }
+  }
+  return results
 }
 
 /** Reference implementation (dossier 10): every simple path on the board, checked against the lexicon directly. */
@@ -53,8 +77,8 @@ private fun naiveSolve(board: Board, lexicon: Lexicon, minLength: Int = 3): List
   val path = mutableListOf<Int>()
 
   fun visit(score: Int) {
-    if (path.size >= minLength) {
-      val word = path.joinToString(separator = "") { board.tiles[it].letters }
+    for (word in spellingsOf(path, board)) {
+      if (word.length < minLength) continue
       val entry = lexicon.lookup(word)
       if (entry != null) {
         val existing = best[word]
@@ -162,22 +186,52 @@ class SolverTest : FunSpec({
     words.first { it.normalized == "CATS" }.tier shouldBe WordTier.Expert
   }
 
-  test("Every word the solver returns has a valid path on the board that spells it") {
+  test("Every word the solver returns has a valid path on the board that spells it (ADR 0015: one of its spellings)") {
     checkAll(30, boardArb, lexiconArb) { board, lexicon ->
       Solver(lexicon).solve(board).forEach { word ->
         val path = Path(word.path)
         path.isValidOn(board) shouldBe true
-        path.spell(board) shouldBe word.normalized
+        path.spellings(board) shouldContain word.normalized
       }
     }
   }
 
-  test("The solver misses no word a naive full path enumeration finds") {
+  test("The solver misses no word a naive full path enumeration finds, including through alternatives tiles") {
     checkAll(30, boardArb, lexiconArb) { board, lexicon ->
       val fast = Solver(lexicon).solve(board).map { it.normalized }.toSet()
       val naive = naiveSolve(board, lexicon).map { it.normalized }.toSet()
       fast shouldBe naive
     }
+  }
+
+  test("The solver keeps the best score per normalized word, including across alternatives boards") {
+    checkAll(30, boardArb, lexiconArb) { board, lexicon ->
+      val fast = Solver(lexicon).solve(board).associate { it.normalized to it.score }
+      val naive = naiveSolve(board, lexicon).associate { it.normalized to it.score }
+      fast shouldBe naive
+    }
+  }
+
+  test("An alternatives tile lets the same physical tile continue a word as either of its letters") {
+    // C A/F T S: an alternatives tile at index 1 can spell CAT or CFT.
+    val board = Board(2, listOf(Tile("C", 3), Tile("A/F", 20), Tile("T", 3), Tile("S", 1)))
+    val words = Solver(InMemoryLexicon.of("cat", "cft")).solve(board)
+    words.map { it.normalized } shouldContainExactlyInAnyOrder listOf("CAT", "CFT")
+    words.first { it.normalized == "CAT" }.score shouldBe 26
+    words.first { it.normalized == "CFT" }.score shouldBe 26
+  }
+
+  test("Both options of an alternatives tile are found when both spell real words") {
+    // A/F T . O, with T adjacent to both the alternatives tile and O: A-T-O / F-T-O.
+    val board = Board(2, listOf(Tile("A/F", 1), Tile("T", 1), Tile("S", 1), Tile("O", 1)))
+    val words = Solver(InMemoryLexicon.of("ato", "fto")).solve(board)
+    words.map { it.normalized } shouldContainExactlyInAnyOrder listOf("ATO", "FTO")
+  }
+
+  test("Only the matching option of an alternatives tile is found when the other spells no word") {
+    val board = Board(2, listOf(Tile("A/F", 1), Tile("T", 1), Tile("S", 1), Tile("O", 1)))
+    val words = Solver(InMemoryLexicon.of("ato")).solve(board)
+    words.map { it.normalized } shouldBe listOf("ATO")
   }
 
   test("Solves a 4x4 board against a large synthetic lexicon well under a second") {

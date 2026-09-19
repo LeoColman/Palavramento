@@ -32,4 +32,32 @@ class TileTest : FunSpec({
   test("Accepts a digraph tile") {
     Tile("NH", 5).letters shouldBe "NH"
   }
+
+  test("A plain tile has exactly one option, itself") {
+    Tile("A", 1).options shouldBe listOf("A")
+  }
+
+  test("A digraph tile has exactly one option, the whole digraph") {
+    Tile("QU", 4).options shouldBe listOf("QU")
+  }
+
+  test("An alternatives tile splits into one option per side of the slash (ADR 0015)") {
+    Tile("A/F", 20).options shouldBe listOf("A", "F")
+  }
+
+  test("An alternatives tile can separate multi-letter options") {
+    Tile("QU/CH", 10).options shouldBe listOf("QU", "CH")
+  }
+
+  test("Rejects malformed alternatives: leading, trailing or doubled slash") {
+    listOf("/A", "A/", "A//F", "/").forEach { letters ->
+      shouldThrow<IllegalArgumentException> { Tile(letters, 1) }
+    }
+  }
+
+  test("Rejects an alternatives option outside A-Z") {
+    listOf("a/F", "A/f", "A/1").forEach { letters ->
+      shouldThrow<IllegalArgumentException> { Tile(letters, 1) }
+    }
+  }
 })

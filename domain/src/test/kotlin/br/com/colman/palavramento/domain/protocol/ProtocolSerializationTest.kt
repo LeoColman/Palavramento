@@ -101,22 +101,42 @@ class ProtocolSerializationTest : FunSpec({
       Mutator.ValuableLetter('L', 10),
       Mutator.Digraphs(3),
       Mutator.LetterInCorners('O'),
+      Mutator.OneOrOther('A', 'F'),
     ).forEach { mutator ->
       val json = PalavramentoJson.encodeToString(Mutator.serializer(), mutator)
       PalavramentoJson.decodeFromString(Mutator.serializer(), json) shouldBe mutator
     }
   }
 
-  test("Every mutator carries the dossier's wire token as its type discriminator (ADR 0012)") {
+  test("Every mutator carries the dossier's wire token as its type discriminator (ADR 0012, ADR 0015)") {
     val cases = mapOf(
       "SEM_MUTADOR" to Mutator.NoMutator,
       "LETRA_VALIOSA" to Mutator.ValuableLetter('L', 10),
       "DIGRAFOS" to Mutator.Digraphs(3),
       "LETRA_NOS_CANTOS" to Mutator.LetterInCorners('O'),
+      "UMA_OU_OUTRA" to Mutator.OneOrOther('A', 'F'),
     )
     cases.forEach { (type, mutator) ->
       PalavramentoJson.encodeToString(Mutator.serializer(), mutator) shouldContain "\"type\":\"$type\""
     }
+  }
+
+  test("A board with an alternatives tile round-trips through RoundStart unchanged (ADR 0015)") {
+    val message = ServerMessage.RoundStart(
+      roundId = "round-1",
+      board = sampleBoard() + Tile("A/F", 20),
+      mutator = Mutator.OneOrOther('A', 'F'),
+      themeTitle = "Uma ou outra: A/F",
+      themeSubtitle = "15 palavras comuns",
+      maxScore = 4193,
+      maxWords = 272,
+      startsAt = 1_000,
+      endsAt = 121_000,
+    )
+    roundTrip(message) shouldBe message
+    val json = PalavramentoJson.encodeToString(ServerMessage.serializer(), message)
+    // The tile is still one plain "letters" string field, not a new shape (dossier compatibility).
+    json shouldContain "\"letters\":\"A/F\""
   }
 
   test("RoundEnd round-trips its labelled word list") {

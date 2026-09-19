@@ -20,12 +20,17 @@ class MutatorThemeTest : FunSpec({
     MutatorTheme.title(Mutator.LetterInCorners('O')) shouldBe "O nos cantos"
   }
 
+  test("OneOrOther title names both letters, owner's own example (ADR 0015)") {
+    MutatorTheme.title(Mutator.OneOrOther('A', 'F')) shouldBe "Uma ou outra: A/F"
+  }
+
   test("Every mutator has a non-blank title") {
     listOf(
       Mutator.NoMutator,
       Mutator.ValuableLetter('L', 10),
       Mutator.Digraphs(3),
       Mutator.LetterInCorners('O'),
+      Mutator.OneOrOther('A', 'F'),
     ).forEach { mutator -> MutatorTheme.title(mutator).isNotBlank() shouldBe true }
   }
 

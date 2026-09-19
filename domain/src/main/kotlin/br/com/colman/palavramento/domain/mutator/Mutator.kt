@@ -7,11 +7,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * A round-wide rule that changes a grid's tiles or scoring (dossier 1.5, ADR 0012).
+ * A round-wide rule that changes a grid's tiles or scoring (dossier 1.5, ADR 0012, ADR 0015).
  *
  * Identifiers are English per project convention; the wire and save-file discriminators are the
- * exact tokens the dossier names ([SEM_MUTADOR], `LETRA_VALIOSA`, `DIGRAFOS`, `LETRA_NOS_CANTOS`),
- * carried by [SerialName] rather than by the Kotlin type name.
+ * exact tokens the dossier names (`SEM_MUTADOR`, `LETRA_VALIOSA`, `DIGRAFOS`, `LETRA_NOS_CANTOS`,
+ * `UMA_OU_OUTRA`), carried by [SerialName] rather than by the Kotlin type name.
  *
  * `LETRA_PROIBIDA` and `TAMANHO_MINIMO` existed in v1 and were removed by ADR 0012 (product owner
  * decision, 2026-09-15): every accepted word is at least [DefaultMinimumLength] letters now, with no
@@ -70,6 +70,23 @@ sealed interface Mutator {
   data class LetterInCorners(val letter: Char) : Mutator {
     init {
       require(letter in 'A'..'Z') { "Mutator letter must be normalized A-Z, got '$letter'" }
+    }
+  }
+
+  /**
+   * One tile reads `"$first/$second"`, e.g. `A/F` (ADR 0015, owner request 2026-09-18: "Uma letra
+   * separada por / 'A/F' que vale 20 pontos e pode ser usada em palavras tanto com A quanto com F"):
+   * a word can use that tile as either letter, and the same traced path can legitimately spell (and
+   * score) a word through each option, one at a time. The generator places exactly one such tile, on
+   * one of the board's non-edge positions, worth [br.com.colman.palavramento.domain.generator.BoardGenerator.OneOrOtherValue]
+   * points regardless of which option a word uses.
+   */
+  @Serializable
+  @SerialName("UMA_OU_OUTRA")
+  data class OneOrOther(val first: Char, val second: Char) : Mutator {
+    init {
+      require(first in 'A'..'Z') { "Mutator letter must be normalized A-Z, got '$first'" }
+      require(second in 'A'..'Z') { "Mutator letter must be normalized A-Z, got '$second'" }
     }
   }
 }

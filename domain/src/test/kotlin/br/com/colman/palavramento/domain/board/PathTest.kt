@@ -51,4 +51,24 @@ class PathTest : FunSpec({
     Path(listOf(0)).isValidOn(referenceBoard()) shouldBe true
     Path(listOf(0)).spell(referenceBoard()) shouldBe "L"
   }
+
+  test("spellings of a path with no alternatives tile is a single-element list, the same as spell") {
+    val board = referenceBoard()
+    val path = Path(listOf(0, 5, 4, 1))
+    path.spellings(board) shouldBe listOf(path.spell(board))
+  }
+
+  test("spellings is the cartesian product of the options along the path (ADR 0015)") {
+    // C A/F T S: an alternatives tile at index 1.
+    val board = Board(2, listOf(Tile("C", 3), Tile("A/F", 20), Tile("T", 3), Tile("S", 1)))
+    Path(listOf(0, 1, 2)).spellings(board) shouldBe listOf("CAT", "CFT")
+  }
+
+  test("spellings with two alternatives tiles on the same path produces every combination, in order") {
+    // A/F B/C X Y: a 2x2 board where every pair of tiles is adjacent.
+    val board = Board(2, listOf(Tile("A/F", 20), Tile("B/C", 5), Tile("X", 1), Tile("Y", 1)))
+    Path(listOf(0, 1)).spellings(board) shouldBe listOf("AB", "AC", "FB", "FC")
+    // Sanity: a single-tile path still just enumerates that one tile's options.
+    Path(listOf(0)).spellings(board) shouldBe listOf("A", "F")
+  }
 })

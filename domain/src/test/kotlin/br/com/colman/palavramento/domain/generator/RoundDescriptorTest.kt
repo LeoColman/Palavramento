@@ -22,13 +22,14 @@ class RoundDescriptorTest : FunSpec({
     (mutators.size > 1) shouldBe true
   }
 
-  test("Over enough draws, all four mutator outcomes appear") {
+  test("Over enough draws, all five mutator outcomes appear") {
     val mutators = (0 until 200L).map { RoundDescriptorPicker.pick(it).mutator::class }.toSet()
     mutators shouldBe setOf(
       Mutator.NoMutator::class,
       Mutator.ValuableLetter::class,
       Mutator.Digraphs::class,
       Mutator.LetterInCorners::class,
+      Mutator.OneOrOther::class,
     )
   }
 
@@ -45,6 +46,30 @@ class RoundDescriptorTest : FunSpec({
       val mutator = RoundDescriptorPicker.pick(seed).mutator
       if (mutator is Mutator.LetterInCorners) (mutator.letter in cornerLetters) shouldBe true
     }
+  }
+
+  test("OneOrOther's first letter is always one of the four vowels A, E, I, O") {
+    val vowels = "AEIO".toSet()
+    (0 until 200L).forEach { seed ->
+      val mutator = RoundDescriptorPicker.pick(seed).mutator
+      if (mutator is Mutator.OneOrOther) (mutator.first in vowels) shouldBe true
+    }
+  }
+
+  test("OneOrOther's second letter is always one of the documented consonant pool") {
+    val consonants = "RSNTMCLDPF".toSet()
+    (0 until 200L).forEach { seed ->
+      val mutator = RoundDescriptorPicker.pick(seed).mutator
+      if (mutator is Mutator.OneOrOther) (mutator.second in consonants) shouldBe true
+    }
+  }
+
+  test("Over enough draws, every letter of the OneOrOther consonant pool appears") {
+    val consonants = "RSNTMCLDPF".toSet()
+    val seen = (0 until 2_000L).mapNotNull { seed ->
+      (RoundDescriptorPicker.pick(seed).mutator as? Mutator.OneOrOther)?.second
+    }.toSet()
+    seen shouldBe consonants
   }
 
   test("commonMin is always positive") {

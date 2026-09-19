@@ -47,17 +47,24 @@ palavra de pontuar, e a única regra de comprimento mínimo que existe agora é 
    §1.6 já previa o modelo, tile = `String`; o solver já percorre tiles de múltiplas letras como uma
    unidade, sem mudança nenhuma no `Solver` para isso funcionar). Título fixo "Dígrafos",
    independente de `count`. O gerador (`BoardGenerator.drawBoard`) desenha a grade normalmente e
-   então sobrescreve `count` posições aleatórias (mesmo `Random` com seed, então a geração continua
+   então sobrescreve `count` posições (mesmo `Random` com seed, então a geração continua
    determinística) com um tile de dígrafo sorteado de `DigraphTable`. O seletor de rodada
    (`RoundDescriptorPicker`) escolhe `count` entre 2 e 4.
+   **Colocação revista pela ADR 0015** (dono do produto, 2026-09-18): as `count` posições não são
+   mais um sorteio uniforme entre todas as 16 - nunca caem num canto e nunca ficam adjacentes a outro
+   dígrafo (`BoardGenerator.digraphPositions`), para que todo dígrafo sempre tenha um vizinho comum
+   por onde uma palavra possa entrar ou sair dele. Ver a ADR 0015 para o algoritmo de colocação (uma
+   busca por backtracking, não gulosa) e para a regra de aceite nova que garante que cada dígrafo
+   realmente aparece na solução da grade.
 4. **Novo** `LETRA_NOS_CANTOS` (`Mutator.LetterInCorners(letter)`): os quatro tiles de canto
    (índices `0`, `size-1`, `size*(size-1)`, `size*size-1`) viram `letter`, no valor normal da letra
    (sem inflar, ao contrário de `LETRA_VALIOSA`). Título "`letter` nos cantos" (ex.: "O nos
    cantos"). O seletor escolhe a letra entre `A, E, I, O, S, R` (vogais e duas consoantes comuns,
    para os cantos sempre renderizarem algo pronunciável). O gerador sobrescreve os quatro cantos
    depois do sorteio normal da grade, sempre pelo mesmo `Random`.
-5. O seletor de rodada mantém quatro desfechos igualmente prováveis: `NoMutator` / `ValuableLetter`
-   / `Digraphs` / `LetterInCorners`. As opções de `commonMin` não mudam.
+5. O seletor de rodada mantinha quatro desfechos igualmente prováveis: `NoMutator` / `ValuableLetter`
+   / `Digraphs` / `LetterInCorners`. As opções de `commonMin` não mudam. **A ADR 0015 acrescentou um
+   quinto mutador, `UMA_OU_OUTRA`, e o seletor passou a cinco desfechos igualmente prováveis.**
 
 ### Tabela de dígrafos (`domain/src/main/resources/digraphs.json`)
 

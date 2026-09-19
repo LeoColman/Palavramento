@@ -207,6 +207,15 @@ private fun TracedPathOverlay(
   }
 }
 
+/**
+ * Shows the tiles of the in-progress trace literally, e.g. "CA/FSA (24)" over an alternatives tile
+ * (ADR 0015): kept simple on purpose, over resolving to the spelling that will actually match. This
+ * label only exists while [path] is non-empty, i.e. mid-drag, before any verdict exists to resolve
+ * against - [BoardView.endDrag] clears [path] the moment a path is released and submitted, the same
+ * instant [feedback] would start telling the two options apart. So there is no point in this
+ * component's lifetime where both a complete path and its verdict are available together; showing the
+ * tiles as traced is the honest state of "not decided yet", not a compromise.
+ */
 @Composable
 private fun TracedWordLabel(path: List<Int>, tiles: List<Tile>, color: Color) {
   val word = path.joinToString(separator = "") { tiles[it].letters }
@@ -311,9 +320,10 @@ private fun BoardTile(
   ) {
     // Text sizes follow the tile's own height instead of fixed sp: letters fill a big tile on any
     // screen, and a large system font scale cannot push them past the tile's edges. A digraph tile
-    // (ADR 0012, e.g. "QU") has two characters, so it gets a smaller fraction to keep both clear.
+    // (ADR 0012, e.g. "QU") has two characters, so it gets a smaller fraction to keep both clear; an
+    // alternatives tile (ADR 0015, e.g. "A/F") has three, so it gets a slightly smaller one still.
     val density = LocalDensity.current
-    val letterFraction = if (tile.letters.length > 1) MultiLetterHeightFraction else LetterHeightFraction
+    val letterFraction = letterHeightFractionFor(tile)
     val letterSize = with(density) { (maxHeight * letterFraction).toSp() }
     val valueSize = with(density) { (maxHeight * ValueHeightFraction).toSp() }
     Text(
@@ -331,6 +341,19 @@ private fun BoardTile(
   }
 }
 
+/**
+ * The letter-height fraction for [tile] (see the comment at its call site): a plain tile (one
+ * character) gets [LetterHeightFraction], a digraph (two characters, ADR 0012) gets
+ * [MultiLetterHeightFraction], and an alternatives tile (three characters counting the `/`, ADR
+ * 0015, e.g. "A/F") gets the smallest, [AlternativesHeightFraction], so its extra character still
+ * fits without shrinking a plain or digraph tile's letters unnecessarily.
+ */
+private fun letterHeightFractionFor(tile: Tile): Float = when {
+  tile.letters.contains('/') -> AlternativesHeightFraction
+  tile.letters.length > 1 -> MultiLetterHeightFraction
+  else -> LetterHeightFraction
+}
+
 private const val MinSubmittablePathLength = 2
 private const val MinDrawablePathLength = 2
 private const val TracedScale = 1.06f
@@ -345,4 +368,5 @@ private val TileValuePadding = PaddingValues(4.dp)
 private val PathStrokeWidth = 6.dp
 private const val LetterHeightFraction = 0.4f
 private const val MultiLetterHeightFraction = 0.3f
+private const val AlternativesHeightFraction = 0.26f
 private const val ValueHeightFraction = 0.19f

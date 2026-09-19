@@ -16,6 +16,7 @@ object MutatorTheme {
     is Mutator.ValuableLetter -> "${mutator.letter} de alto valor"
     is Mutator.Digraphs -> "Dígrafos"
     is Mutator.LetterInCorners -> "${mutator.letter} nos cantos"
+    is Mutator.OneOrOther -> "Uma ou outra: ${mutator.first}/${mutator.second}"
   }
 
   /**

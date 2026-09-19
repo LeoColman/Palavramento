@@ -91,6 +91,8 @@ A segunda linha ("19 palavras comuns") é a **restrição de geração**: a grad
 
 **Conjunto de mutadores alterado pela ADR 0012** (decisão do dono do projeto, 2026-09-15): `LETRA_PROIBIDA` e `TAMANHO_MINIMO` foram removidos (o comprimento mínimo volta a ser sempre 3 letras, sem override); dois mutadores novos entraram no lugar, `DIGRAFOS` e `LETRA_NOS_CANTOS`. Ver a ADR para a definição de cada um, a tabela de dígrafos e a migração dos dados antigos.
 
+**Novo mutador pela ADR 0015** (decisão do dono do produto, 2026-09-18): `UMA_OU_OUTRA`, uma peça com duas letras alternativas separadas por `/` (ex.: "A/F") que vale 20 pontos e pode ser usada em palavras com qualquer uma das duas. A mesma ADR também revê a colocação de `DIGRAFOS` (nunca num canto, nunca vizinho de outro dígrafo) e acrescenta uma regra de aceite de geração: toda peça especial de um mutador (dígrafo, letra valiosa, cantos, a peça de "uma ou outra") precisa realmente aparecer na solução da grade, senão a grade é redesenhada. Ver a ADR para os limiares, a colocação e as medições contra o léxico real.
+
 ### 1.6 Normalização e dígrafos
 - Os tiles contêm letras **sem acento**. Palavras acentuadas do léxico casam com o caminho após remoção de diacríticos: `loâ → LOA`, `moiâ → MOIA`, `ç → C`. A forma **exibida** ao jogador é a forma canônica acentuada do léxico.
 - Se duas formas do léxico colapsam na mesma forma normalizada (`pais`/`país`), elas são **a mesma entrada de pontuação**; exibir a de maior frequência.

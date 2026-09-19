@@ -23,3 +23,21 @@ fun Path.isValidOn(board: Board): Boolean =
 
 /** The word spelled by concatenating the letters of every tile on the path, in order. */
 fun Path.spell(board: Board): String = indices.joinToString(separator = "") { board.tiles[it].letters }
+
+/**
+ * Every word this path can spell (ADR 0015): the cartesian product of each tile's [Tile.options],
+ * in order. A plain path (no alternatives tile on it) returns a single-element list, the same word
+ * [spell] would build. A board only ever carries a handful of alternatives tiles (the generator
+ * places at most one per round), so this product stays small; nothing here bounds it explicitly.
+ *
+ * Order matters to [br.com.colman.palavramento.domain.submission.SubmissionValidator]: earlier tiles
+ * vary slower than later ones, the same order a nested loop over each tile's options would produce.
+ */
+fun Path.spellings(board: Board): List<String> {
+  var results = listOf("")
+  for (index in indices) {
+    val options = board.tiles[index].options
+    results = results.flatMap { prefix -> options.map { option -> prefix + option } }
+  }
+  return results
+}

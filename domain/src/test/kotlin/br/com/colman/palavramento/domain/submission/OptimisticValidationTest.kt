@@ -15,10 +15,13 @@ import br.com.colman.palavramento.domain.solver.Solver
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
+import io.kotest.property.arbitrary.choice
 import io.kotest.property.arbitrary.element
+import io.kotest.property.arbitrary.filter
 import io.kotest.property.arbitrary.int
 import io.kotest.property.arbitrary.list
 import io.kotest.property.arbitrary.map
+import io.kotest.property.arbitrary.pair
 import io.kotest.property.arbitrary.stringPattern
 import io.kotest.property.checkAll
 
@@ -27,9 +30,15 @@ import io.kotest.property.checkAll
 private val topology = Board(3, List(9) { Tile("A", 1) })
 
 private val letterArb = Arb.element(('A'..'E').toList())
-private val boardArb: Arb<Board> = Arb.list(letterArb, 9..9).map { letters ->
-  Board(3, letters.map { Tile(it.toString(), 1) })
-}
+private val plainTileArb: Arb<Tile> = letterArb.map { Tile(it.toString(), 1) }
+
+/** Occasionally an alternatives tile (ADR 0015), so the equivalence argument also covers boards
+ * where a path can spell more than one word. */
+private val alternativesTileArb: Arb<Tile> =
+  Arb.pair(letterArb, letterArb).filter { (first, second) -> first != second }
+    .map { (first, second) -> Tile("$first/$second", 1) }
+private val tileArb: Arb<Tile> = Arb.choice(plainTileArb, plainTileArb, plainTileArb, plainTileArb, alternativesTileArb)
+private val boardArb: Arb<Board> = Arb.list(tileArb, 9..9).map { tiles -> Board(3, tiles) }
 private val lexiconArb: Arb<Lexicon> = Arb.list(Arb.stringPattern("[A-E]{3,6}"), 0..40).map { words ->
   InMemoryLexicon(words.distinct().associateWith { LexiconEntry(it, 1) })
 }

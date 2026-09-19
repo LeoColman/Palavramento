@@ -146,8 +146,13 @@ private fun MiniBoard(tiles: List<Tile>, modifier: Modifier = Modifier) {
               .background(colors.tileBackground, RoundedCornerShape(4.dp)),
             contentAlignment = Alignment.Center,
           ) {
-            // A digraph tile (ADR 0012, e.g. "QU") gets a smaller font, same reasoning as BoardView.
-            val fontSize = if (tile.letters.length > 1) MiniTileFontSizeMultiLetter else MiniTileFontSize
+            // A digraph tile (ADR 0012, e.g. "QU") gets a smaller font, and an alternatives tile
+            // (ADR 0015, e.g. "A/F") smaller still, same reasoning as BoardView.
+            val fontSize = when {
+              tile.letters.contains('/') -> MiniTileFontSizeAlternatives
+              tile.letters.length > 1 -> MiniTileFontSizeMultiLetter
+              else -> MiniTileFontSize
+            }
             Text(tile.letters, color = colors.tileText, fontSize = fontSize)
           }
         }
@@ -158,3 +163,4 @@ private fun MiniBoard(tiles: List<Tile>, modifier: Modifier = Modifier) {
 
 private val MiniTileFontSize = 9.sp
 private val MiniTileFontSizeMultiLetter = 6.sp
+private val MiniTileFontSizeAlternatives = 5.sp

@@ -5,7 +5,6 @@ package br.com.colman.palavramento.server.round
 
 import br.com.colman.palavramento.domain.board.Board
 import br.com.colman.palavramento.domain.board.Path
-import br.com.colman.palavramento.domain.board.spell
 import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.domain.submission.SubmissionResult
@@ -112,7 +111,10 @@ class PlayerRoundState {
     when (result) {
       is SubmissionResult.Rejected -> SubmitOutcome.Rejected(result.reason, pathIndices)
       is SubmissionResult.Accepted -> {
-        val normalized = Path(pathIndices).spell(board)
+        // result.normalized, not a re-spelling of the path (ADR 0015): a path over an alternatives
+        // tile can spell more than one word, and only the validator's own result says which one this
+        // submission actually matched.
+        val normalized = result.normalized
         found[normalized] = FoundWord(normalized, result.word, result.score, pathIndices, acceptedAt)
         runningScore += result.score
         runningWords += 1

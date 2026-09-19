@@ -35,4 +35,22 @@ class MutatorTest : FunSpec({
     Mutator.Digraphs(3).count shouldBe 3
     Mutator.LetterInCorners('O').letter shouldBe 'O'
   }
+
+  test("OneOrOther carries the fields it was built with (ADR 0015)") {
+    val mutator = Mutator.OneOrOther('A', 'F')
+    mutator.first shouldBe 'A'
+    mutator.second shouldBe 'F'
+  }
+
+  test("OneOrOther rejects a letter outside A-Z on either side") {
+    shouldThrow<IllegalArgumentException> { Mutator.OneOrOther('a', 'F') }
+    shouldThrow<IllegalArgumentException> { Mutator.OneOrOther('A', 'f') }
+  }
+
+  test("OneOrOther accepts the first and last letters of the alphabet") {
+    Mutator.OneOrOther('A', 'Z').let {
+      it.first shouldBe 'A'
+      it.second shouldBe 'Z'
+    }
+  }
 })

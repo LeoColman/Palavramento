@@ -19,14 +19,26 @@ import br.com.colman.palavramento.domain.mutator.DefaultMinimumLength
  * word's score is the sum of its tiles' own values: the generator already applied the round's
  * mutator to the tiles, so the solver never needs to know which mutator is active.
  *
+ * A tile can carry more than one option (ADR 0015, `A/F`): entering it tries every
+ * [br.com.colman.palavramento.domain.board.Tile.options] as a separate DFS branch, from the same
+ * lexicon node, so the same physical tile can continue a word as either letter. The normalized word
+ * recorded for a branch is built from the options actually chosen along its path, not from the tiles'
+ * raw [br.com.colman.palavramento.domain.board.Tile.letters] (which, for an alternatives tile, would
+ * literally include the `/`).
+ *
  * The search itself avoids allocating anything beyond a few fixed-size buffers per [solve] call:
- * the path and visited buffers are reused across every DFS branch, and a word's normalized form and
- * [SolvedWord] are only built the moment a lexicon node turns out to be a real entry.
+ * the path, visited and chosen-option buffers are reused across every DFS branch, and a word's
+ * normalized form and [SolvedWord] are only built the moment a lexicon node turns out to be a real
+ * entry.
  */
 class Solver(private val lexicon: Lexicon) {
 
   fun solve(board: Board, commonCutoff: Int = DefaultCommonCutoff): List<SolvedWord> {
-    val buffers = Buffers(visited = BooleanArray(board.tiles.size), path = IntArray(board.tiles.size))
+    val buffers = Buffers(
+      visited = BooleanArray(board.tiles.size),
+      path = IntArray(board.tiles.size),
+      chosen = arrayOfNulls(board.tiles.size),
+    )
     val frame = SearchFrame(board, commonCutoff, buffers, best = LinkedHashMap())
 
     val start = Cursor(depth = 0, letterCount = 0, node = Lexicon.Root, score = 0)
@@ -38,26 +50,30 @@ class Solver(private val lexicon: Lexicon) {
 
   private fun search(frame: SearchFrame, tileIndex: Int, cursor: Cursor) {
     val tile = frame.board.tiles[tileIndex]
-    val node = lexicon.walk(tile.letters, from = cursor.node)
-    if (node == Lexicon.NoNode) return
-
     frame.buffers.path[cursor.depth] = tileIndex
     frame.buffers.visited[tileIndex] = true
-    val next = Cursor(
-      depth = cursor.depth + 1,
-      letterCount = cursor.letterCount + tile.letters.length,
-      node = node,
-      score = cursor.score + tile.value,
-    )
 
-    val entry = lexicon.entry(node)
-    if (entry != null && next.letterCount >= DefaultMinimumLength) {
-      record(frame, next.depth, next.score, entry)
-    }
+    for (option in tile.options) {
+      val node = lexicon.walk(option, from = cursor.node)
+      if (node == Lexicon.NoNode) continue
 
-    for (neighbor in frame.board.neighborsOf(tileIndex)) {
-      if (!frame.buffers.visited[neighbor]) {
-        search(frame, neighbor, next)
+      frame.buffers.chosen[cursor.depth] = option
+      val next = Cursor(
+        depth = cursor.depth + 1,
+        letterCount = cursor.letterCount + option.length,
+        node = node,
+        score = cursor.score + tile.value,
+      )
+
+      val entry = lexicon.entry(node)
+      if (entry != null && next.letterCount >= DefaultMinimumLength) {
+        record(frame, next.depth, next.score, entry)
+      }
+
+      for (neighbor in frame.board.neighborsOf(tileIndex)) {
+        if (!frame.buffers.visited[neighbor]) {
+          search(frame, neighbor, next)
+        }
       }
     }
 
@@ -66,7 +82,7 @@ class Solver(private val lexicon: Lexicon) {
 
   private fun record(frame: SearchFrame, length: Int, score: Int, entry: LexiconEntry) {
     val indices = frame.buffers.path.copyOfRange(0, length).toList()
-    val normalized = indices.joinToString(separator = "") { frame.board.tiles[it].letters }
+    val normalized = (0 until length).joinToString(separator = "") { frame.buffers.chosen[it].orEmpty() }
     val existing = frame.best[normalized]
     if (existing == null || score > existing.score) {
       val tier = if (entry.frequencyRank <= frame.commonCutoff) WordTier.Common else WordTier.Expert
@@ -74,8 +90,9 @@ class Solver(private val lexicon: Lexicon) {
     }
   }
 
-  /** Reusable, mutable, fixed-size scratch space for one [solve] call's whole DFS tree. */
-  private class Buffers(val visited: BooleanArray, val path: IntArray)
+  /** Reusable, mutable, fixed-size scratch space for one [solve] call's whole DFS tree: [chosen] holds
+   * the option string picked at each depth of the path currently being explored. */
+  private class Buffers(val visited: BooleanArray, val path: IntArray, val chosen: Array<String?>)
 
   /** Everything one [solve] call threads through every DFS branch, grouped to keep call sites short. */
   private class SearchFrame(

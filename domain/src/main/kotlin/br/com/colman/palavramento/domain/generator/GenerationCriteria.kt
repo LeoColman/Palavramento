@@ -14,21 +14,27 @@ data class GenerationCriteria(
   val totalWordsMin: Int = DefaultTotalWordsMin,
   val maxAttempts: Int = DefaultMaxAttempts,
   val relaxationFactor: Double = DefaultRelaxationFactor,
+  /** How well a mutator's special tiles must integrate into the solution (owner request, see
+   * [SpecialTileCriteria]). Ignored for [br.com.colman.palavramento.domain.mutator.Mutator.NoMutator],
+   * which places no special tile. */
+  val specialTiles: SpecialTileCriteria = SpecialTileCriteria(),
 ) {
   /**
    * The criteria used for the next block of [maxAttempts] attempts after this one fails
    * [maxAttempts] times in a row (dossier 3, step 5: "relax criteria by 10% and repeat").
    *
    * Relaxing by [relaxationFactor] means: [commonMin] and [totalWordsMin] shrink by that fraction
-   * (floored, never below zero), and [maxScoreRange] widens by that fraction on each side (its
-   * lower bound shrinks, its upper bound grows), making every criterion strictly easier to satisfy.
-   * Relaxation is cumulative: applying it again relaxes the already-relaxed criteria further, so
-   * repeated failures eventually make acceptance certain regardless of the starting criteria.
+   * (floored, never below zero), [maxScoreRange] widens by that fraction on each side (its
+   * lower bound shrinks, its upper bound grows), and every [specialTiles] threshold shrinks the same
+   * way, making every criterion strictly easier to satisfy. Relaxation is cumulative: applying it
+   * again relaxes the already-relaxed criteria further, so repeated failures eventually make
+   * acceptance certain regardless of the starting criteria.
    */
   fun relaxed(): GenerationCriteria = copy(
     commonMin = shrink(commonMin),
     totalWordsMin = shrink(totalWordsMin),
     maxScoreRange = shrink(maxScoreRange.first)..grow(maxScoreRange.last),
+    specialTiles = specialTiles.relaxed(relaxationFactor),
   )
 
   private fun shrink(value: Int): Int = (value * (1 - relaxationFactor)).toInt().coerceAtLeast(0)

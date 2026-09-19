@@ -6,6 +6,7 @@ package br.com.colman.palavramento.server.rest
 import br.com.colman.palavramento.domain.protocol.AuthTokens
 import br.com.colman.palavramento.domain.protocol.GuestAuthRequest
 import br.com.colman.palavramento.domain.protocol.LifetimeStats
+import br.com.colman.palavramento.domain.protocol.LoginRequest
 import br.com.colman.palavramento.domain.protocol.PlayerProfile
 import br.com.colman.palavramento.domain.protocol.RegisterRequest
 import br.com.colman.palavramento.domain.protocol.RoundHistoryEntry
@@ -80,6 +81,34 @@ class PlayerRoutesTest : FunSpec({
         "/players/me/stats"
       ) { header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}") }
       response.status shouldBe HttpStatusCode.Forbidden
+      response.body<ErrorBody>().error shouldBe "Guests have no lifetime stats (dossier 8)"
+    }
+  }
+
+  test("players/me answers 404 once the player's account is gone") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      client.post("/auth/register") {
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("owner-$roomId@example.com", "correct horse battery staple", "Owner"))
+      }.status shouldBe HttpStatusCode.OK
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("Ghost"))
+      }.body()
+
+      // Login-migration (ADR 0007) deletes the guest's player row once nothing else references it;
+      // the guest's own access token is a signed JWT and still verifies fine after that.
+      client.post("/auth/login") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+        contentType(ContentType.Application.Json)
+        setBody(LoginRequest("owner-$roomId@example.com", "correct horse battery staple"))
+      }.status shouldBe HttpStatusCode.OK
+
+      val response = client.get("/players/me") { header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}") }
+      response.status shouldBe HttpStatusCode.NotFound
     }
   }
 
@@ -132,6 +161,79 @@ class PlayerRoutesTest : FunSpec({
       stats.averageScore shouldBe 75.0
       stats.averageWords shouldBe 7.5
       stats.averagePointsPerWord shouldBe 10.0
+    }
+  }
+
+  test("players/me/stats defaults to all-zero aggregates for a registered player with no rounds yet") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val registered: AuthTokens = client.post("/auth/register") {
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("freshstats-$roomId@example.com", "correct horse battery staple", "Fresh"))
+      }.body()
+
+      // No player_stats row was ever written for this player: PlayerStatsRow?.toLifetimeStats()'s
+      // null branch, with every average guarded against a division by zero games/words played.
+      val response = client.get(
+        "/players/me/stats"
+      ) { header(HttpHeaders.Authorization, "Bearer ${registered.accessToken}") }
+      response.status shouldBe HttpStatusCode.OK
+      val stats: LifetimeStats = response.body()
+
+      stats.totalScore shouldBe 0L
+      stats.totalWords shouldBe 0L
+      stats.bestGameScore shouldBe 0
+      stats.bestWord shouldBe null
+      stats.bestWordScore shouldBe 0
+      stats.gamesPlayed shouldBe 0
+      stats.gamesCompleted shouldBe 0
+      stats.bestRank shouldBe null
+      stats.averageScore shouldBe 0.0
+      stats.averageWords shouldBe 0.0
+      stats.averagePointsPerWord shouldBe 0.0
+    }
+  }
+
+  test("players/me/rounds clamps an out-of-range limit instead of applying it as given") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("LimitPlayer"))
+      }.body()
+
+      val roundRepository = RoundRepository(database)
+      val roundResultRepository = RoundResultRepository(database)
+      val playerRepository = PlayerRepository(database)
+      repeat(3) {
+        val round = roundRepository.insertFakeFinishedRound(roomId)
+        playerRepository.transaction {
+          roundResultRepository.insert(
+            this,
+            RoundResultRow(round, guest.playerId, score = 1, words = 1, rank = 1, xp = 1, enteredAt = Instant.now())
+          )
+        }
+      }
+
+      // limit=0 is below the allowed range: PlayerRoutes.kt coerces it up to 1, not down to 0.
+      val zeroLimit = client.get("/players/me/rounds?limit=0") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+      }
+      zeroLimit.status shouldBe HttpStatusCode.OK
+      val zeroLimitHistory: List<RoundHistoryEntry> = zeroLimit.body()
+      zeroLimitHistory shouldHaveSize 1
+
+      // A limit inside the allowed range is passed through untouched, not clamped further.
+      val explicitLimit = client.get("/players/me/rounds?limit=2") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+      }
+      explicitLimit.status shouldBe HttpStatusCode.OK
+      val explicitLimitHistory: List<RoundHistoryEntry> = explicitLimit.body()
+      explicitLimitHistory shouldHaveSize 2
     }
   }
 

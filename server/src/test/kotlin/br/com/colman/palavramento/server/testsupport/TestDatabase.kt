@@ -10,12 +10,13 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import java.util.UUID
 
 /**
- * Installs the shared [TestPostgres] container into [this] spec, migrates it (idempotent: Flyway
- * no-ops once the schema is already current, dossier ADR 0003) and returns an Exposed [Database]
- * connected to it.
+ * This JVM's database, migrated (idempotent: Flyway no-ops once the schema is already current,
+ * dossier ADR 0003) and returned as an Exposed [Database]. It comes from the shared server when the
+ * build handed this JVM one, and from the [TestPostgres] container installed into [this] spec
+ * otherwise. See [TestPostgres] for which run uses which.
  */
 fun Spec.testDatabase(): Database {
-  val dataSource = install(TestPostgres.extension)
+  val dataSource = TestPostgres.sharedServerDataSource ?: install(TestPostgres.extension)
   DatabaseFactory.migrate(dataSource)
   return Database.connect(dataSource)
 }

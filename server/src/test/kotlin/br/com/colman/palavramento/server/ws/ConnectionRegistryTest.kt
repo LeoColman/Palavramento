@@ -5,7 +5,6 @@ package br.com.colman.palavramento.server.ws
 
 import br.com.colman.palavramento.domain.protocol.PalavramentoJson
 import br.com.colman.palavramento.domain.protocol.ServerMessage
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -15,7 +14,6 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readReason
 import io.ktor.websocket.readText
-import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.serialization.decodeFromString
 
 /**
@@ -165,28 +163,31 @@ class ConnectionRegistryTest : FunSpec({
     aliceSession.sent.tryReceive().isSuccess shouldBe false
   }
 
-  test("a connection that dropped mid-send breaks the whole broadcast instead of being skipped") {
-    // Current behavior, not a spec: neither broadcast nor sendTo isolates a per-connection failure,
-    // so one dead socket can stop a round-end/leaderboard fan-out for every other connected player
-    // processed after it. Documented here so a future fix has a test to flip green.
+  test("a connection that dropped mid-send does not stop the broadcast reaching everyone else") {
     val registry = ConnectionRegistry()
     val deadSession = FakeWebSocketServerSession()
     deadSession.sent.close() // simulates the underlying socket having already gone away
+    val aliveSession = FakeWebSocketServerSession()
     registry.register("dead", Connection(deadSession))
+    registry.register("alive", Connection(aliveSession))
+    val message = ServerMessage.LobbyState(nextRoundStartsAt = 1L, playersWaiting = 2)
 
-    shouldThrow<ClosedSendChannelException> {
-      registry.broadcast(ServerMessage.LobbyState(nextRoundStartsAt = 1L, playersWaiting = 1))
-    }
+    registry.broadcast(message)
+
+    val delivered = aliveSession.sent.tryReceive().getOrNull().shouldBeInstanceOf<Frame.Text>()
+    delivered.readText() shouldBe PalavramentoJson.encodeToString(ServerMessage.serializer(), message)
+    // The dead one is gone from the registry: nothing left to fail on the next round's broadcast.
+    registry.connectedPlayerIds() shouldBe setOf("alive")
   }
 
-  test("a connection that dropped mid-send also breaks sendTo for that player") {
+  test("sendTo a connection that dropped mid-send drops it instead of throwing at the caller") {
     val registry = ConnectionRegistry()
     val deadSession = FakeWebSocketServerSession()
     deadSession.sent.close()
     registry.register("dead", Connection(deadSession))
 
-    shouldThrow<ClosedSendChannelException> {
-      registry.sendTo("dead", ServerMessage.LobbyState(nextRoundStartsAt = 1L, playersWaiting = 1))
-    }
+    registry.sendTo("dead", ServerMessage.LobbyState(nextRoundStartsAt = 1L, playersWaiting = 1))
+
+    registry.connectedPlayerCount() shouldBe 0
   }
 })

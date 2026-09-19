@@ -197,6 +197,62 @@ val excludedFromMutationRun = listOf(
   "br.com.colman.palavramento.server.lexicon.RealLexiconCalibrationTest",
 ).joinToString(",")
 
+/** The one Postgres every PIT minion shares (ADR 0016), and how long the build waits for it. */
+private val PitestPostgresContainer = "palavramento-pitest-postgres"
+private val PitestPostgresImage = "postgres:16-alpine"
+private val PitestPostgresReadyAttempts = 60
+private val PitestPostgresReadyPollMillis = 1000L
+
+/** Runs [command], returning its exit status and whatever it printed on either stream. */
+private fun dockerCommand(vararg command: String): Pair<Int, String> {
+  val process = ProcessBuilder(*command).redirectErrorStream(true).start()
+  val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
+  return process.waitFor() to output
+}
+
+/**
+ * Starts the Postgres the minions share and returns its JDBC url.
+ *
+ * Testcontainers cannot do this job: it lives inside a JVM, and the JVMs that need the database are
+ * the ones PIT forks, one per mutation unit. Each fork booting its own container is what made this
+ * task a five hour run in CI. Durability is turned off because the server dies with the run, and
+ * `fsync` is most of what a fork's `CREATE DATABASE` plus Flyway migration costs.
+ */
+private fun startPitestPostgres(): String {
+  dockerCommand("docker", "rm", "-f", PitestPostgresContainer)
+  val (startStatus, startOutput) = dockerCommand(
+    "docker", "run", "-d", "--rm",
+    "--name", PitestPostgresContainer,
+    "-e", "POSTGRES_PASSWORD=postgres",
+    "-e", "POSTGRES_USER=postgres",
+    "-p", "127.0.0.1::5432",
+    PitestPostgresImage,
+    "-c", "fsync=off",
+    "-c", "synchronous_commit=off",
+    "-c", "full_page_writes=off",
+    "-c", "max_connections=500",
+  )
+  check(startStatus == 0) { "Could not start the shared Postgres for pitest: $startOutput" }
+
+  repeat(PitestPostgresReadyAttempts) {
+    val (readyStatus, _) = dockerCommand("docker", "exec", PitestPostgresContainer, "pg_isready", "-U", "postgres")
+    if (readyStatus == 0) {
+      val (portStatus, portOutput) = dockerCommand("docker", "port", PitestPostgresContainer, "5432/tcp")
+      check(portStatus == 0) { "Could not read the shared Postgres port: $portOutput" }
+      val port = portOutput.lines().first().substringAfterLast(':')
+      return "jdbc:postgresql://localhost:$port/postgres"
+    }
+    Thread.sleep(PitestPostgresReadyPollMillis)
+  }
+  error("The shared Postgres for pitest never became ready")
+}
+
+/** Stops the shared Postgres, whether the mutation run passed its threshold or not. */
+val stopPitestPostgres = tasks.register("stopPitestPostgres") {
+  description = "Stops the Postgres started for :server:pitest"
+  doLast { dockerCommand("docker", "rm", "-f", PitestPostgresContainer) }
+}
+
 /**
  * Mutation testing, gated at 90% killed mutants (dossier §10, ADR 0016).
  *
@@ -236,7 +292,9 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
     "--mutableCodePaths=${mutableCodePaths.joinToString(",") { it.absolutePath }}",
     "--sourceDirs=${sourceDirs.joinToString(",") { it.absolutePath }}",
     "--reportDir=${reportDir.get().asFile.absolutePath}",
-    "--targetClasses=br.com.colman.palavramento.server.*",
+    // Narrowing this from the command line is how you measure one class without waiting for the
+    // whole module, e.g. -Ppalavramento.pitest.targetClasses=br.com.colman.palavramento.server.auth.*
+    "--targetClasses=${providers.gradleProperty("palavramento.pitest.targetClasses").getOrElse("br.com.colman.palavramento.server.*")}",
     // PIT only hands specs matching this glob to the engine: every Kotest spec must be named *Test.
     "--targetTests=br.com.colman.palavramento.server.*Test",
     "--excludedClasses=$excludedFromMutation",
@@ -249,18 +307,22 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
     "--outputFormats=HTML,XML",
     "--timestampedReports=false",
     "--failWhenNoMutations=false",
-    "--jvmArgs=-Xmx1g",
   )
+
+  finalizedBy(stopPitestPostgres)
 
   doFirst {
     classpathFile.get().asFile.apply {
       parentFile.mkdirs()
       writeText(codeUnderTest.filter { it.exists() }.joinToString("\n") { it.absolutePath })
     }
+    // Started here, not at configuration time: the container only has to exist while PIT runs, and
+    // its port is different on every run, so it cannot be part of the task's inputs either.
+    args("--jvmArgs=-Xmx1g,-Dpalavramento.test.postgres.url=${startPitestPostgres()}")
     // Added here so the core count of whichever machine runs the build stays out of the inputs.
-    // Half the cores, not all of them: every PIT thread is a forked JVM that also holds its own
-    // Postgres container, so the memory cost of this number is what decides whether the build
-    // finishes or the OOM killer ends it.
+    // Half the cores, not all of them: every PIT thread is a forked JVM holding up to 1 GB plus the
+    // lexicon artifact, so this number is what decides whether the build finishes or the OOM killer
+    // ends it. The Postgres they used to hold each is gone (see startPitestPostgres).
     args("--threads=${maxOf(1, Runtime.getRuntime().availableProcessors() / 2)}")
   }
 }

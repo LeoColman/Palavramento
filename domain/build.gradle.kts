@@ -48,7 +48,7 @@ detekt {
 }
 
 /**
- * Mutation testing, gated at 90% killed mutants (dossier §10, ADR 0015).
+ * Mutation testing, gated at 90% killed mutants (dossier §10, ADR 0016).
  *
  * The `info.solidsoft.pitest` plugin does not apply on Gradle 9 (it reads the removed
  * `ReportingExtension.baseDir`), so PIT runs from its command line entrypoint instead.

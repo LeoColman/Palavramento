@@ -26,12 +26,12 @@ servidor).
 
 `check` inclui teste de mutação (Pitest) nos três módulos, e o limite falha o build: 90% de mutantes
 mortos em `:domain` e `:server`, 50% no `:app`, onde metade do código é Compose e só os testes
-instrumentados alcançam. Detalhes e exclusões em [ADR 0015](docs/adr/0015-testes-de-mutacao.md).
+instrumentados alcançam. Detalhes e exclusões em [ADR 0016](docs/adr/0016-testes-de-mutacao.md).
 
 ## APK assinado para distribuir
 
 A chave de assinatura está no repositório cifrada com git-secret ([ADR
-0016](docs/adr/0016-assinatura-de-release.md)). Quem tem uma chave GPG autorizada
+0017](docs/adr/0017-assinatura-de-release.md)). Quem tem uma chave GPG autorizada
 (`git secret whoknows`) publica assim:
 
 ```bash

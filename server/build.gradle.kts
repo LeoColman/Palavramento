@@ -162,7 +162,7 @@ tasks.test {
 }
 
 /**
- * Classes PIT does not mutate, and why (ADR 0015):
+ * Classes PIT does not mutate, and why (ADR 0016):
  * - `*$$serializer` and `*$inlined$*`: bytecode the Kotlin compiler writes, not ours to test.
  * - `ApplicationKt`: the `embeddedServer` bootstrap. Running it is starting the server, and the
  *   tests drive `Application.module` directly through Ktor's test host instead.
@@ -181,7 +181,7 @@ val excludedFromMutation = listOf(
 ).joinToString(",")
 
 /**
- * Specs PIT never runs, and why (ADR 0015). Both keep running under `test`, where they belong:
+ * Specs PIT never runs, and why (ADR 0016). Both keep running under `test`, where they belong:
  * - [br.com.colman.palavramento.server.lexicon.LexiconLoaderTest] recomputes the collapsing rule over
  *   all 2M+ lines of `forms.tsv` and needs the 3 GB heap the `test` task grants. One such minion per
  *   PIT thread is enough to take a developer machine down, and this build killed itself proving it.
@@ -198,7 +198,7 @@ val excludedFromMutationRun = listOf(
 ).joinToString(",")
 
 /**
- * Mutation testing, gated at 90% killed mutants (dossier §10, ADR 0015).
+ * Mutation testing, gated at 90% killed mutants (dossier §10, ADR 0016).
  *
  * Same command line entrypoint as `:domain` (the `info.solidsoft.pitest` plugin does not apply on
  * Gradle 9), with one difference this module forces: the `lexiconCompiler` source set is mutated too.

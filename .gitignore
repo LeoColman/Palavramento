@@ -11,7 +11,7 @@ captures/
 .gitsecret/keys/*~
 !*.secret
 
-# Assinatura de release (ADR 0016): os originais nunca entram no git, so as versoes
+# Assinatura de release (ADR 0017): os originais nunca entram no git, so as versoes
 # cifradas pelo git-secret (*.jks.secret, keystore.properties.secret).
 keystore.properties
 *.jks

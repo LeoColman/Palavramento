@@ -24,7 +24,7 @@ val serverUrl: String = providers.gradleProperty("palavramento.serverUrl").orNul
   ?: "https://palavramento.colman.com.br"
 
 /**
- * Release signing (ADR 0016). The keystore and its passwords live in the repository only as
+ * Release signing (ADR 0017). The keystore and its passwords live in the repository only as
  * git-secret ciphertext (`*.secret`); `git secret reveal` writes the plaintext back for whoever holds
  * an authorized GPG key. When the plaintext is absent, which is the normal state of a fresh clone and
  * of any CI job without the key, the release variant stays unsigned instead of failing the build, so
@@ -200,7 +200,7 @@ afterEvaluate {
 }
 
 /**
- * Classes PIT does not mutate in `:app`, and why (ADR 0015):
+ * Classes PIT does not mutate in `:app`, and why (ADR 0016):
  * - Compose screens (`*ScreenKt`, `*ViewKt`, `*SheetKt`, `ComposableSingletons*`, the theme and the
  *   nav host): the Compose compiler rewrites every composable into group/skip bookkeeping whose
  *   branches a JVM unit test cannot reach at all. What is testable about them (the gesture, the
@@ -237,7 +237,7 @@ val excludedFromMutation = listOf(
 ).joinToString(",")
 
 /**
- * Mutation testing on the Android module, gated at 50% killed mutants (dossier §10, ADR 0015).
+ * Mutation testing on the Android module, gated at 50% killed mutants (dossier §10, ADR 0016).
  *
  * The gate is half the JVM modules' because half of `:app` is Compose and Android framework code
  * that only the instrumented specs can reach, so a JVM-only mutation run can never score like

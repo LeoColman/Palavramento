@@ -1,4 +1,4 @@
-# ADR 0016: Chave de assinatura do app no repositório, cifrada com git-secret
+# ADR 0017: Chave de assinatura do app no repositório, cifrada com git-secret
 
 **Status:** aceita (2026-09-16)
 

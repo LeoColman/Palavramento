@@ -94,6 +94,7 @@ class AuthRoutesTest : FunSpec({
         setBody(RefreshRequest(first.refreshToken))
       }
       reuse.status shouldBe HttpStatusCode.Unauthorized
+      reuse.body<ErrorBody>().error shouldBe "Invalid or expired refresh token"
 
       // Reuse revokes the whole chain: even the latest, legitimately-issued token stops working.
       val afterReuse = client.post("/auth/refresh") {
@@ -151,6 +152,42 @@ class AuthRoutesTest : FunSpec({
 
       val second = client.register(null, "taken-$roomId@example.com", "Second")
       second.status shouldBe HttpStatusCode.Conflict
+      second.body<ErrorBody>().error shouldBe "Email already registered"
+    }
+  }
+
+  test("registering with a guest token whose player was already migrated away is rejected") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      client.register(null, "target-$roomId@example.com", "Target").status shouldBe HttpStatusCode.OK
+      val guest = client.guest("Ghost")
+
+      // Login-migration (ADR 0007) deletes the guest's player row outright once nothing else
+      // references it, but the guest's own access token is a signed JWT: it still verifies fine,
+      // it just now names a playerId that findById can no longer find.
+      client.login(guest.accessToken, "target-$roomId@example.com").status shouldBe HttpStatusCode.OK
+
+      val response = client.register(guest.accessToken, "new-$roomId@example.com", "NewName")
+      response.status shouldBe HttpStatusCode.Unauthorized
+      response.body<ErrorBody>().error shouldBe "Guest session not found"
+    }
+  }
+
+  test("registering again with an already-promoted guest's stale access token is rejected") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest = client.guest("StaleToken")
+      client.register(guest.accessToken, "first-$roomId@example.com", "First").status shouldBe HttpStatusCode.OK
+
+      // guest.accessToken's JWT claims are fixed at issuance (isGuest=true); the player it names was
+      // promoted by the call above, so replaying it now targets a player that is no longer a guest.
+      val response = client.register(guest.accessToken, "second-$roomId@example.com", "Second")
+      response.status shouldBe HttpStatusCode.Conflict
+      response.body<ErrorBody>().error shouldBe "Session does not belong to a guest"
     }
   }
 
@@ -166,6 +203,19 @@ class AuthRoutesTest : FunSpec({
         setBody(LoginRequest("wrongpass-$roomId@example.com", "not the right password"))
       }
       response.status shouldBe HttpStatusCode.Unauthorized
+      response.body<ErrorBody>().error shouldBe "Invalid email or password"
+    }
+  }
+
+  test("login with an email nobody registered is rejected the same way as a wrong password") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      val response = client.login(null, "nobody-$roomId@example.com")
+      response.status shouldBe HttpStatusCode.Unauthorized
+      response.body<ErrorBody>().error shouldBe "Invalid email or password"
     }
   }
 

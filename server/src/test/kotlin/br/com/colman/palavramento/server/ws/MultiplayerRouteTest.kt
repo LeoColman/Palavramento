@@ -9,11 +9,13 @@ import br.com.colman.palavramento.domain.protocol.GuestAuthRequest
 import br.com.colman.palavramento.domain.protocol.RegisterRequest
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.domain.submission.RejectionReason
+import br.com.colman.palavramento.server.auth.JwtService
 import br.com.colman.palavramento.server.module
 import br.com.colman.palavramento.server.repository.PlayerStatsRepository
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.SubmissionRepository
+import br.com.colman.palavramento.server.round.MutableGameClock
 import br.com.colman.palavramento.server.testsupport.TestLexicon
 import br.com.colman.palavramento.server.testsupport.nextServerMessage
 import br.com.colman.palavramento.server.testsupport.sendClientMessage
@@ -281,7 +283,7 @@ class MultiplayerRouteTest : FunSpec({
     }
   }
 
-  test("a missing or invalid session token closes the socket with a policy violation") {
+  test("an invalid session token closes the socket with a policy violation") {
     val roomId = testRoomId()
     val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
 
@@ -293,6 +295,145 @@ class MultiplayerRouteTest : FunSpec({
         sendClientMessage(ClientMessage.JoinRoom(sessionToken = "not-a-real-token"))
         val reason = closeReason.await()
         reason?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+        reason?.message shouldBe "Invalid or missing session token"
+      }
+    }
+  }
+
+  test("a missing session token closes the socket with a policy violation") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.JoinRoom(sessionToken = null))
+        val reason = closeReason.await()
+        reason?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+        reason?.message shouldBe "Invalid or missing session token"
+      }
+    }
+  }
+
+  test("an expired session token closes the socket with a policy violation") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+    // Signed with the same secret/issuer/audience as the server under test, but a clock frozen at
+    // the epoch: its exp claim lands in 1970, long expired by the real clock the verifier checks
+    // against (dossier §8's JWT is short-lived, and JwtService never injects a fake clock into it).
+    val expiredToken = JwtService(config, MutableGameClock()).createAccessToken("ghost-player", isGuest = true).token
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.JoinRoom(sessionToken = expiredToken))
+        val reason = closeReason.await()
+        reason?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+        reason?.message shouldBe "Invalid or missing session token"
+      }
+    }
+  }
+
+  test("any message before JoinRoom closes the socket with a policy violation") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.SubmitWord("irrelevant-round", listOf(0, 1), System.currentTimeMillis()))
+        val reason = closeReason.await()
+        reason?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+        reason?.message shouldBe "JoinRoom with a valid sessionToken is required first"
+      }
+    }
+  }
+
+  test("SubmitWord for a round other than the one just joined is rejected as an invalid path") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val player = guestTokens(client, "OutOfRound")
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.JoinRoom(sessionToken = player.accessToken))
+        nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+        nextServerMessage().shouldBeInstanceOf<ServerMessage.RoundStart>()
+
+        sendClientMessage(ClientMessage.SubmitWord("not-the-active-round", listOf(0, 1), System.currentTimeMillis()))
+        val rejected = nextServerMessage() as ServerMessage.WordRejected
+        rejected.reason shouldBe RejectionReason.InvalidPath
+      }
+    }
+  }
+
+  test("submissions above the per-connection rate limit are silently dropped") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 8.seconds, intermissionDuration = 4.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val player = guestTokens(client, "RateLimited")
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.JoinRoom(sessionToken = player.accessToken))
+        nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+        val start = nextServerMessage() as ServerMessage.RoundStart
+
+        // A non-adjacent path is always InvalidPath, so every accepted attempt answers the same
+        // way; sending more than the cap (dossier phase 3 task: "10/s per connection") in one burst
+        // and then a ClockSync (never rate-limited) marks where the responses stop arriving.
+        val attempts = config.submitRateLimitPerSecond + 5
+        repeat(attempts) {
+          sendClientMessage(ClientMessage.SubmitWord(start.roundId, listOf(0, 15), System.currentTimeMillis()))
+        }
+        sendClientMessage(ClientMessage.ClockSync(clientSentAt = 999L))
+
+        var rejectedCount = 0
+        while (true) {
+          when (val message = nextServerMessage()) {
+            is ServerMessage.ClockSyncResponse -> {
+              message.clientSentAt shouldBe 999L
+              break
+            }
+            is ServerMessage.WordRejected -> rejectedCount++
+            else -> error("Unexpected message while draining rate-limited responses: $message")
+          }
+        }
+
+        rejectedCount shouldBe config.submitRateLimitPerSecond
+      }
+    }
+  }
+
+  test("LeaveRoom closes the socket normally after unregistering the connection") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val player = guestTokens(client, "Leaver")
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.JoinRoom(sessionToken = player.accessToken))
+        nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+        nextServerMessage().shouldBeInstanceOf<ServerMessage.RoundStart>()
+
+        sendClientMessage(ClientMessage.LeaveRoom)
+        val reason = closeReason.await()
+        reason?.code shouldBe CloseReason.Codes.NORMAL.code
+        reason?.message shouldBe "Left the room"
       }
     }
   }

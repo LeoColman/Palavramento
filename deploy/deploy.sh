@@ -15,7 +15,7 @@ set -a
 source .env
 set +a
 
-for var in APP_HOST POSTGRES_PASSWORD JWT_SECRET; do
+for var in APP_HOST POSTGRES_PASSWORD JWT_SECRET METRICS_TOKEN GRAFANA_HOST GRAFANA_ADMIN_PASSWORD; do
   if [[ -z "${!var:-}" ]]; then
     echo "Erro: $var vazio no .env" >&2
     exit 1
@@ -27,8 +27,19 @@ done
 IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
 export IMAGE_TAG
 
-# O Swarm exige que o diretório do bind mount já exista.
-mkdir -p pgdata
+# O Swarm exige que os diretórios dos bind mounts já existam.
+mkdir -p pgdata prometheus-data grafana-data
+
+# Prometheus (uid 65534, "nobody" na imagem oficial) e Grafana (uid 472) rodam sem root: a posse do
+# diretório de dados precisa bater com o usuário do container, senão eles não conseguem escrever.
+chown 65534:65534 prometheus-data
+chown 472:472 grafana-data
+
+# Arquivo com o token de métricas: nunca no git, nunca no .env do container. Só o dono (o
+# Prometheus, mesmo uid 65534) consegue ler; root sempre pode reescrever para girar o token.
+echo -n "$METRICS_TOKEN" > metrics_token
+chmod 600 metrics_token
+chown 65534:65534 metrics_token
 
 echo ">> build palavramento-server:${IMAGE_TAG} (Gradle + léxico, alguns minutos)"
 DOCKER_BUILDKIT=1 docker build -f src/deploy/Dockerfile -t "palavramento-server:${IMAGE_TAG}" src
@@ -41,4 +52,4 @@ docker stack deploy \
   palavramento
 
 docker service ls --filter name=palavramento
-echo ">> pronto. Caddy publica em https://${APP_HOST}"
+echo ">> pronto. Caddy publica o servidor em https://${APP_HOST} e o Grafana em https://${GRAFANA_HOST}"

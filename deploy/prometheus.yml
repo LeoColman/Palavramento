@@ -1,0 +1,15 @@
+# Configuração do Prometheus do stack Palavramento (extensão de observabilidade da ADR 0013).
+# A retenção (1 ano) é argumento do serviço em docker-compose.yml, não fica aqui.
+#
+# O token do bearer nunca fica neste arquivo, que é versionado: vem de credentials_file, um arquivo
+# montado só no container (metrics_token, escrito pelo deploy.sh a partir de METRICS_TOKEN no .env).
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: palavramento
+    metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/metrics_token
+    static_configs:
+      - targets: ["server:8080"]

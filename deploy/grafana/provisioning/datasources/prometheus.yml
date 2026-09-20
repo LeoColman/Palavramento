@@ -1,0 +1,12 @@
+# Datasource do Prometheus para o Grafana do stack Palavramento. Provisionado: não aparece editável
+# na UI (editable: false), então não some numa próxima atualização deste arquivo.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

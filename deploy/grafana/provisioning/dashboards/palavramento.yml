@@ -1,0 +1,13 @@
+# Provider que carrega os dashboards JSON versionados em deploy/grafana/dashboards.
+apiVersion: 1
+
+providers:
+  - name: Palavramento
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

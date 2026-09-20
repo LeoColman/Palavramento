@@ -46,6 +46,15 @@ class HunspellExpanderTest : FunSpec({
     forms shouldContain "lima"
   }
 
+  test("Strip length exactly equal to the stem's length still fires the rule, one shorter does not") {
+    val forms = expand(
+      listOf("2", "ar/A", "a/A"),
+      listOf("SFX A Y 1", "SFX A   ar    o        ."),
+    )
+    // "ar" is exactly as long as the strip: the rule fires and yields "o". "a" is one shorter: no rule fires.
+    forms shouldContainExactlyInAnyOrder listOf("ar", "a", "o")
+  }
+
   test("A prefix rule adds at the start of the stem") {
     val forms = expand(
       listOf("1", "fazer/A"),
@@ -92,6 +101,23 @@ class HunspellExpanderTest : FunSpec({
       ),
     )
     forms shouldNotContain "desfazermos"
+  }
+
+  test("The one extra affixation level also applies to a prefix+suffix cross product") {
+    val forms = expand(
+      listOf("1", "fazer/AB"),
+      listOf(
+        "PFX A Y 1",
+        "PFX A   0     des      .",
+        "SFX B Y 1",
+        "SFX B   0     mos/C    r",
+        "SFX C Y 1",
+        "SFX C   0     zinho    s",
+      ),
+    )
+    // fazer -[B]-> fazermos, cross product with A -> desfazermos, then B's continuation flag C applies
+    // one more level to THAT combined word specifically (not just to the plain suffixed "fazermos").
+    forms shouldContain "desfazermoszinho"
   }
 
   test("A continuation flag applies one more level of affixation to the derived form") {

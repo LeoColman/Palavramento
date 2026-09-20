@@ -37,6 +37,13 @@ class LexiconFiltersTest : FunSpec({
     LexiconFilters.isAcceptableCanonicalForm("Étnico") shouldBe false
   }
 
+  test("Digit boundary: '0' and '9' are rejected, their neighbors '/' and ':' are accepted") {
+    LexiconFilters.isAcceptableCanonicalForm("a0a") shouldBe false
+    LexiconFilters.isAcceptableCanonicalForm("a9a") shouldBe false
+    LexiconFilters.isAcceptableCanonicalForm("a/a") shouldBe true
+    LexiconFilters.isAcceptableCanonicalForm("a:a") shouldBe true
+  }
+
   test("A normalized form must be within 3 and 16 letters") {
     LexiconFilters.isAcceptableNormalizedForm("AB") shouldBe false
     LexiconFilters.isAcceptableNormalizedForm("ABC") shouldBe true
@@ -48,5 +55,10 @@ class LexiconFiltersTest : FunSpec({
     LexiconFilters.isAcceptableNormalizedForm("CASA") shouldBe true
     LexiconFilters.isAcceptableNormalizedForm("CAS A") shouldBe false
     LexiconFilters.isAcceptableNormalizedForm("CM²") shouldBe false
+  }
+
+  test("Letter boundary: '@' and '[' just outside A-Z are rejected") {
+    LexiconFilters.isAcceptableNormalizedForm("CA@A") shouldBe false
+    LexiconFilters.isAcceptableNormalizedForm("CA[A") shouldBe false
   }
 })

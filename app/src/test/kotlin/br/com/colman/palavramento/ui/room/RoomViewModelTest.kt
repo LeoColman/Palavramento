@@ -12,6 +12,7 @@ import br.com.colman.palavramento.domain.protocol.LeaderboardRow
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.domain.stats.RoundStats
 import br.com.colman.palavramento.domain.submission.RejectionReason
+import br.com.colman.palavramento.network.ClockSyncSettings
 import br.com.colman.palavramento.network.FakeMultiplayerTransport
 import br.com.colman.palavramento.network.MultiplayerSession
 import br.com.colman.palavramento.settings.FakeSettingsRepository
@@ -75,9 +76,18 @@ private class Fixture(musicEnabled: Boolean = true, effectsEnabled: Boolean = tr
   val settings = FakeSettingsRepository(musicEnabled = musicEnabled, effectsEnabled = effectsEnabled)
   val syncService: SyncService = mockk(relaxed = true)
   private var ticks = 0L
-  val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+  val session = MultiplayerSession(
+    transport,
+    { "token" },
+    { ticks++ },
+    delay = {},
+    clockSyncSettings = SemResync,
+  )
   val viewModel = RoomViewModel(session, syncService, gameAudio, settings)
 }
+
+/** Re-sync off, same reason as in MultiplayerSessionTest: virtual time makes its wait instant. */
+private val SemResync = ClockSyncSettings(resyncIntervalMs = 0)
 
 class RoomViewModelTest : FunSpec({
 
@@ -91,7 +101,13 @@ class RoomViewModelTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(
+        transport,
+        { "token" },
+        { ticks++ },
+        delay = {},
+        clockSyncSettings = SemResync,
+      )
       val syncService = mockk<SyncService>()
       coEvery { syncService.sync() } returns true
 
@@ -119,7 +135,13 @@ class RoomViewModelTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(
+        transport,
+        { "token" },
+        { ticks++ },
+        delay = {},
+        clockSyncSettings = SemResync,
+      )
       val syncService = mockk<SyncService>()
       coEvery { syncService.sync() } returns true
 

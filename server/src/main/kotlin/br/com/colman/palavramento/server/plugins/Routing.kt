@@ -60,7 +60,7 @@ fun Application.configureRouting() {
       authService,
       connectionRegistry,
     )
-    multiplayerRoute(roomScheduler, jwtService, config, clock)
+    multiplayerRoute(roomScheduler, jwtService, config, clock, koinGet())
     metricsRoutes(meterRegistry, config.metricsToken)
   }
 }

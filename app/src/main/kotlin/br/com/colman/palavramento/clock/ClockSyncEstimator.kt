@@ -31,17 +31,32 @@ data class ClockSyncSample(
 }
 
 /**
- * Keeps the lowest-round-trip sample out of the handful taken during the clock sync handshake
- * (task brief: "keep the lowest round-trip one"). A lower round trip means less uncertainty about
- * where the midpoint, and therefore the offset, actually falls.
+ * Keeps the lowest-round-trip sample seen so far (task brief: "keep the lowest round-trip one"). A
+ * lower round trip means less uncertainty about where the midpoint, and therefore the offset,
+ * actually falls.
+ *
+ * A sample also wins for being recent: once the kept one is older than [staleAfterMs], the next
+ * sample replaces it whatever its round trip. Two reasons, both seen in the wild:
+ *
+ * - The first samples of a connection are the worst ones. On a mobile network the radio wakes up to
+ *   send them, so the request crawls out while the answer comes back fast, and that asymmetry lands
+ *   whole seconds of bias in the offset. Later samples, with the radio already awake, are honest.
+ * - The server's own wall clock can step. Clinging forever to a sample taken before the step would
+ *   keep the countdown pointing at a moment in time that no longer exists.
  */
-class ClockSyncEstimator {
+class ClockSyncEstimator(private val staleAfterMs: Long = DefaultStaleAfterMs) {
   private var best: ClockSyncSample? = null
 
-  /** Records a new [sample], keeping it only if its round trip beats the current best. */
+  /** Records a new [sample], keeping it when it beats the current best or the best went stale. */
   fun record(sample: ClockSyncSample) {
     val current = best
-    if (current == null || sample.roundTripMs < current.roundTripMs) best = sample
+    if (current == null) {
+      best = sample
+      return
+    }
+    val beatsIt = sample.roundTripMs < current.roundTripMs
+    val currentWentStale = sample.clientReceivedAtElapsedMs - current.clientReceivedAtElapsedMs > staleAfterMs
+    if (beatsIt || currentWentStale) best = sample
   }
 
   /** The best sample recorded so far, or null if [record] was never called. */
@@ -49,4 +64,9 @@ class ClockSyncEstimator {
 
   /** [ClockSyncSample.offsetMs] of [bestSample], or null before the first sample. */
   val offsetMs: Long? get() = best?.offsetMs
+
+  private companion object {
+    /** 45 s: long enough for a round to keep one good sample, short enough to follow a server step. */
+    const val DefaultStaleAfterMs = 45_000L
+  }
 }

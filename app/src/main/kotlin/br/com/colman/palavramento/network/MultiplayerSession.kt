@@ -4,8 +4,6 @@
 package br.com.colman.palavramento.network
 
 import android.util.Log
-import br.com.colman.palavramento.clock.ClockSyncEstimator
-import br.com.colman.palavramento.clock.ClockSyncSample
 import br.com.colman.palavramento.clock.ServerClock
 import br.com.colman.palavramento.domain.protocol.ClientMessage
 import br.com.colman.palavramento.domain.protocol.ServerMessage
@@ -13,9 +11,10 @@ import br.com.colman.palavramento.state.MatchStateReducer
 import br.com.colman.palavramento.state.MatchUiState
 import br.com.colman.palavramento.state.OptimisticSubmission
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * Owns one room membership over [transport] (dossier 5): connects, runs the clock-sync handshake,
@@ -42,7 +41,7 @@ class MultiplayerSession(
   private val elapsedRealtimeMs: () -> Long,
   private val backoff: ReconnectBackoff = ReconnectBackoff(),
   private val delay: suspend (Long) -> Unit = { kotlinx.coroutines.delay(it) },
-  private val clockSyncSampleCount: Int = DefaultClockSyncSamples,
+  private val clockSyncSettings: ClockSyncSettings = ClockSyncSettings(),
 ) {
   private val stateFlow = MutableStateFlow<MatchUiState>(MatchUiState.Disconnected)
   val state: StateFlow<MatchUiState> = stateFlow
@@ -52,6 +51,10 @@ class MultiplayerSession(
 
   private val clockFlow = MutableStateFlow<ServerClock?>(null)
   val clock: StateFlow<ServerClock?> = clockFlow
+
+  // Owns everything about the server's clock: the handshake samples, the periodic re-syncs while
+  // connected, and the offset the countdown reads (ClockSyncCoordinator says why re-syncing).
+  private val clockSync = ClockSyncCoordinator(transport, elapsedRealtimeMs, clockSyncSettings, clockFlow)
 
   // Orchestrator finding (task brief 4): consecutive failed connection attempts since the last
   // success, so the UI can tell "still trying the very first connection" apart from "connected once,
@@ -79,7 +82,11 @@ class MultiplayerSession(
         attempt = 0
         connectionAttemptsFlow.value = 0
         connectionStatusFlow.value = ConnectionStatus.Connected
-        collectUntilDisconnected()
+        coroutineScope {
+          val resync = launch { clockSync.keepSyncing() }
+          collectUntilDisconnected()
+          resync.cancel()
+        }
       } else {
         attempt++
         connectionAttemptsFlow.value = attempt
@@ -167,12 +174,10 @@ class MultiplayerSession(
   @Suppress("TooGenericExceptionCaught", "SwallowedException")
   private suspend fun tryConnectAndHandshake(): Boolean = try {
     transport.connect()
-    val estimator = ClockSyncEstimator()
-    runClockSyncHandshake(estimator)
-    // Only overwrite the clock once a fresh offset is actually available: leaving the previous
-    // ServerClock in place otherwise (instead of a stray null) is what keeps the match countdown
-    // ticking through a "Reconectando..." window (task brief 4).
-    estimator.offsetMs?.let { offset -> clockFlow.value = ServerClock(offset, elapsedRealtimeMs) }
+    // Only overwrites the clock once a fresh offset is available: leaving the previous ServerClock
+    // in place otherwise (instead of a stray null) is what keeps the match countdown ticking
+    // through a "Reconectando..." window (task brief 4).
+    clockSync.handshake()
     transport.send(ClientMessage.JoinRoom(sessionToken = accessTokenProvider()))
     true
   } catch (cancellation: CancellationException) {
@@ -188,7 +193,7 @@ class MultiplayerSession(
     try {
       transport.incoming().collect { message ->
         when (message) {
-          is ServerMessage.ClockSyncResponse -> Unit
+          is ServerMessage.ClockSyncResponse -> clockSync.record(message)
           is ServerMessage.RoundStart -> {
             stateFlow.value = MatchStateReducer.reduce(stateFlow.value, message)
             flushPendingSubmissions(message.roundId)
@@ -231,25 +236,8 @@ class MultiplayerSession(
     pendingSubmissions.drain(currentRoundId).forEach { submission -> transport.send(submission) }
   }
 
-  /**
-   * Sends [clockSyncSampleCount] `ClockSync` samples and keeps the lowest-round-trip one (task
-   * brief). Messages other than the matching `ClockSyncResponse` are not expected on the wire
-   * before `JoinRoom` is sent, so they are not specially handled here.
-   */
-  private suspend fun runClockSyncHandshake(estimator: ClockSyncEstimator) {
-    repeat(clockSyncSampleCount) {
-      val sentAt = elapsedRealtimeMs()
-      transport.send(ClientMessage.ClockSync(sentAt))
-      val response = transport.incoming()
-        .first { it is ServerMessage.ClockSyncResponse && it.clientSentAt == sentAt }
-        as ServerMessage.ClockSyncResponse
-      val receivedAt = elapsedRealtimeMs()
-      estimator.record(ClockSyncSample(sentAt, response.serverTime, receivedAt))
-    }
-  }
-
   private companion object {
-    const val DefaultClockSyncSamples = 3
+
     const val Tag = "MultiplayerSession"
   }
 }

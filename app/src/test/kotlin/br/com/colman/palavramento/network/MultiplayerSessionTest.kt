@@ -60,6 +60,13 @@ private fun sampleRoundStartWithValidWords(roundId: String = "round-1", endsAt: 
     validWords = listOf(ValidWord("CAT", "cat")),
   )
 
+/**
+ * Re-sync off: under `runTest` virtual time a 20 s wait is instant, so the periodic clock sync would
+ * spin instead of ticking, and a pending timer would keep each test waiting on it.
+ * ClockSyncCoordinatorTest is where that loop is exercised.
+ */
+private val SemResync = ClockSyncSettings(resyncIntervalMs = 0)
+
 class MultiplayerSessionTest : FunSpec({
 
   test("The handshake sends every clock-sync sample, then JoinRoom carrying the access token") {
@@ -71,6 +78,7 @@ class MultiplayerSessionTest : FunSpec({
         accessTokenProvider = { "token-abc" },
         elapsedRealtimeMs = { ticks++ },
         delay = {},
+        clockSyncSettings = SemResync,
       )
       val job = launch { session.run() }
 
@@ -93,7 +101,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -113,7 +121,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -152,7 +160,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -186,7 +194,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -214,7 +222,7 @@ class MultiplayerSessionTest : FunSpec({
       val transport = FakeMultiplayerTransport()
       transport.connectFailure = IllegalStateException("network down")
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       advanceUntilIdle()
@@ -231,7 +239,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -257,7 +265,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -283,7 +291,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -307,7 +315,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -330,7 +338,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -354,7 +362,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -388,7 +396,7 @@ class MultiplayerSessionTest : FunSpec({
       runTest {
         val transport = FakeMultiplayerTransport()
         var ticks = 0L
-        val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+        val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
         val job = launch { session.run() }
 
         completeHandshake(transport)
@@ -422,7 +430,7 @@ class MultiplayerSessionTest : FunSpec({
     runTest {
       val transport = FakeMultiplayerTransport()
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       completeHandshake(transport)
@@ -464,7 +472,7 @@ class MultiplayerSessionTest : FunSpec({
       val transport = FakeMultiplayerTransport()
       transport.connectFailure = IllegalStateException("network down")
       var ticks = 0L
-      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {})
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
       val job = launch { session.run() }
 
       session.connectionAttempts.value shouldBe 0

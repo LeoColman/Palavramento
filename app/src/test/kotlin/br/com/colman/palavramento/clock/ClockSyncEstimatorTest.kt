@@ -44,7 +44,9 @@ class ClockSyncEstimatorTest : FunSpec({
       Arb.long(0L..1_000_000L),
       Arb.long(0L..1_000_000L)
     ) { sentAt, roundTripA, roundTripB ->
-      val estimator = ClockSyncEstimator()
+      // Staleness has its own tests below; here the rule under test is the round trip one, and the
+      // generated round trips reach a thousand seconds, which would age the first sample out.
+      val estimator = ClockSyncEstimator(staleAfterMs = Long.MAX_VALUE)
       val sampleA = ClockSyncSample(sentAt, 0, sentAt + roundTripA)
       val sampleB = ClockSyncSample(sentAt, 0, sentAt + roundTripB)
 
@@ -65,5 +67,29 @@ class ClockSyncEstimatorTest : FunSpec({
       estimator.record(ClockSyncSample(0, 0, bestRoundTrip + 1))
       estimator.bestSample shouldBe best
     }
+  }
+
+  test("a worse sample still wins once the kept one went stale") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000)
+    // Connect time, mobile radio waking up: a fat round trip, so a biased offset.
+    estimator.record(ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 40))
+
+    // A minute later, with the radio awake: a worse round trip on paper, but the honest one now.
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 60_000, serverTimeMs = 160_100, clientReceivedAtElapsedMs = 60_100),
+    )
+
+    estimator.bestSample?.clientSentAtElapsedMs shouldBe 60_000
+  }
+
+  test("a worse sample loses while the kept one is still fresh") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000)
+    estimator.record(ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 40))
+
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 10_000, serverTimeMs = 110_100, clientReceivedAtElapsedMs = 10_200),
+    )
+
+    estimator.bestSample?.clientSentAtElapsedMs shouldBe 0
   }
 })

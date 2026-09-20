@@ -7,6 +7,7 @@ import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.round.GameClock
 import br.com.colman.palavramento.server.ws.ConnectionRegistry
+import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import kotlinx.coroutines.CoroutineScope
@@ -46,6 +47,20 @@ class PlayerMetrics(
   private val refreshInterval: Duration,
 ) {
 
+  /**
+   * How far a player's own clock estimate is from this server's, in seconds, measured on every word
+   * they submit: `serverNow - clientTimestamp`, so positive means the player is running behind.
+   *
+   * The countdown a player watches is driven by that estimate (dossier 5.3), so this is the number
+   * that says whether a round can end while their timer still reads seconds left. Network delay
+   * inflates it by one trip, which is tens of milliseconds and does not hide a skew worth seeing.
+   */
+  private val clockSkew: DistributionSummary = DistributionSummary.builder(ClockSkewSummary)
+    .description("Seconds between a player's clock estimate and this server's, at submit time")
+    .baseUnit("seconds")
+    .publishPercentiles(0.5, 0.95, 0.99)
+    .register(registry)
+
   private val activePlayers = ActivityWindow.entries.associateWith { AtomicLong() }
   private val guestPlayers = AtomicLong()
   private val registeredPlayers = AtomicLong()
@@ -64,6 +79,11 @@ class PlayerMetrics(
 
     registerTotal(registry, KindGuest, guestPlayers)
     registerTotal(registry, KindRegistered, registeredPlayers)
+  }
+
+  /** Records how far [clientTimestampMs] fell from this server's clock. See [clockSkew]. */
+  fun recordClientClockSkew(clientTimestampMs: Long) {
+    clockSkew.record((clock.now().toEpochMilli() - clientTimestampMs) / MillisPerSecond)
   }
 
   /** Refreshes the database-backed gauges forever, until [scope] is cancelled. */
@@ -94,6 +114,8 @@ class PlayerMetrics(
   }
 
   private companion object {
+    const val ClockSkewSummary = "palavramento.client.clock.skew"
+    const val MillisPerSecond = 1000.0
     const val ConnectedGauge = "palavramento.players.connected"
     const val ActiveGauge = "palavramento.players.active"
 

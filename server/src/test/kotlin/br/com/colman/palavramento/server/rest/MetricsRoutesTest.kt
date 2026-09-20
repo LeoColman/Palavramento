@@ -39,6 +39,8 @@ class MetricsRoutesTest : FunSpec({
       body shouldContain "palavramento_players_connected"
       body shouldContain """palavramento_players_active{window="24h"}"""
       body shouldContain """palavramento_players_accounts{kind="registered"}"""
+      // Registered up front, before any word is submitted, so a scrape never has to wait for one.
+      body shouldContain "palavramento_client_clock_skew_seconds"
       // Ktor's own HTTP metrics ride along on the same scrape.
       body shouldContain "ktor_http_server_requests"
     }

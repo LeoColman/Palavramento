@@ -95,6 +95,28 @@ O script manda o código versionado para o servidor, que constrói a imagem e at
 segredos (`POSTGRES_PASSWORD`, `JWT_SECRET`) ficam só no `.env` do servidor; o modelo está em
 `deploy/.env.example`.
 
+## Monitoramento
+
+O stack sobe também Prometheus e Grafana ao lado do servidor:
+
+- O servidor expõe `GET /metrics` (formato Prometheus) na porta 8080, protegido por bearer token
+  (`METRICS_TOKEN`). Sem essa variável configurada a rota responde 404.
+- O **Prometheus** raspa `http://server:8080/metrics` a cada 15s, só pela rede interna do stack
+  (nunca pela internet, nunca publicado pelo Caddy) e guarda 1 ano de dados em
+  `/root/manual-stacks/palavramento/prometheus-data`.
+- O **Grafana** é publicado pelo Caddy em `https://${GRAFANA_HOST}` com um dashboard "Palavramento"
+  já provisionado (`deploy/grafana/`): jogadores conectados agora, jogadores ativos em 24h/7d/30d,
+  contas por tipo (convidado/cadastrada) e taxa e latência das requisições HTTP. Login `admin` com a
+  senha de `GRAFANA_ADMIN_PASSWORD`; cadastro de usuários e acesso anônimo ficam desligados.
+
+Para acessar, entre em `https://${GRAFANA_HOST}` com o usuário `admin` e a senha do `.env`. O
+Prometheus não é acessível de fora do servidor (por desenho).
+
+Para girar o `METRICS_TOKEN`: gere um valor novo (`openssl rand -hex 32`), atualize-o no `.env` e
+rode `deploy/deploy.sh` (ou `deploy/publish.sh`) de novo. O script reescreve o arquivo do token que o
+Prometheus lê e reinicia o servidor com o novo valor; o Prometheus relê o arquivo sozinho, sem
+precisar reiniciar.
+
 ## Licença
 
 AGPL-3.0-or-later. Léxico e lista de frequência têm licenças próprias, descritas em

@@ -50,7 +50,7 @@ meio: não precisa esperar ninguém.
 
 TEMAS QUE MUDAM AS REGRAS
 Cada rodada anuncia um tema no topo. Às vezes uma letra vale muito mais que o normal. Às vezes
-entram peças de dígrafo (CH, LH, NH, RR, SS) que contam como uma letra só. Às vezes aparece uma
+entram peças de dígrafo (QU, CH, LH, NH, RR, SS, GU) que contam como uma letra só. Às vezes aparece uma
 peça de duas letras alternativas, que serve para uma ou para outra. O tabuleiro nunca é o mesmo
 duas vezes.
 

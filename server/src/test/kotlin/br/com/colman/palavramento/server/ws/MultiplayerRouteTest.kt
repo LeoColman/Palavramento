@@ -161,9 +161,7 @@ class MultiplayerRouteTest : FunSpec({
 
       // player_stats is maintained for the registered player only (dossier §8 guest policy).
       val playerStatsRepository = PlayerStatsRepository(database)
-      playerStatsRepository.get(alice.playerId) shouldBe playerStatsRepository.get(alice.playerId)?.also {
-        it.gamesPlayed shouldBe 1
-      }
+      playerStatsRepository.get(alice.playerId)?.gamesPlayed shouldBe 1
       playerStatsRepository.get(bob.playerId) shouldBe null
     }
   }
@@ -351,6 +349,23 @@ class MultiplayerRouteTest : FunSpec({
         val reason = closeReason.await()
         reason?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
         reason?.message shouldBe "JoinRoom with a valid sessionToken is required first"
+      }
+    }
+  }
+
+  test("clock sync works before authentication, unlike every other message type") {
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 6.seconds, intermissionDuration = 4.seconds)
+
+    testApplication {
+      application { module(config, database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      client.webSocket("/ws/multiplayer") {
+        sendClientMessage(ClientMessage.ClockSync(clientSentAt = 123L))
+        val response = nextServerMessage()
+        response.shouldBeInstanceOf<ServerMessage.ClockSyncResponse>()
+        (response as ServerMessage.ClockSyncResponse).clientSentAt shouldBe 123L
       }
     }
   }

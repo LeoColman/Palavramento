@@ -97,6 +97,22 @@ class RoundResultRepositoryTest : FunSpec({
     roundResultRepository.findByRound(roundId).single().doubleXp shouldBe false
   }
 
+  // The row above with doubleXp = true is only ever compared through shouldContainExactly, which
+  // does not count as reading the getter (CLAUDE.md): a whole-row equality check does not exercise
+  // the same compiled accessor a direct property read does, so it does not catch a mutant that
+  // replaces just that accessor's return value.
+  test("doubleXp reads back true when a mutator awarded it, read directly rather than compared by equality") {
+    val roundResultRepository = RoundResultRepository(database)
+    val roomId = testRoomId()
+    val roundId = RoundRepository(database).insertFakeFinishedRound(roomId)
+    val player = PlayerRepository(database).insertGuest()
+    val row = resultRow(roundId, player.id).copy(doubleXp = true)
+
+    suspendTransaction(database) { roundResultRepository.insert(this, row) }
+
+    roundResultRepository.findByRound(roundId).single().doubleXp shouldBe true
+  }
+
   test("countPlayers counts exactly the rows persisted for that round, zero when none") {
     val roundResultRepository = RoundResultRepository(database)
     val roomId = testRoomId()

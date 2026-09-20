@@ -249,6 +249,94 @@ class AuthServiceTest : FunSpec({
     playerStatsRepository.get(guest.playerId).shouldBeNull()
   }
 
+  test("register keeps the first top word when a later round only ties its score, not beats it") {
+    val roomId = testRoomId()
+    val service = authService(database, MutableGameClock())
+    val playerRepository = PlayerRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val submissionRepository = SubmissionRepository(database)
+    val playerStatsRepository = PlayerStatsRepository(database)
+
+    val guest = service.guest("Tied")
+    val firstRound = roundRepository.insertFakeFinishedRound(roomId)
+    val secondRound = roundRepository.insertFakeFinishedRound(roomId)
+    val now = Instant.now()
+    submissionRepository.insert(AcceptedSubmission(firstRound, guest.playerId, "CASA", "casa", 10, listOf(0, 1), now))
+    submissionRepository.insert(AcceptedSubmission(secondRound, guest.playerId, "BOLA", "bola", 10, listOf(2, 3), now))
+    playerRepository.transaction {
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(firstRound, guest.playerId, score = 10, words = 1, rank = 1, xp = 2, enteredAt = now)
+      )
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(secondRound, guest.playerId, score = 10, words = 1, rank = 1, xp = 2, enteredAt = now)
+      )
+    }
+
+    val email = "tie-${UUID.randomUUID()}@example.com"
+    service.register(guest.playerId, email, Password, "Tied")
+
+    val stats = playerStatsRepository.get(guest.playerId)
+    stats?.bestWordScore shouldBe 10
+    // Both rounds tie at score 10: a strict ">" keeps whichever round is folded in first, and the
+    // tying second one must not overwrite it (">=" would).
+    stats?.bestWord shouldBe "casa"
+  }
+
+  test("login as a guest deletes its submissions for a round the target already played, and moves the rest") {
+    val roomId = testRoomId()
+    val service = authService(database, MutableGameClock())
+    val playerRepository = PlayerRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val submissionRepository = SubmissionRepository(database)
+
+    val targetEmail = "submissions-target-${UUID.randomUUID()}@example.com"
+    val target = service.register(null, targetEmail, Password, "Target")
+    target.shouldBeInstanceOf<RegisterOutcome.Success>()
+    val targetId = target.tokens.playerId
+
+    val guest = service.guest("SubmissionsGuest")
+    val sharedRound = roundRepository.insertFakeFinishedRound(roomId)
+    val guestOnlyRound = roundRepository.insertFakeFinishedRound(roomId)
+    val now = Instant.now()
+
+    submissionRepository.insert(AcceptedSubmission(sharedRound, targetId, "CASA", "casa", 12, listOf(0, 1, 2), now))
+    submissionRepository.insert(AcceptedSubmission(sharedRound, guest.playerId, "BOLA", "bola", 6, listOf(3, 4), now))
+    submissionRepository.insert(AcceptedSubmission(guestOnlyRound, guest.playerId, "SOL", "sol", 8, listOf(5, 6), now))
+    playerRepository.transaction {
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(sharedRound, targetId, score = 12, words = 1, rank = 1, xp = 3, enteredAt = now)
+      )
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(sharedRound, guest.playerId, score = 6, words = 1, rank = 2, xp = 1, enteredAt = now)
+      )
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(guestOnlyRound, guest.playerId, score = 8, words = 1, rank = 1, xp = 2, enteredAt = now)
+      )
+    }
+
+    val outcome = service.login(guest.playerId, targetEmail, Password)
+    outcome.shouldBeInstanceOf<LoginOutcome.Success>()
+
+    // Conflict round: the guest's own submission is dropped outright, the target's own untouched.
+    submissionRepository.findByRoundAndPlayer(sharedRound, guest.playerId) shouldHaveSize 0
+    val targetSharedWords = submissionRepository.findByRoundAndPlayer(sharedRound, targetId)
+    targetSharedWords shouldHaveSize 1
+    targetSharedWords.single().display shouldBe "casa"
+
+    // Non-conflicting round: the guest's submission moves over to the target instead.
+    submissionRepository.findByRoundAndPlayer(guestOnlyRound, guest.playerId) shouldHaveSize 0
+    val migratedWords = submissionRepository.findByRoundAndPlayer(guestOnlyRound, targetId)
+    migratedWords shouldHaveSize 1
+    migratedWords.single().display shouldBe "sol"
+  }
+
   test("login is rejected for an unknown email, a wrong password, or an account without a password hash") {
     val service = authService(database, MutableGameClock())
     val playerRepository = PlayerRepository(database)

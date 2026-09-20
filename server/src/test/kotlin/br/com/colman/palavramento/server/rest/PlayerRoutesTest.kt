@@ -67,6 +67,67 @@ class PlayerRoutesTest : FunSpec({
     }
   }
 
+  test("players/me reports a registered player's real totalXp when a stats row exists") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("XpPlayer"))
+      }.body()
+      val registered: AuthTokens = client.post("/auth/register") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("xp-$roomId@example.com", "correct horse battery staple", "XpPlayer"))
+      }.body()
+
+      PlayerStatsRepository(database).replace(
+        PlayerStatsRow(
+          playerId = registered.playerId,
+          totalScore = 10,
+          totalWords = 1,
+          bestGameScore = 10,
+          bestWord = "casa",
+          bestWordScore = 10,
+          gamesPlayed = 1,
+          gamesCompleted = 1,
+          bestRank = 1,
+          totalXp = 250,
+        ),
+      )
+
+      val profile: PlayerProfile = client.get(
+        "/players/me"
+      ) { header(HttpHeaders.Authorization, "Bearer ${registered.accessToken}") }.body()
+
+      profile.totalXp shouldBe 250L
+    }
+  }
+
+  test("players/me defaults totalXp to zero for a registered player with no stats row yet") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("FreshRegistered"))
+      }.body()
+      val registered: AuthTokens = client.post("/auth/register") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("fresh-$roomId@example.com", "correct horse battery staple", "FreshRegistered"))
+      }.body()
+
+      val profile: PlayerProfile = client.get(
+        "/players/me"
+      ) { header(HttpHeaders.Authorization, "Bearer ${registered.accessToken}") }.body()
+
+      profile.totalXp shouldBe 0L
+    }
+  }
+
   test("players/me/stats answers 403 for a guest") {
     val roomId = testRoomId()
     testApplication {
@@ -193,6 +254,83 @@ class PlayerRoutesTest : FunSpec({
       stats.averageScore shouldBe 0.0
       stats.averageWords shouldBe 0.0
       stats.averagePointsPerWord shouldBe 0.0
+    }
+  }
+
+  test("players/me/stats computes averages right at the zero-games / zero-words boundary") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      val zeroGamesGuest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("ZeroGames"))
+      }.body()
+      val zeroGames: AuthTokens = client.post("/auth/register") {
+        header(HttpHeaders.Authorization, "Bearer ${zeroGamesGuest.accessToken}")
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("zerogames-$roomId@example.com", "correct horse battery staple", "ZeroGames"))
+      }.body()
+
+      val zeroWordsGuest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("ZeroWords"))
+      }.body()
+      val zeroWords: AuthTokens = client.post("/auth/register") {
+        header(HttpHeaders.Authorization, "Bearer ${zeroWordsGuest.accessToken}")
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("zerowords-$roomId@example.com", "correct horse battery staple", "ZeroWords"))
+      }.body()
+
+      val playerStatsRepository = PlayerStatsRepository(database)
+      // gamesPlayed at the zero boundary, totalWords nonzero: averageScore/averageWords must stay
+      // 0.0 (not a division by zero), while averagePointsPerWord, governed by totalWords instead of
+      // gamesPlayed, still divides normally.
+      playerStatsRepository.replace(
+        PlayerStatsRow(
+          playerId = zeroGames.playerId,
+          totalScore = 50,
+          totalWords = 20,
+          bestGameScore = 0,
+          bestWord = null,
+          bestWordScore = 0,
+          gamesPlayed = 0,
+          gamesCompleted = 0,
+          bestRank = null,
+          totalXp = 0,
+        ),
+      )
+      // totalWords at the zero boundary, gamesPlayed nonzero: averagePointsPerWord must stay 0.0,
+      // while averageScore, governed by gamesPlayed instead, still divides normally.
+      playerStatsRepository.replace(
+        PlayerStatsRow(
+          playerId = zeroWords.playerId,
+          totalScore = 99,
+          totalWords = 0,
+          bestGameScore = 0,
+          bestWord = null,
+          bestWordScore = 0,
+          gamesPlayed = 5,
+          gamesCompleted = 0,
+          bestRank = null,
+          totalXp = 0,
+        ),
+      )
+
+      val zeroGamesStats: LifetimeStats = client.get(
+        "/players/me/stats"
+      ) { header(HttpHeaders.Authorization, "Bearer ${zeroGames.accessToken}") }.body()
+      zeroGamesStats.averageScore shouldBe 0.0
+      zeroGamesStats.averageWords shouldBe 0.0
+      zeroGamesStats.averagePointsPerWord shouldBe 2.5
+
+      val zeroWordsStats: LifetimeStats = client.get(
+        "/players/me/stats"
+      ) { header(HttpHeaders.Authorization, "Bearer ${zeroWords.accessToken}") }.body()
+      zeroWordsStats.averageScore shouldBe 19.8
+      zeroWordsStats.averageWords shouldBe 0.0
+      zeroWordsStats.averagePointsPerWord shouldBe 0.0
     }
   }
 

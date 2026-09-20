@@ -100,4 +100,20 @@ class ServerConfigTest : FunSpec({
 
     ServerConfig.fromEnv(env::get).generationCriteria shouldBe GenerationCriteria()
   }
+
+  // Every test above passes its own lookup, so fromEnv's own default parameter (System::getenv)
+  // never actually runs anywhere else: this is the only place that default value's own code is
+  // executed at all, real environment included. None of these keys are ones a build or shell sets
+  // for an unrelated reason, so the real environment leaves every one of them unset here, exactly
+  // like the "nothing set" case above, but reached through the real System.getenv, not a fake.
+  test("With no lookup passed at all, fromEnv falls back to the real environment and its own defaults") {
+    val config = ServerConfig.fromEnv()
+
+    config.databaseUrl shouldBe "jdbc:postgresql://localhost:5432/palavramento"
+    config.databaseUser shouldBe "palavramento"
+    config.databasePassword shouldBe "palavramento"
+    config.jwtSecret shouldBe "dev-secret-change-me-in-production"
+    config.jwtIssuer shouldBe "palavramento-server"
+    config.jwtAudience shouldBe "palavramento-clients"
+  }
 })

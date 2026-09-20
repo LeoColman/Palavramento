@@ -77,6 +77,19 @@ class RoundGenerationServiceTest : FunSpec({
     generated.record.commonMin shouldBe expected.commonMin
   }
 
+  test("generateAndPersist's default seedSource draws a real random seed, not a constant placeholder") {
+    val config = testServerConfig()
+    val roomId = testRoomId()
+    // No seed lambda passed here, unlike every other test in this spec: this is the default
+    // parameter (Random.nextLong()) production actually calls, never otherwise exercised.
+    val service = RoundGenerationService(TestLexicon.lexicon, config, RoundRepository(database))
+    val startsAt = Instant.parse("2026-01-15T00:00:00Z")
+
+    val generated = service.generateAndPersist(roomId, startsAt, RoundTiming.endsAt(startsAt, config.roundDuration))
+
+    generated.record.seed shouldNotBe 0L
+  }
+
   test("generateAndPersist sets maxScore/maxWords from the solution and the room/window/status as requested") {
     val config = testServerConfig()
     val roomId = testRoomId()

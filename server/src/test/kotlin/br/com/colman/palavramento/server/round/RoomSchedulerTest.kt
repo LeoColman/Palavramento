@@ -7,6 +7,8 @@ import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.RoundRepository
+import br.com.colman.palavramento.server.repository.RoundResultRepository
+import br.com.colman.palavramento.server.repository.SubmissionRepository
 import br.com.colman.palavramento.server.testsupport.TestLexicon
 import br.com.colman.palavramento.server.testsupport.buildTestScheduler
 import br.com.colman.palavramento.server.testsupport.insertGuest
@@ -14,6 +16,7 @@ import br.com.colman.palavramento.server.testsupport.testDatabase
 import br.com.colman.palavramento.server.testsupport.testRoomId
 import br.com.colman.palavramento.server.testsupport.testServerConfig
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import java.time.Instant
@@ -318,5 +321,60 @@ class RoomSchedulerTest : FunSpec({
     scheduler.finishForTesting(state)
 
     scheduler.activeRound shouldBe null
+  }
+
+  test("finishing a round with participants persists round_results, unlike the empty case above") {
+    val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes)
+    val roomId = testRoomId()
+    val scheduler = buildTestScheduler(database, clock, config, roomId)
+    val player = PlayerRepository(database).insertGuest()
+
+    val generated = RoundGenerationService(TestLexicon.lexicon, config, RoundRepository(database))
+      .generateAndPersist(roomId, clock.now(), RoundTiming.endsAt(clock.now(), config.roundDuration))
+    val state = scheduler.activateForTesting(generated)
+    state.markParticipant(player.id, generated.record.startsAt)
+    val word = generated.solution.first()
+    scheduler.submitWord(player.id, generated.record.id, word.path)
+
+    scheduler.finishForTesting(state)
+
+    scheduler.activeRound shouldBe null
+    val results = RoundResultRepository(database).findByRound(generated.record.id)
+    results shouldHaveSize 1
+    results.first().playerId shouldBe player.id
+  }
+
+  test("restart recovery: activating an already-active round restores participants and found words") {
+    val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes)
+    val roomId = testRoomId()
+    val scheduler = buildTestScheduler(database, clock, config, roomId)
+    val player = PlayerRepository(database).insertGuest()
+
+    val generated = RoundGenerationService(TestLexicon.lexicon, config, RoundRepository(database))
+      .generateAndPersist(roomId, clock.now(), RoundTiming.endsAt(clock.now(), config.roundDuration))
+    val word = generated.solution.first()
+
+    // Simulate a crash-and-restart mid-round: the word already made it to `submissions` before the
+    // process died, but there is no live RoundState carrying it anymore, and the persisted record
+    // is still marked Active from before the crash (dossier phase 3 task: "persist as you go").
+    SubmissionRepository(database).insert(
+      AcceptedSubmission(
+        generated.record.id,
+        player.id,
+        word.normalized,
+        word.display,
+        word.score,
+        word.path,
+        clock.now(),
+      )
+    )
+    val alreadyActive = generated.copy(record = generated.record.copy(status = RoundStatus.Active))
+
+    val state = scheduler.activateForTesting(alreadyActive)
+
+    state.isParticipant(player.id) shouldBe true
+    state.playerState(player.id).snapshot().found.map { it.display } shouldBe listOf(word.display)
   }
 })

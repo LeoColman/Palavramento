@@ -45,6 +45,22 @@ class RefreshTokenRepositoryTest : FunSpec({
     found.replacedByHash.shouldBeNull()
   }
 
+  test("insert persists a non-null revokedAt and replacedByHash too, not just a fresh token's nulls") {
+    val repository = RefreshTokenRepository(database)
+    val playerRepository = PlayerRepository(database)
+    val player = playerRepository.insertGuest()
+    val row = freshTokenRow(player.id).copy(
+      revokedAt = Instant.parse("2026-01-02T00:00:00Z"),
+      replacedByHash = "replaced-by-${UUID.randomUUID()}",
+    )
+
+    repository.insert(row)
+
+    val found = repository.findByHash(row.tokenHash)
+    found?.revokedAt shouldBe row.revokedAt
+    found?.replacedByHash shouldBe row.replacedByHash
+  }
+
   test("findByHash returns null for a hash that was never stored") {
     val repository = RefreshTokenRepository(database)
 

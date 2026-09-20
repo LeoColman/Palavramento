@@ -12,6 +12,7 @@ import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.SubmissionRepository
 import br.com.colman.palavramento.server.rest.authRoutes
+import br.com.colman.palavramento.server.rest.legalRoutes
 import br.com.colman.palavramento.server.rest.metricsRoutes
 import br.com.colman.palavramento.server.rest.playerRoutes
 import br.com.colman.palavramento.server.round.GameClock
@@ -46,6 +47,7 @@ fun Application.configureRouting() {
 
   routing {
     get("/health") { call.respondText("ok") }
+    legalRoutes()
     authRoutes(authService)
     playerRoutes(playerRepository, playerStatsRepository, roundResultRepository, roundRepository, submissionRepository)
     multiplayerRoute(roomScheduler, jwtService, config, clock)

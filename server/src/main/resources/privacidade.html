@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Política de privacidade - Palavramento</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 16px 56px;
+    background-color: #0B1B34;
+    color: #F5F0E6;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { color: #E0B84A; font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { color: #E0B84A; font-size: 1.15rem; margin-top: 2.2rem; margin-bottom: .6rem; }
+  p { margin: .6rem 0; }
+  .subtitle { color: #B9C2D0; margin: 0 0 1.8rem; font-size: .95rem; }
+  ul { padding-left: 1.3rem; margin: .6rem 0; }
+  li { margin: .35rem 0; }
+  a { color: #3E7BD6; }
+  a:visited { color: #3E7BD6; }
+  .box {
+    background-color: #122A4D;
+    border: 1px solid #1B3760;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin: 1.6rem 0;
+  }
+  .contact {
+    border-left: 4px solid #4CAF7D;
+  }
+  footer {
+    margin-top: 2.6rem;
+    color: #6B7686;
+    font-size: .85rem;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Política de privacidade</h1>
+  <p class="subtitle">Palavramento &middot; atualizada em 20 de setembro de 2026</p>
+
+  <p>
+    O Palavramento é um jogo de palavras multiplayer. Esta página explica, em português simples, o
+    que guardamos sobre quem joga, por que guardamos e como pedir para apagar tudo.
+  </p>
+
+  <h2>O que coletamos e por quê</h2>
+  <p>Guardamos só o que o jogo precisa para funcionar: identificar você, calcular pontuação e manter sua sessão.</p>
+  <ul>
+    <li>
+      <strong>Conta de convidado.</strong> Ao abrir o app pela primeira vez, criamos uma conta automática: um
+      identificador interno e um nome de exibição (tipo "Convidado A1B2"). Não é preciso digitar nada.
+    </li>
+    <li>
+      <strong>E-mail e senha, só para quem se cadastra.</strong> Quem cria uma conta de verdade informa e-mail e
+      senha. A senha nunca fica guardada como texto: passa por um algoritmo de hash (bcrypt) antes de ir para o
+      banco, então nem nós conseguimos ler a senha original.
+    </li>
+    <li>
+      <strong>O que acontece nas rodadas.</strong> O resultado de cada rodada que você joga (pontuação, colocação),
+      as palavras que você submeteu e suas estatísticas de vida (pontuação total, melhor rodada, melhor palavra e
+      afins), para o app mostrar seu histórico e seu nível.
+    </li>
+    <li>
+      <strong>Tokens de sessão.</strong> Para não pedir login toda hora, guardamos um token de atualização
+      (refresh token) ligado à sua conta. Só o hash desse token fica no banco, nunca o token em si, e ele deixa
+      de funcionar sozinho em até 30 dias.
+    </li>
+    <li>
+      <strong>Registros de acesso do servidor.</strong> Como qualquer servidor web, cada requisição gera um
+      registro técnico (data, hora, rota acessada, endereço IP), usado só para manter o serviço no ar e investigar
+      problema quando algo quebra.
+    </li>
+  </ul>
+
+  <h2>Anúncio e rastreamento</h2>
+  <p>
+    O Palavramento não mostra anúncio e não usa nenhuma ferramenta de rastreamento de terceiros hoje. Se isso
+    mudar um dia, esta página é atualizada antes, com aviso dentro do app.
+  </p>
+
+  <h2>Segurança</h2>
+  <p>
+    Todo o tráfego entre o app e o servidor é criptografado: HTTPS para as chamadas normais e WSS (WebSocket
+    seguro) para a partida em tempo real. Senha e token de sessão ficam guardados como hash, nunca em texto puro.
+  </p>
+
+  <h2>Onde seus dados ficam</h2>
+  <p>
+    Num servidor próprio, sem intermediário de nuvem de terceiros, hospedado na Hetzner, na Alemanha.
+  </p>
+
+  <h2>Por quanto tempo guardamos</h2>
+  <p>
+    Enquanto sua conta existir. Isso vale também para conta de convidado: se você parar de jogar sem pedir a
+    exclusão, os dados continuam guardados, sem prazo automático de apagamento. Para apagar tudo, veja
+    <a href="/exclusao-de-conta">como excluir sua conta</a>.
+  </p>
+
+  <h2>Seus direitos (LGPD)</h2>
+  <p>
+    Você pode pedir para acessar, corrigir ou apagar seus dados a qualquer momento. Excluir a conta, pelo app ou
+    por e-mail, já cobre o pedido de eliminação. Para acessar ou corrigir alguma informação, ou tirar dúvida sobre
+    o que guardamos, escreva para o contato abaixo.
+  </p>
+
+  <div class="box contact">
+    <strong>Contato</strong>
+    <p style="margin-bottom:0">
+      <a href="mailto:claude@leonardo.colman.com.br">claude@leonardo.colman.com.br</a>
+    </p>
+  </div>
+
+  <footer>
+    Palavramento &middot; <a href="/exclusao-de-conta">Exclusão de conta</a>
+  </footer>
+</main>
+</body>
+</html>

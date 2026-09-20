@@ -87,6 +87,28 @@ sealed interface MatchUiState {
  * show a text line.
  */
 sealed interface SubmissionFeedback {
-  data class Accepted(val word: String, val score: Int, val path: List<Int>) : SubmissionFeedback
-  data class Rejected(val reason: RejectionReason, val path: List<Int>) : SubmissionFeedback
+
+  /**
+   * Counts this verdict within its round, so two identical ones in a row are still two verdicts.
+   * Without it, tracing the same already-found word twice produced an equal [SubmissionFeedback],
+   * which left the state equal, which a `StateFlow` never re-emits: no flash, no sound, no haptic,
+   * as if the second trace had not happened.
+   */
+  val serial: Int
+
+  data class Accepted(
+    val word: String,
+    val score: Int,
+    val path: List<Int>,
+    override val serial: Int = 1,
+  ) : SubmissionFeedback
+
+  data class Rejected(
+    val reason: RejectionReason,
+    val path: List<Int>,
+    override val serial: Int = 1,
+  ) : SubmissionFeedback
 }
+
+/** The [SubmissionFeedback.serial] the next verdict in this round gets. */
+internal fun MatchUiState.InRound.nextFeedbackSerial(): Int = (lastFeedback?.serial ?: 0) + 1

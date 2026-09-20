@@ -241,14 +241,16 @@ private data class TileFlashState(val flash: TileFlash?, val shakeOffsetPx: Floa
 
 /**
  * Drives [TileFlash]/shake from [feedback] (task brief 2): flashes the submitted path's tiles the
- * accept/reject color, shakes on reject, then clears after [FlashDurationMillis] - all skipped when
- * [br.com.colman.palavramento.ui.common.LocalAnimationsEnabled] is off.
+ * accept/reject color, shakes on reject, then clears after [FlashDurationMillis].
+ *
+ * Only the motion honors [br.com.colman.palavramento.ui.common.LocalAnimationsEnabled]: the shake,
+ * and the tween the tile color rides in on. The flash itself always lasts [FlashDurationMillis],
+ * because it is the verdict on the word, not decoration.
  */
 @Composable
 private fun rememberTileFlashState(feedback: SubmissionFeedback?): TileFlashState {
   var flash by remember { mutableStateOf<TileFlash?>(null) }
   val shakeOffsetPx = remember { Animatable(0f) }
-  val flashDurationMs = animationDurationMillis(FlashDurationMillis)
   val shakeStepDurationMs = animationDurationMillis(ShakeStepMillis)
 
   LaunchedEffect(feedback) {
@@ -268,7 +270,15 @@ private fun rememberTileFlashState(feedback: SubmissionFeedback?): TileFlashStat
       }
       shakeOffsetPx.snapTo(0f)
     }
-    if (flashDurationMs > 0) delay(flashDurationMs.toLong())
+    // Deliberately not animationDurationMillis: how long the color stays is not an animation, it is
+    // the answer to "was my word good?". Running it through the system "remove animations" setting
+    // set the flash and cleared it in the same frame, so a player with that setting on, or with a
+    // battery saver that forces it, found words and never saw the board turn green.
+    // Deliberately not animationDurationMillis: how long the color stays is not an animation, it is
+    // the answer to "was my word good?". Running it through the system "remove animations" setting
+    // set the flash and cleared it in the same frame, so a player with that setting on, or with a
+    // battery saver that forces it, found words and never saw the board turn green.
+    delay(FlashDurationMillis.toLong())
     flash = null
   }
 

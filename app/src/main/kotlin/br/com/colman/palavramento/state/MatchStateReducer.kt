@@ -77,7 +77,12 @@ object MatchStateReducer {
           foundWords = state.foundWords + FoundWord(message.word, message.score, message.path),
           runningScore = message.runningScore,
           runningWords = message.runningWords,
-          lastFeedback = SubmissionFeedback.Accepted(message.word, message.score, message.path),
+          lastFeedback = SubmissionFeedback.Accepted(
+            message.word,
+            message.score,
+            message.path,
+            state.nextFeedbackSerial(),
+          ),
         )
       }
     } else {
@@ -100,10 +105,12 @@ object MatchStateReducer {
           runningScore = state.runningScore - (rolledBack?.score ?: 0),
           runningWords = state.runningWords - if (rolledBack != null) 1 else 0,
           pendingPaths = state.pendingPaths - setOf(message.path),
-          lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path),
+          lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path, state.nextFeedbackSerial()),
         )
       } else {
-        state.copy(lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path))
+        state.copy(
+          lastFeedback = SubmissionFeedback.Rejected(message.reason, message.path, state.nextFeedbackSerial()),
+        )
       }
     } else {
       state

@@ -67,13 +67,13 @@ object OptimisticSubmission {
           foundWords = round.foundWords + FoundWord(result.word, result.score, path),
           runningScore = round.runningScore + result.score,
           runningWords = round.runningWords + 1,
-          lastFeedback = SubmissionFeedback.Accepted(result.word, result.score, path),
+          lastFeedback = SubmissionFeedback.Accepted(result.word, result.score, path, round.nextFeedbackSerial()),
           pendingPaths = round.pendingPaths + setOf(path),
         ),
       )
 
       is SubmissionResult.Rejected -> Decision.Reject(
-        round.copy(lastFeedback = SubmissionFeedback.Rejected(result.reason, path)),
+        round.copy(lastFeedback = SubmissionFeedback.Rejected(result.reason, path, round.nextFeedbackSerial())),
       )
     }
   }

@@ -15,6 +15,7 @@ import br.com.colman.palavramento.domain.stats.RoundStats
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 
 private fun sampleBoard() = List(16) { Tile("A", 1) }
 
@@ -219,6 +220,19 @@ class MatchStateReducerTest : FunSpec({
     accepted.pendingPaths shouldBe emptySet()
   }
 
+  test("the same rejection twice in a row is two verdicts, so the board flashes for both") {
+    val state = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart()) as MatchUiState.InRound
+    val rejection = ServerMessage.WordRejected(RejectionReason.AlreadyFound, listOf(0, 1, 2))
+
+    val first = MatchStateReducer.reduce(state, rejection) as MatchUiState.InRound
+    val second = MatchStateReducer.reduce(first, rejection) as MatchUiState.InRound
+
+    first.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.AlreadyFound, listOf(0, 1, 2), serial = 1)
+    second.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.AlreadyFound, listOf(0, 1, 2), serial = 2)
+    // The point of the serial: equal states never reach the screen, because a StateFlow drops them.
+    second shouldNotBe first
+  }
+
   test("WordRejected for a pending path (ADR 0014) rolls back the optimistic accept") {
     var state = MatchStateReducer.reduce(MatchUiState.Disconnected, sampleRoundStart()) as MatchUiState.InRound
     state = state.copy(
@@ -238,6 +252,8 @@ class MatchStateReducerTest : FunSpec({
     rolledBack.runningScore shouldBe 0
     rolledBack.runningWords shouldBe 0
     rolledBack.pendingPaths shouldBe emptySet()
-    rolledBack.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 2))
+    // serial 2: the optimistic accept was this round's first verdict, this rejection is the second,
+    // and the board has to flash again for it.
+    rolledBack.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 2), serial = 2)
   }
 })

@@ -408,7 +408,8 @@ class MultiplayerSessionTest : FunSpec({
         state.runningScore shouldBe 0
         state.runningWords shouldBe 0
         state.pendingPaths shouldBe emptySet()
-        state.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 2))
+        state.lastFeedback shouldBe
+          SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 2), serial = 2)
 
         job.cancelAndJoin()
       }

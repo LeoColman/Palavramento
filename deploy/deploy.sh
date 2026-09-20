@@ -61,9 +61,14 @@ docker stack deploy \
   palavramento
 
 # Config antigo não some sozinho quando o serviço para de usar: remove os que sobraram.
-docker config ls --format '{{.Name}}' | grep '^palavramento-' | grep -v "${CONFIG_VERSION}" | while read -r antigo; do
-  docker config rm "$antigo" >/dev/null 2>&1 && echo ">> removido config antigo ${antigo}"
-done
+# `grep` sem resultado sai com 1, e com `set -e` isso derrubaria o deploy inteiro depois de ele já
+# ter dado certo: nenhum config antigo para remover é o caso normal.
+docker config ls --format '{{.Name}}' \
+  | { grep '^palavramento-' || true; } \
+  | { grep -v "${CONFIG_VERSION}" || true; } \
+  | while read -r antigo; do
+      docker config rm "$antigo" >/dev/null 2>&1 && echo ">> removido config antigo ${antigo}"
+    done
 
 docker service ls --filter name=palavramento
 echo ">> pronto. Caddy publica o servidor em https://${APP_HOST} e o Grafana em https://${GRAFANA_HOST}"

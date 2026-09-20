@@ -117,6 +117,27 @@ rode `deploy/deploy.sh` (ou `deploy/publish.sh`) de novo. O script reescreve o a
 Prometheus lê e reinicia o servidor com o novo valor; o Prometheus relê o arquivo sozinho, sem
 precisar reiniciar.
 
+## Backup
+
+O stack sobe um serviço `backup` (borgmatic) que roda às 4h e empurra para dois repositórios Borg:
+BorgBase e o NAS Curupira. O que importa é o `pg_dump` do Postgres; o diretório cru do banco vai
+junto, somente leitura, como última cartada. Retenção: 7 diários, 4 semanais, 12 mensais. Detalhes e
+o porquê em [`docs/adr/0021-backup.md`](docs/adr/0021-backup.md).
+
+A senha dos repositórios fica em `BORG_PASSPHRASE`, no `.env` do servidor. **Guarde uma cópia dela
+fora do servidor**: sem ela os dois repositórios são lixo cifrado.
+
+```bash
+# estado e último backup
+docker exec $(docker ps -q -f name=palavramento_backup) borgmatic list
+
+# backup agora, sem esperar o cron
+docker exec $(docker ps -q -f name=palavramento_backup) borgmatic create --stats
+
+# restaurar o banco (com o servidor parado)
+docker exec $(docker ps -q -f name=palavramento_backup) borgmatic restore --archive latest
+```
+
 ## Divulgação
 
 `marketing/` tem o media kit para anunciar no Google Ads: textos dentro dos limites do Google,

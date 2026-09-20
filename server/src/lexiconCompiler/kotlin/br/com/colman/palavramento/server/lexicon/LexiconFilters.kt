@@ -11,6 +11,17 @@ private val Apostrophes = setOf('\'', '’')
 private val PunctuationToDrop = Apostrophes + setOf('-', '.')
 
 /**
+ * Forms the dictionary hands over and the game refuses anyway, written the way the board scores
+ * them (normalized, A-Z).
+ *
+ * A Hunspell dictionary also serves spell checkers, which try to recognize whatever people write,
+ * so VERO lists "menas". A word game does the opposite: it decides what counts. "Menas" is not part
+ * of the language, and accepting it would teach the wrong thing to whoever traced it (owner
+ * decision, 2026-09-20).
+ */
+private val ExcludedNormalizedForms = setOf("MENAS")
+
+/**
  * Filters for a canonical form fresh out of [HunspellExpander] (dossier §2.2): hyphens, apostrophes
  * and dots rule out compounds and abbreviations, digits and uppercase letters rule out numbers,
  * units and proper nouns/acronyms, and the length bounds keep tile paths sane (board words are at
@@ -25,7 +36,11 @@ object LexiconFilters {
    * Safety net over [WordNormalizer]'s output: length is measured here (post-normalization, as the
    * dossier specifies) and any character normalization could not reduce to a plain A-Z letter, for
    * example a superscript digit or a leftover space from a multi-word entry, disqualifies the form.
+   * [ExcludedNormalizedForms] is checked here too, for the same reason: that is the spelling the
+   * board scores, so it is the spelling worth banning.
    */
   fun isAcceptableNormalizedForm(normalized: String): Boolean =
-    normalized.length in MinLetters..MaxLetters && normalized.all { it in 'A'..'Z' }
+    normalized.length in MinLetters..MaxLetters &&
+      normalized.all { it in 'A'..'Z' } &&
+      normalized !in ExcludedNormalizedForms
 }

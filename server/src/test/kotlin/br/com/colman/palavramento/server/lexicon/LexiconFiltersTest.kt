@@ -61,4 +61,9 @@ class LexiconFiltersTest : FunSpec({
     LexiconFilters.isAcceptableNormalizedForm("CA@A") shouldBe false
     LexiconFilters.isAcceptableNormalizedForm("CA[A") shouldBe false
   }
+
+  test("a form on the exclusion list is refused, and the word it is a corruption of is not") {
+    LexiconFilters.isAcceptableNormalizedForm("MENAS") shouldBe false
+    LexiconFilters.isAcceptableNormalizedForm("MENOS") shouldBe true
+  }
 })

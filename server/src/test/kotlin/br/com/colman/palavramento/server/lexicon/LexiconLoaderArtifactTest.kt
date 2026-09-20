@@ -36,4 +36,13 @@ class LexiconLoaderArtifactTest : FunSpec({
 
     first.lookup("PAIS") shouldBe second.lookup("PAIS")
   }
+
+  test("an excluded form is not in the packaged artifact, however the dictionary spells it") {
+    val lexicon = LexiconLoader.load()
+
+    // VERO lists "menas" because a spell checker has to recognize what people write. This game
+    // decides what counts, so the build drops it (LexiconFilters.ExcludedNormalizedForms).
+    lexicon.lookup("MENAS").shouldBeNull()
+    lexicon.lookup("MENOS").shouldNotBeNull()
+  }
 })

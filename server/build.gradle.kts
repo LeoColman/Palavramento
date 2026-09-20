@@ -38,6 +38,9 @@ dependencies {
   implementation(project(":domain"))
 
   implementation(libs.bundles.ktor.server)
+  // Prometheus gauges for active players plus Ktor's own HTTP metrics (ADR 0019).
+  implementation(libs.ktor.server.metrics.micrometer)
+  implementation(libs.micrometer.registry.prometheus)
   implementation(libs.logback)
 
   implementation(libs.koin.ktor)
@@ -184,6 +187,10 @@ val excludedFromMutation = listOf(
   "br.com.colman.palavramento.server.plugins.*",
   "br.com.colman.palavramento.server.db.DatabaseFactory*",
   "br.com.colman.palavramento.server.db.tables.*",
+  // ConditionUnit is a private sealed interface: its synthetic getters are dead by construction,
+  // because the only code that reads those properties lives in the same file and the compiler emits
+  // a field access there, not a getter call. No test can reach them without widening production.
+  "br.com.colman.palavramento.server.lexicon.ConditionUnit*",
 ).joinToString(",")
 
 /**
@@ -305,6 +312,13 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
     "--targetTests=br.com.colman.palavramento.server.*Test",
     "--excludedClasses=$excludedFromMutation",
     "--excludedTestClasses=$excludedFromMutationRun",
+    // PIT's defaults minus VOID_METHOD_CALLS and NULL_RETURNS (ADR 0016). In a module this
+    // coroutine-heavy those two mutate the state machine the Kotlin compiler writes, not the code
+    // anyone wrote: a suspend function returns the COROUTINE_SUSPENDED marker and resumes through
+    // throwOnFailure, and no test can tell those mutants apart. They were 705 of 1310 mutants here,
+    // 65% of them surviving, which put the gate out of reach of any amount of honest testing.
+    "--mutators=CONDITIONALS_BOUNDARY,INCREMENTS,INVERT_NEGS,MATH,NEGATE_CONDITIONALS," +
+      "EMPTY_RETURNS,FALSE_RETURNS,TRUE_RETURNS,PRIMITIVE_RETURNS",
     "--testPlugin=Kotest",
     "--mutationThreshold=90",
     // Testcontainers boots a Postgres per minion and the lexicon artifact is 85MB, so PIT's 4s

@@ -12,6 +12,7 @@ import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.SubmissionRepository
 import br.com.colman.palavramento.server.rest.authRoutes
+import br.com.colman.palavramento.server.rest.metricsRoutes
 import br.com.colman.palavramento.server.rest.playerRoutes
 import br.com.colman.palavramento.server.round.GameClock
 import br.com.colman.palavramento.server.round.RoomScheduler
@@ -20,6 +21,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import org.koin.ktor.ext.get as koinGet
 
 /**
@@ -40,11 +42,13 @@ fun Application.configureRouting() {
   val roundRepository = koinGet<RoundRepository>()
   val submissionRepository = koinGet<SubmissionRepository>()
   val roomScheduler = koinGet<RoomScheduler>()
+  val meterRegistry = koinGet<PrometheusMeterRegistry>()
 
   routing {
     get("/health") { call.respondText("ok") }
     authRoutes(authService)
     playerRoutes(playerRepository, playerStatsRepository, roundResultRepository, roundRepository, submissionRepository)
     multiplayerRoute(roomScheduler, jwtService, config, clock)
+    metricsRoutes(meterRegistry, config.metricsToken)
   }
 }

@@ -7,6 +7,7 @@ import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.server.auth.AuthService
 import br.com.colman.palavramento.server.auth.JwtService
 import br.com.colman.palavramento.server.config.ServerConfig
+import br.com.colman.palavramento.server.metrics.PlayerMetrics
 import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.PlayerStatsRepository
 import br.com.colman.palavramento.server.repository.RefreshTokenRepository
@@ -20,6 +21,8 @@ import br.com.colman.palavramento.server.round.RoundFinalizer
 import br.com.colman.palavramento.server.round.RoundGenerationService
 import br.com.colman.palavramento.server.round.SystemGameClock
 import br.com.colman.palavramento.server.ws.ConnectionRegistry
+import io.micrometer.prometheusmetrics.PrometheusConfig
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -63,4 +66,9 @@ fun appModule(
   single { RoundFinalizer(get(), get(), get()) }
   single { ConnectionRegistry() }
   single { RoomScheduler(get(), get(), get(), get(), get(), get(), get(), get(), roomId) }
+
+  // One registry for the whole process (ADR 0019): Ktor's HTTP metrics and PlayerMetrics' gauges
+  // are scraped from the same /metrics answer.
+  single { PrometheusMeterRegistry(PrometheusConfig.DEFAULT) }
+  single { PlayerMetrics(get<PrometheusMeterRegistry>(), get(), get(), get(), get(), config.metricsRefreshInterval) }
 }

@@ -46,12 +46,16 @@ data class ServerConfig(
   // round, a not-yet-participant keeps the old behavior (LobbyState, wait for the next round)
   // instead of being let into the round already running.
   val lateJoinMinRemaining: Duration = DefaultLateJoinMinRemainingSeconds.seconds,
+  // Metrics (ADR 0019). Null token leaves /metrics off: nothing to scrape, nothing to guess.
+  val metricsToken: String? = null,
+  val metricsRefreshInterval: Duration = DefaultMetricsRefreshSeconds.seconds,
 ) {
   companion object {
     private const val DefaultPort = 8080
     private const val DefaultRateLimit = 10
     private const val DefaultLeaderboardSize = 20
     private const val DefaultLateJoinMinRemainingSeconds = 10
+    private const val DefaultMetricsRefreshSeconds = 60
 
     /** Reads every variable below, falling back to the [ServerConfig] default when unset. */
     fun fromEnv(env: (String) -> String? = System::getenv): ServerConfig {
@@ -74,6 +78,8 @@ data class ServerConfig(
         generationCriteria = defaults.generationCriteria,
         leaderboardSize = envInt(env, "LEADERBOARD_SIZE", defaults.leaderboardSize),
         lateJoinMinRemaining = envSeconds(env, "LATE_JOIN_MIN_REMAINING_SECONDS", defaults.lateJoinMinRemaining),
+        metricsToken = env("METRICS_TOKEN")?.takeIf { it.isNotBlank() },
+        metricsRefreshInterval = envSeconds(env, "METRICS_REFRESH_SECONDS", defaults.metricsRefreshInterval),
       )
     }
 

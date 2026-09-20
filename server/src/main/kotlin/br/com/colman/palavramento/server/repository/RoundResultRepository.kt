@@ -7,11 +7,14 @@ import br.com.colman.palavramento.server.db.tables.RoundResultsTable
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.countDistinct
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -49,6 +52,19 @@ class RoundResultRepository(private val database: Database) {
         it[enteredAt] = row.enteredAt.atOffset(ZoneOffset.UTC)
       }
     }
+  }
+
+  /**
+   * How many distinct players entered a round at [since] or later: the active-player gauges read
+   * this once a refresh (ADR 0019). `round_results` is the only table that records a player taking
+   * part in a round, and `entered_at` is indexed for exactly this query.
+   */
+  suspend fun countDistinctPlayersSince(since: Instant): Long = suspendTransaction(database) {
+    val distinctPlayers = RoundResultsTable.playerId.countDistinct()
+    RoundResultsTable
+      .select(distinctPlayers)
+      .where { RoundResultsTable.enteredAt greaterEq since.atOffset(ZoneOffset.UTC) }
+      .single()[distinctPlayers]
   }
 
   suspend fun findByRound(roundId: String): List<RoundResultRow> = suspendTransaction(database) {

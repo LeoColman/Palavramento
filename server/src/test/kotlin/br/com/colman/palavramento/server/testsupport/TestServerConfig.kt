@@ -18,6 +18,7 @@ fun testServerConfig(
   roundDuration: kotlin.time.Duration = 3.seconds,
   intermissionDuration: kotlin.time.Duration = 2.seconds,
   lateJoinMinRemaining: kotlin.time.Duration = 10.seconds,
+  metricsToken: String? = null,
 ): ServerConfig = ServerConfig(
   roundDuration = roundDuration,
   intermissionDuration = intermissionDuration,
@@ -28,4 +29,5 @@ fun testServerConfig(
   submitRateLimitPerSecond = 10,
   leaderboardSize = 10,
   lateJoinMinRemaining = lateJoinMinRemaining,
+  metricsToken = metricsToken,
 )

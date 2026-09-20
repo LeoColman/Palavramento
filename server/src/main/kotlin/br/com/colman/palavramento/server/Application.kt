@@ -7,6 +7,7 @@ import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.server.config.ServerConfig
 import br.com.colman.palavramento.server.db.DatabaseFactory
 import br.com.colman.palavramento.server.lexicon.LexiconLoader
+import br.com.colman.palavramento.server.metrics.PlayerMetrics
 import br.com.colman.palavramento.server.plugins.appModule
 import br.com.colman.palavramento.server.plugins.configureLogging
 import br.com.colman.palavramento.server.plugins.configureRouting
@@ -22,7 +23,9 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopping
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.metrics.micrometer.MicrometerMetrics
 import io.ktor.server.netty.Netty
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,6 +65,11 @@ fun Application.module(
     modules(appModule(config, database, lexicon, clock, seedSource, roomId))
   }
 
+  // Before the routes, so every request below is counted (ADR 0019). The registry is resolved out
+  // here because inside install {} the receiver is the plugin's config, which has no Koin get().
+  val meterRegistry = get<PrometheusMeterRegistry>()
+  install(MicrometerMetrics) { registry = meterRegistry }
+
   configureSerialization()
   configureSockets()
   configureSecurity(get())
@@ -71,5 +79,6 @@ fun Application.module(
 
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
   get<RoomScheduler>().start(applicationScope)
+  get<PlayerMetrics>().start(applicationScope)
   monitor.subscribe(ApplicationStopping) { applicationScope.cancel() }
 }

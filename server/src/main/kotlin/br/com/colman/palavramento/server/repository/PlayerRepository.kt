@@ -5,12 +5,14 @@ package br.com.colman.palavramento.server.repository
 
 import br.com.colman.palavramento.server.db.tables.PlayersTable
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -45,6 +47,18 @@ class PlayerRepository(private val database: Database) {
       it[createdAt] = row.createdAt.atOffset(ZoneOffset.UTC)
     }
     Unit
+  }
+
+  /**
+   * How many players exist, keyed by [PlayerRow.isGuest]: true for guests, false for accounts
+   * (ADR 0019's `palavramento_players_total`). A kind nobody has yet is simply absent from the map.
+   */
+  suspend fun countByKind(): Map<Boolean, Long> = suspendTransaction(database) {
+    val players = PlayersTable.id.count()
+    PlayersTable
+      .select(PlayersTable.isGuest, players)
+      .groupBy(PlayersTable.isGuest)
+      .associate { it[PlayersTable.isGuest] to it[players] }
   }
 
   suspend fun findById(id: String): PlayerRow? = suspendTransaction(database) {

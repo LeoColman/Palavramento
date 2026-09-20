@@ -34,6 +34,19 @@
   <string name="lobby_load_error">Não foi possível carregar seus dados. Verifique sua conexão.</string>
   <string name="lobby_retry_button">Tentar novamente</string>
 
+  <!-- Exclusão de conta (ADR 0020, deliverable Play Store 1.0.0) -->
+  <string name="lobby_delete_account_button">Excluir conta</string>
+  <string name="lobby_delete_account_dialog_title">Excluir conta</string>
+  <string name="lobby_delete_account_dialog_message_guest">A exclusão é imediata e não pode ser desfeita. Seu
+    histórico e suas estatísticas de convidado somem para sempre.</string>
+  <string name="lobby_delete_account_dialog_message_registered">A exclusão é imediata e não pode ser desfeita. Seu
+    histórico, suas estatísticas, seu e-mail e seu login somem para sempre. Depois de excluir, você continua
+    jogando como um convidado novo.</string>
+  <string name="lobby_delete_account_confirm">Excluir</string>
+  <string name="lobby_delete_account_cancel">Cancelar</string>
+  <string name="lobby_delete_account_error">Não foi possível excluir sua conta. Verifique sua conexão e tente
+    novamente.</string>
+
   <!-- Waiting (dossie 6.1, entre rodadas) -->
   <string name="waiting_next_round_format">Próxima partida em %1$s</string>
   <plurals name="waiting_players_count">

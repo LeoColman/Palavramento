@@ -42,4 +42,7 @@ interface RestApi {
   suspend fun playerProfile(accessToken: String): PlayerProfile
   suspend fun lifetimeStats(accessToken: String): LifetimeStats
   suspend fun roundHistory(accessToken: String, limit: Int = DefaultRoundHistoryLimit): List<RoundHistoryEntry>
+
+  /** Erases the player and everything about them (ADR 0020); the server answers 204 on success. */
+  suspend fun deleteAccount(accessToken: String)
 }

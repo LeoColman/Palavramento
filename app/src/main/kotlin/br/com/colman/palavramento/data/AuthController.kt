@@ -24,7 +24,8 @@ private const val RefreshMarginMs = 60_000L
  * Owns the guest-or-registered session for the whole app (dossier 8, task brief 4): bootstraps a
  * guest on first launch, refreshes the access token before it expires or after a 401, recovers from
  * a rejected refresh token (a new guest either way, plus [sessionExpired] for a registered player),
- * and runs registration/login (guest promotion and login migration, ADR 0007).
+ * runs registration/login (guest promotion and login migration, ADR 0007), and erases the current
+ * player on request (ADR 0020).
  *
  * [nowMs] is injected (task brief pattern also used by [br.com.colman.palavramento.clock.ServerClock])
  * so [needsRefresh] is unit-testable without waiting on a real clock.
@@ -108,9 +109,28 @@ class AuthController(
   suspend fun logout() {
     sessionMutex.withLock {
       tokenRepository.clear()
-      clearLocalCache()
+      clearLocalCache(profileRepository, historyRepository)
       restApi.newGuest(tokenRepository)
     }
+  }
+
+  /**
+   * Erases the current player on the server (`DELETE /players/me`, ADR 0020: immediate, no grace
+   * period, guest or registered alike) and, only once the server confirms it, clears the session and
+   * cache and bootstraps a brand new guest exactly like [logout]. A rejected or unreachable call
+   * leaves the session and cache untouched, same as [register]/[login], so the player can retry.
+   */
+  suspend fun deleteAccount(): AuthCallResult = sessionMutex.withLock {
+    val token = currentAccessToken() ?: return@withLock AuthCallResult.NetworkError
+    runCatching { restApi.deleteAccount(token) }.fold(
+      onSuccess = {
+        tokenRepository.clear()
+        clearLocalCache(profileRepository, historyRepository)
+        restApi.newGuest(tokenRepository)
+        AuthCallResult.Success
+      },
+      onFailure = { AuthCallResult.NetworkError },
+    )
   }
 
   /** Hides the [sessionExpired] notice for a player who chose to keep playing as a guest. */
@@ -133,7 +153,7 @@ class AuthController(
         tokenRepository.setSessionExpired(false)
         // The signed-in identity just changed (a new player id for a login migration, or guest -> not
         // guest for a promotion): drop the cache instead of showing a stale mix until the next sync.
-        clearLocalCache()
+        clearLocalCache(profileRepository, historyRepository)
         AuthCallResult.Success
       },
       onFailure = { failureFor(it.responseStatus()) },
@@ -165,22 +185,26 @@ class AuthController(
       !refreshed.isUnauthorized() -> current.accessToken
       else -> {
         tokenRepository.clear()
-        clearLocalCache()
+        clearLocalCache(profileRepository, historyRepository)
         if (!current.isGuest) tokenRepository.setSessionExpired(true)
         restApi.newGuest(tokenRepository)?.accessToken
       }
     }
-  }
-
-  private suspend fun clearLocalCache() {
-    profileRepository.clear()
-    historyRepository.clear()
   }
 }
 
 /** A brand new guest session (`POST /auth/guest`, dossier 8), saved as the current one; null when offline. */
 private suspend fun RestApi.newGuest(tokenRepository: TokenRepository): AuthTokens? =
   runCatching { guestAuth() }.getOrNull()?.also { tokenRepository.save(it) }
+
+/**
+ * Drops both caches (top-level, not a member, to keep [AuthController]'s own method count under the
+ * detekt threshold): every caller that signs a different identity in, or erases one, needs this.
+ */
+private suspend fun clearLocalCache(profileRepository: ProfileRepository, historyRepository: HistoryRepository) {
+  profileRepository.clear()
+  historyRepository.clear()
+}
 
 private fun AuthTokens.needsRefresh(now: Long): Boolean = now >= accessTokenExpiresAt - RefreshMarginMs
 

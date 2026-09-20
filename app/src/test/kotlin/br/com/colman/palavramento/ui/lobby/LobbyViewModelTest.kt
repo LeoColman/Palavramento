@@ -26,12 +26,14 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import io.mockk.every
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.setMain
@@ -229,5 +231,114 @@ class LobbyViewModelTest : FunSpec({
     viewModel.onSessionExpiredDismissed()
 
     eventually(EventuallyTimeout) { viewModel.uiState.value.sessionExpired shouldBe false }
+  }
+
+  test("onDeleteAccountConfirmed shows a loading state while the call is in flight, then clears it") {
+    val registered = AuthTokens("player-1", "Ana", isGuest = false, "old-access", 999_999_999_999L, "old-refresh")
+    val registeredProfile = PlayerProfile(registered.playerId, registered.displayName, false, 3, 900, 1600)
+    val freshGuest = guestTokens()
+    // Gates the DELETE response so the test can observe isDeletingAccount while it is still true,
+    // instead of racing a MockEngine response that never genuinely suspends.
+    val gate = CompletableDeferred<Unit>()
+    val restApi = restApiOf { request ->
+      emptyRoundsResponse(request, this) ?: when {
+        request.url.encodedPath == "/players/me" && request.method == HttpMethod.Delete -> {
+          gate.await()
+          respond("", HttpStatusCode.NoContent)
+        }
+
+        request.url.encodedPath == "/players/me" ->
+          jsonOk(PalavramentoJson.encodeToString(PlayerProfile.serializer(), registeredProfile))
+
+        request.url.encodedPath == "/auth/guest" ->
+          jsonOk(PalavramentoJson.encodeToString(AuthTokens.serializer(), freshGuest))
+
+        else -> error("Unexpected request: ${request.url}")
+      }
+    }
+    val tokenRepository = FakeTokenRepository(registered)
+    val profileRepository = FakeProfileRepository()
+    val historyRepository = FakeHistoryRepository()
+    val authController = AuthController(restApi, tokenRepository, profileRepository, historyRepository, nowMs = { 0L })
+    val syncService = SyncService(restApi, authController, profileRepository, historyRepository)
+    val viewModel = LobbyViewModel(authController, syncService, profileRepository)
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isLoading shouldBe false }
+
+    viewModel.onDeleteAccountConfirmed()
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isDeletingAccount shouldBe true }
+    gate.complete(Unit)
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isDeletingAccount shouldBe false }
+  }
+
+  test("onDeleteAccountConfirmed success clears the session and lands back on a fresh guest") {
+    val registered = AuthTokens("player-1", "Ana", isGuest = false, "old-access", 999_999_999_999L, "old-refresh")
+    val freshGuest = guestTokens()
+    val registeredProfile = PlayerProfile(registered.playerId, registered.displayName, false, 3, 900, 1600)
+    val guestProfile = PlayerProfile(freshGuest.playerId, freshGuest.displayName, true, 1, 0, 100)
+    val restApi = restApiOf { request ->
+      emptyRoundsResponse(request, this) ?: when {
+        request.url.encodedPath == "/players/me" && request.method == HttpMethod.Delete ->
+          respond("", HttpStatusCode.NoContent)
+
+        request.url.encodedPath == "/auth/guest" ->
+          jsonOk(PalavramentoJson.encodeToString(AuthTokens.serializer(), freshGuest))
+
+        request.url.encodedPath == "/players/me" -> {
+          val isRegistered = request.headers[HttpHeaders.Authorization] == "Bearer old-access"
+          val profile = if (isRegistered) registeredProfile else guestProfile
+          jsonOk(PalavramentoJson.encodeToString(PlayerProfile.serializer(), profile))
+        }
+
+        else -> error("Unexpected request: ${request.url}")
+      }
+    }
+    val tokenRepository = FakeTokenRepository(registered)
+    val profileRepository = FakeProfileRepository()
+    val historyRepository = FakeHistoryRepository()
+    val authController = AuthController(restApi, tokenRepository, profileRepository, historyRepository, nowMs = { 0L })
+    val syncService = SyncService(restApi, authController, profileRepository, historyRepository)
+    val viewModel = LobbyViewModel(authController, syncService, profileRepository)
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isGuest shouldBe false }
+
+    viewModel.onDeleteAccountConfirmed()
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isGuest shouldBe true }
+    viewModel.uiState.value.deleteAccountError shouldBe false
+    viewModel.uiState.value.isDeletingAccount shouldBe false
+    eventually(EventuallyTimeout) { viewModel.uiState.value.profile shouldBe guestProfile }
+  }
+
+  test("onDeleteAccountConfirmed surfaces an error and leaves the registered session untouched") {
+    val registered = AuthTokens("player-1", "Ana", isGuest = false, "old-access", 999_999_999_999L, "old-refresh")
+    val registeredProfile = PlayerProfile(registered.playerId, registered.displayName, false, 3, 900, 1600)
+    val restApi = restApiOf { request ->
+      emptyRoundsResponse(request, this) ?: when {
+        request.url.encodedPath == "/players/me" && request.method == HttpMethod.Delete ->
+          throw java.io.IOException("offline")
+
+        request.url.encodedPath == "/players/me" ->
+          jsonOk(PalavramentoJson.encodeToString(PlayerProfile.serializer(), registeredProfile))
+
+        else -> error("Unexpected request: ${request.url}")
+      }
+    }
+    val tokenRepository = FakeTokenRepository(registered)
+    val profileRepository = FakeProfileRepository()
+    val historyRepository = FakeHistoryRepository()
+    val authController = AuthController(restApi, tokenRepository, profileRepository, historyRepository, nowMs = { 0L })
+    val syncService = SyncService(restApi, authController, profileRepository, historyRepository)
+    val viewModel = LobbyViewModel(authController, syncService, profileRepository)
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.isGuest shouldBe false }
+
+    viewModel.onDeleteAccountConfirmed()
+
+    eventually(EventuallyTimeout) { viewModel.uiState.value.deleteAccountError shouldBe true }
+    viewModel.uiState.value.isDeletingAccount shouldBe false
+    // The session was never confirmed deleted by the server, so the player is still "Ana".
+    viewModel.uiState.value.isGuest shouldBe false
   }
 })

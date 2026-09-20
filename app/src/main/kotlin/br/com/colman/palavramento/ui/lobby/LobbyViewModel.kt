@@ -6,6 +6,7 @@ package br.com.colman.palavramento.ui.lobby
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import br.com.colman.palavramento.data.AuthCallResult
 import br.com.colman.palavramento.data.AuthController
 import br.com.colman.palavramento.data.ProfileRepository
 import br.com.colman.palavramento.data.SyncService
@@ -90,6 +91,24 @@ class LobbyViewModel(
     viewModelScope.launch { authController.dismissSessionExpired() }
   }
 
+  /**
+   * Erases the current player (ADR 0020), confirmed by the confirmation dialog already showing. A
+   * success lands back on a fresh guest, exactly like [onLogoutClicked]; a failure surfaces
+   * [LobbyUiState.deleteAccountError] and leaves the session untouched, so the player can retry.
+   */
+  fun onDeleteAccountConfirmed() {
+    viewModelScope.launch {
+      mutableUiState.update { it.copy(isDeletingAccount = true, deleteAccountError = false) }
+      val result = authController.deleteAccount()
+      if (result == AuthCallResult.Success) {
+        mutableUiState.update { it.copy(isDeletingAccount = false) }
+        refresh()
+      } else {
+        mutableUiState.update { it.copy(isDeletingAccount = false, deleteAccountError = true) }
+      }
+    }
+  }
+
   private companion object {
     const val Tag = "LobbyViewModel"
   }
@@ -102,4 +121,6 @@ data class LobbyUiState(
   val stats: LifetimeStats? = null,
   val loadError: Boolean = false,
   val sessionExpired: Boolean = false,
+  val isDeletingAccount: Boolean = false,
+  val deleteAccountError: Boolean = false,
 )

@@ -459,6 +459,77 @@ class AuthControllerTest : FunSpec({
       historyRepository.clearCount shouldBe 1
     }
   }
+
+  test("deleteAccount success erases the session/cache and bootstraps a fresh guest") {
+    runTest {
+      val registered = tokens(
+        playerId = "player-1",
+        isGuest = false,
+        accessToken = "player-token",
+        accessTokenExpiresAt = 10 * MinuteMs,
+      )
+      val freshGuest = tokens(playerId = "fresh-guest")
+      var deleteBearer: String? = null
+      val restApi = restApiOf { request ->
+        // DELETE /players/me answers 204 with no body (ADR 0020); the guest bootstrap that follows
+        // (POST /auth/guest, no bearer of its own) answers with the fresh guest's tokens.
+        if (request.url.encodedPath == "/players/me") {
+          deleteBearer = request.headers[HttpHeaders.Authorization]
+          respond("", HttpStatusCode.NoContent)
+        } else {
+          jsonOk(freshGuest)
+        }
+      }
+      val tokenRepository = FakeTokenRepository(registered)
+      val profileRepository = FakeProfileRepository()
+      val historyRepository = FakeHistoryRepository()
+      val controller =
+        AuthController(restApi, tokenRepository, profileRepository, historyRepository, nowMs = { 0L })
+
+      val result = controller.deleteAccount()
+
+      result shouldBe AuthCallResult.Success
+      deleteBearer shouldBe "Bearer player-token"
+      // The guest that appears after a successful deletion (ADR 0020: "entra como convidado novo").
+      tokenRepository.tokens.first() shouldBe freshGuest
+      profileRepository.clearCount shouldBe 1
+      historyRepository.clearCount shouldBe 1
+    }
+  }
+
+  test("deleteAccount maps a network failure to NetworkError and touches nothing local") {
+    runTest {
+      val registered = tokens(playerId = "player-1", isGuest = false, accessTokenExpiresAt = 10 * MinuteMs)
+      val restApi = restApiOf { throw java.io.IOException("offline") }
+      val tokenRepository = FakeTokenRepository(registered)
+      val profileRepository = FakeProfileRepository()
+      val historyRepository = FakeHistoryRepository()
+      val controller =
+        AuthController(restApi, tokenRepository, profileRepository, historyRepository, nowMs = { 0L })
+
+      val result = controller.deleteAccount()
+
+      result shouldBe AuthCallResult.NetworkError
+      // Nothing local cleared: the server never confirmed the deletion.
+      tokenRepository.tokens.first() shouldBe registered
+      profileRepository.clearCount shouldBe 0
+      historyRepository.clearCount shouldBe 0
+    }
+  }
+
+  test("deleteAccount maps a rejected (401) call to NetworkError and touches nothing local") {
+    runTest {
+      val registered = tokens(playerId = "player-1", isGuest = false, accessTokenExpiresAt = 10 * MinuteMs)
+      val restApi = restApiOf { respondError(HttpStatusCode.Unauthorized) }
+      val tokenRepository = FakeTokenRepository(registered)
+      val controller =
+        AuthController(restApi, tokenRepository, FakeProfileRepository(), FakeHistoryRepository(), nowMs = { 0L })
+
+      controller.deleteAccount() shouldBe AuthCallResult.NetworkError
+
+      tokenRepository.tokens.first() shouldBe registered
+    }
+  }
 })
 
 private const val MinuteMs = 60_000L

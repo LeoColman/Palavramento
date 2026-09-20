@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -27,6 +28,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -48,6 +52,12 @@ private const val DimmedAlpha = 0.4f
 
 /** Test tag for the lobby's load-error retry button, used by instrumented tests. */
 const val LobbyRetryButtonTestTag = "lobbyRetryButton"
+
+/** Test tag for the "Excluir conta" button, used by instrumented tests. */
+const val LobbyDeleteAccountButtonTestTag = "lobbyDeleteAccountButton"
+
+/** Test tag for the confirmation dialog's "Excluir" button, used by instrumented tests. */
+const val LobbyDeleteAccountConfirmButtonTestTag = "lobbyDeleteAccountConfirmButton"
 
 /** Lobby screen (dossie 6.1): header, lifetime stats, language selector (locked), Jogar. */
 @Composable
@@ -95,6 +105,12 @@ fun LobbyScreen(
     Button(onClick = onPlayClicked, modifier = Modifier.fillMaxWidth()) {
       Text(stringResource(R.string.lobby_play_button))
     }
+    DeleteAccountSection(
+      isGuest = uiState.isGuest,
+      isDeleting = uiState.isDeletingAccount,
+      showError = uiState.deleteAccountError,
+      onConfirmed = viewModel::onDeleteAccountConfirmed,
+    )
   }
 }
 
@@ -256,4 +272,72 @@ private fun LanguageSelector() {
     Text(stringResource(R.string.lobby_language_label), color = colors.textSecondary)
     Text(stringResource(R.string.lobby_language_value), color = colors.textDisabled)
   }
+}
+
+/**
+ * Discreet "Excluir conta" button at the end of the lobby (ADR 0020, Play Store requirement for
+ * 1.0.0). Opens a confirmation dialog before doing anything; the button itself disables while the
+ * deletion call is in flight, and a failed call surfaces [showError] without touching the session.
+ */
+@Composable
+private fun DeleteAccountSection(isGuest: Boolean, isDeleting: Boolean, showError: Boolean, onConfirmed: () -> Unit) {
+  val colors = PalavramentoColors.current
+  var showConfirmation by remember { mutableStateOf(false) }
+
+  Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+    TextButton(
+      onClick = { showConfirmation = true },
+      enabled = !isDeleting,
+      modifier = Modifier.testTag(LobbyDeleteAccountButtonTestTag),
+    ) {
+      if (isDeleting) {
+        CircularProgressIndicator(
+          modifier = Modifier.size(16.dp).padding(end = 8.dp),
+          color = colors.textDisabled,
+        )
+      }
+      Text(stringResource(R.string.lobby_delete_account_button), color = colors.textDisabled)
+    }
+    if (showError) {
+      Text(stringResource(R.string.lobby_delete_account_error), color = colors.rejected)
+    }
+  }
+
+  if (showConfirmation) {
+    DeleteAccountConfirmationDialog(
+      isGuest = isGuest,
+      onConfirm = {
+        showConfirmation = false
+        onConfirmed()
+      },
+      onDismiss = { showConfirmation = false },
+    )
+  }
+}
+
+/**
+ * Confirmation text differs for a guest (loses history/stats only) and a registered player (also
+ * loses e-mail/login, ADR 0020's "guarda por jogador" list) - confirming deletes, dismissing does
+ * nothing.
+ */
+@Composable
+private fun DeleteAccountConfirmationDialog(isGuest: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+  val messageRes = if (isGuest) {
+    R.string.lobby_delete_account_dialog_message_guest
+  } else {
+    R.string.lobby_delete_account_dialog_message_registered
+  }
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = { Text(stringResource(R.string.lobby_delete_account_dialog_title)) },
+    text = { Text(stringResource(messageRes)) },
+    confirmButton = {
+      TextButton(onClick = onConfirm, modifier = Modifier.testTag(LobbyDeleteAccountConfirmButtonTestTag)) {
+        Text(stringResource(R.string.lobby_delete_account_confirm))
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text(stringResource(R.string.lobby_delete_account_cancel)) }
+    },
+  )
 }

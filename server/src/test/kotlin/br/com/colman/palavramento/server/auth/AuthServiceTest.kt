@@ -419,7 +419,9 @@ class AuthServiceTest : FunSpec({
     val playerRepository = PlayerRepository(database)
     val guest = service.guest("HasTwoTokens")
 
-    val expiredHash = TokenHasher.hash("expired-raw-token")
+    // Unique per run: PIT re-runs a test many times against the same database, and a fixed hash
+    // would hit the unique index on refresh_tokens.token_hash the second time around.
+    val expiredHash = TokenHasher.hash("expired-raw-token-${UUID.randomUUID()}")
     refreshTokenRepository.insert(
       RefreshTokenRow(
         id = UUID.randomUUID().toString(),

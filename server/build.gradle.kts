@@ -156,6 +156,12 @@ tasks.register<JavaExec>("letterFrequencyReport") {
 tasks.test {
   dependsOn(compileLexicon)
   systemProperty("palavramento.lexicon.formsTsv", formsTsvFile.get().asFile.absolutePath)
+  // Runs the suite against a Postgres that is already up, the way :server:pitest's minions do, e.g.
+  // -Ppalavramento.test.postgres.url=jdbc:postgresql://localhost:5439/postgres. Without it the specs
+  // start their own container.
+  providers.gradleProperty("palavramento.test.postgres.url").orNull?.let { url ->
+    systemProperty("palavramento.test.postgres.url", url)
+  }
   // LexiconLoaderTest loads the ~85MB real artifact and independently recomputes the collapsing rule
   // over all 2M+ lines of forms.tsv to check it, which needs more than the default worker heap.
   maxHeapSize = "3g"
@@ -307,6 +313,9 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
     "--outputFormats=HTML,XML",
     "--timestampedReports=false",
     "--failWhenNoMutations=false",
+    // -Ppalavramento.pitest.verbose=true prints each minion's own output, which is the only way to
+    // see why a spec that passes under `test` fails inside a minion.
+    "--verbose=${providers.gradleProperty("palavramento.pitest.verbose").getOrElse("false")}",
   )
 
   finalizedBy(stopPitestPostgres)
@@ -318,12 +327,15 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
     }
     // Started here, not at configuration time: the container only has to exist while PIT runs, and
     // its port is different on every run, so it cannot be part of the task's inputs either.
-    args("--jvmArgs=-Xmx1g,-Dpalavramento.test.postgres.url=${startPitestPostgres()}")
+    // 2 GB, not the 1 GB a minion used to get: the specs that generate a board hold the real lexicon
+    // (85 MB on disk, far more once its trie is in memory), and a minion that runs out of heap is
+    // reported as a test failing without mutation, which aborts the whole run.
+    args("--jvmArgs=-Xmx2g,-Dpalavramento.test.postgres.url=${startPitestPostgres()}")
     // Added here so the core count of whichever machine runs the build stays out of the inputs.
-    // Half the cores, not all of them: every PIT thread is a forked JVM holding up to 1 GB plus the
-    // lexicon artifact, so this number is what decides whether the build finishes or the OOM killer
-    // ends it. The Postgres they used to hold each is gone (see startPitestPostgres).
-    args("--threads=${maxOf(1, Runtime.getRuntime().availableProcessors() / 2)}")
+    // A quarter of the cores: every PIT thread is a forked JVM allowed 2 GB, so this number is what
+    // decides whether the build finishes or the OOM killer ends it. The Postgres each of them used
+    // to hold is gone (see startPitestPostgres).
+    args("--threads=${maxOf(1, Runtime.getRuntime().availableProcessors() / 4)}")
   }
 }
 

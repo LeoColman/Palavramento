@@ -115,14 +115,15 @@ class PlayerRepositoryTest : FunSpec({
     val guest = guestRow()
     repository.insert(guest)
 
-    repository.promote(guest.id, "promoted@example.com", "new-hash", "New Name")
+    val promotedEmail = "promoted-${UUID.randomUUID()}@example.com"
+    repository.promote(guest.id, promotedEmail, "new-hash", "New Name")
 
     val promoted = repository.findById(guest.id)
     promoted.shouldNotBeNull()
     promoted.id shouldBe guest.id
     promoted.isGuest shouldBe false
     promoted.authProvider shouldBe PasswordAuthProvider
-    promoted.email shouldBe "promoted@example.com"
+    promoted.email shouldBe promotedEmail
     promoted.passwordHash shouldBe "new-hash"
     promoted.displayName shouldBe "New Name"
     promoted.createdAt shouldBe guest.createdAt

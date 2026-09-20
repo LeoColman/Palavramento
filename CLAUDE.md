@@ -34,6 +34,10 @@ Não criar módulos novos: o limite é 3.
     spec não chega ao PIT, e o mutante que quebra o construtor sobrevive.
   - Getter de data class só conta como coberto quando algum teste lê a propriedade; comparar por
     igualdade não basta.
+  - Fixture que grava chave única no banco (e-mail, hash de refresh token, id de rodada) precisa de
+    valor novo a cada execução, com UUID. O PIT reexecuta o mesmo teste dezenas de vezes contra o
+    mesmo banco, e valor fixo estoura restrição única na segunda, o que aborta a execução inteira
+    com "tests did not pass without mutation".
   - Mutante sobrevivente vira teste novo ou exclusão justificada na ADR 0016. Não baixar o limite.
   - Já fora do PIT: o pacote `protocol` (DTOs, coberto por round-trip), a fiação de framework do
     `:server` (`ApplicationKt`, `plugins.*`, `db.*`) e, no `:app`, as telas Compose, os pontos de

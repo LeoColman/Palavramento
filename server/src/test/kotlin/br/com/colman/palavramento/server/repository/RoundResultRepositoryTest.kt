@@ -18,6 +18,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import java.time.Instant
+import java.util.UUID
 
 /** An unpersisted round with a caller-chosen id, for tests that need round ids sorted deterministically. */
 private fun fixtureRound(id: String, roomId: String) = RoundRecord(
@@ -119,16 +120,19 @@ class RoundResultRepositoryTest : FunSpec({
     val roundRepository = RoundRepository(database)
     val roomId = testRoomId()
     val player = PlayerRepository(database).insertGuest()
-    roundRepository.insert(fixtureRound("aroundresult", roomId), emptyList())
-    roundRepository.insert(fixtureRound("broundresult", roomId), emptyList())
-    roundRepository.insert(fixtureRound("croundresult", roomId), emptyList())
+    // Sortable and unique: findByPlayer orders by round id, and PIT re-runs this test against the
+    // same database, where a fixed id would collide with the row the previous run left behind.
+    val run = UUID.randomUUID()
+    roundRepository.insert(fixtureRound("a-$run", roomId), emptyList())
+    roundRepository.insert(fixtureRound("b-$run", roomId), emptyList())
+    roundRepository.insert(fixtureRound("c-$run", roomId), emptyList())
     suspendTransaction(database) {
-      roundResultRepository.insert(this, resultRow("aroundresult", player.id))
-      roundResultRepository.insert(this, resultRow("broundresult", player.id))
-      roundResultRepository.insert(this, resultRow("croundresult", player.id))
+      roundResultRepository.insert(this, resultRow("a-$run", player.id))
+      roundResultRepository.insert(this, resultRow("b-$run", player.id))
+      roundResultRepository.insert(this, resultRow("c-$run", player.id))
     }
 
-    val expectedDesc = listOf("croundresult", "broundresult", "aroundresult")
+    val expectedDesc = listOf("c-$run", "b-$run", "a-$run")
     roundResultRepository.findByPlayer(player.id, limit = 10).map { it.roundId } shouldContainExactly expectedDesc
     roundResultRepository.findByPlayer(player.id, limit = 2).map { it.roundId } shouldContainExactly
       expectedDesc.take(2)

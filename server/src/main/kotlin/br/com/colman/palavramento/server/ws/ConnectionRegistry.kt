@@ -31,6 +31,17 @@ class ConnectionRegistry {
     byPlayer.remove(playerId, connection)
   }
 
+  /**
+   * Closes and drops [playerId]'s current connection, if it has one: e.g. its account was just
+   * deleted (ADR 0020), so the access token backing this socket no longer resolves to anyone. A
+   * no-op when [playerId] has no open connection, which is the common case: most players are not
+   * mid-round when they delete their account.
+   */
+  suspend fun disconnect(playerId: String, code: Short, reason: String) {
+    val connection = byPlayer.remove(playerId) ?: return
+    connection.close(code, reason)
+  }
+
   fun connectedPlayerCount(): Int = byPlayer.size
 
   fun connectedPlayerIds(): Set<String> = byPlayer.keys.toSet()

@@ -7,6 +7,7 @@ import br.com.colman.palavramento.server.db.tables.RefreshTokensTable
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -74,6 +75,16 @@ class RefreshTokenRepository(private val database: Database) {
   suspend fun deleteAllForPlayer(playerId: String) = suspendTransaction(database) {
     RefreshTokensTable.deleteWhere { RefreshTokensTable.playerId eq playerId }
     Unit
+  }
+
+  /**
+   * Same as [deleteAllForPlayer], but within an already-open [transaction] (account deletion,
+   * ADR 0020), for callers composing several tables' deletes in one transaction.
+   */
+  fun deleteAllForPlayer(transaction: JdbcTransaction, playerId: String) {
+    with(transaction) {
+      RefreshTokensTable.deleteWhere { RefreshTokensTable.playerId eq playerId }
+    }
   }
 
   private fun ResultRow.toRow() = RefreshTokenRow(

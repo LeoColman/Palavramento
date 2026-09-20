@@ -74,6 +74,13 @@ class SubmissionRepository(private val database: Database) {
     }
   }
 
+  /** Deletes every submission [playerId] ever made, across every round (account deletion, ADR 0020). */
+  fun deleteAllForPlayer(transaction: JdbcTransaction, playerId: String) {
+    with(transaction) {
+      SubmissionsTable.deleteWhere { SubmissionsTable.playerId eq playerId }
+    }
+  }
+
   private fun ResultRow.toFoundWord() = FoundWord(
     normalized = this[SubmissionsTable.normalized],
     display = this[SubmissionsTable.word],

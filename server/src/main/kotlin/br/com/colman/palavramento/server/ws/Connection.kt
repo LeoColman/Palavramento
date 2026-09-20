@@ -34,4 +34,12 @@ object CloseCodes {
 
   /** A newer connection for the same player took over (dossier phase 3 task: "the newest one wins"). */
   const val ReplacedByNewerConnection: Short = 4000
+
+  /**
+   * The account behind this socket's access token was just deleted (ADR 0020: "o socket aberto
+   * cai"). A distinct code from [InvalidToken] (1008, VIOLATED_POLICY) on purpose: that one means
+   * "your token is malformed or expired, get a new one", this one means "that account is gone, the
+   * app should start over as a fresh guest" (ADR 0020's "entra como convidado novo").
+   */
+  const val AccountDeleted: Short = 4001
 }

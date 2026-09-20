@@ -10,6 +10,7 @@ import br.com.colman.palavramento.server.repository.PasswordAuthProvider
 import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.PlayerRow
 import br.com.colman.palavramento.server.repository.PlayerStatsRepository
+import br.com.colman.palavramento.server.repository.PlayerStatsRow
 import br.com.colman.palavramento.server.repository.RefreshTokenRepository
 import br.com.colman.palavramento.server.repository.RefreshTokenRow
 import br.com.colman.palavramento.server.repository.RoundRepository
@@ -543,6 +544,96 @@ class AuthServiceTest : FunSpec({
     forciblyDeletePlayerLeavingItsTokens(database, guest.playerId)
 
     service.refresh(guest.refreshToken) shouldBe RefreshOutcome.Invalid
+  }
+
+  test("deleteAccount does nothing and returns false for a player id that does not exist") {
+    val service = authService(database, MutableGameClock())
+
+    service.deleteAccount(UUID.randomUUID().toString()) shouldBe false
+  }
+
+  test("deleteAccount is not idempotent: a second call on an already-deleted player returns false") {
+    val service = authService(database, MutableGameClock())
+    val guest = service.guest("OnceOnly")
+
+    service.deleteAccount(guest.playerId) shouldBe true
+    service.deleteAccount(guest.playerId) shouldBe false
+  }
+
+  test(
+    "deleteAccount erases a guest's row, refresh token, submissions and round_results, leaving the " +
+      "round and the other player's result untouched"
+  ) {
+    val roomId = testRoomId()
+    val service = authService(database, MutableGameClock())
+    val playerRepository = PlayerRepository(database)
+    val refreshTokenRepository = RefreshTokenRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val submissionRepository = SubmissionRepository(database)
+
+    val deleted = service.guest("Deletable")
+    val other = service.guest("Bystander")
+    val round = roundRepository.insertFakeFinishedRound(roomId)
+    val now = Instant.now()
+
+    submissionRepository.insert(AcceptedSubmission(round, deleted.playerId, "CASA", "casa", 10, listOf(0, 1), now))
+    submissionRepository.insert(AcceptedSubmission(round, other.playerId, "SOL", "sol", 8, listOf(2, 3), now))
+    playerRepository.transaction {
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(round, deleted.playerId, score = 10, words = 1, rank = 1, xp = 2, enteredAt = now)
+      )
+      roundResultRepository.insert(
+        this,
+        RoundResultRow(round, other.playerId, score = 8, words = 1, rank = 2, xp = 1, enteredAt = now)
+      )
+    }
+
+    service.deleteAccount(deleted.playerId) shouldBe true
+
+    playerRepository.findById(deleted.playerId).shouldBeNull()
+    refreshTokenRepository.findByHash(TokenHasher.hash(deleted.refreshToken)).shouldBeNull()
+    submissionRepository.findByRoundAndPlayer(round, deleted.playerId) shouldHaveSize 0
+    roundResultRepository.findByPlayerAll(deleted.playerId) shouldHaveSize 0
+
+    // The round itself and the other player's own participation both survive.
+    roundRepository.findById(round).shouldNotBeNull()
+    submissionRepository.findByRoundAndPlayer(round, other.playerId) shouldHaveSize 1
+    val remaining = roundResultRepository.findByRound(round)
+    remaining shouldHaveSize 1
+    remaining.single().playerId shouldBe other.playerId
+  }
+
+  test("deleteAccount erases a registered player's row, email lookup and player_stats") {
+    val service = authService(database, MutableGameClock())
+    val playerRepository = PlayerRepository(database)
+    val playerStatsRepository = PlayerStatsRepository(database)
+    val email = "deleteme-${UUID.randomUUID()}@example.com"
+
+    val registered = service.register(null, email, Password, "Deleteme")
+    registered.shouldBeInstanceOf<RegisterOutcome.Success>()
+    val playerId = registered.tokens.playerId
+    playerStatsRepository.replace(
+      PlayerStatsRow(
+        playerId = playerId,
+        totalScore = 5,
+        totalWords = 1,
+        bestGameScore = 5,
+        bestWord = "sol",
+        bestWordScore = 5,
+        gamesPlayed = 1,
+        gamesCompleted = 1,
+        bestRank = 1,
+        totalXp = 1,
+      ),
+    )
+
+    service.deleteAccount(playerId) shouldBe true
+
+    playerRepository.findByEmail(email).shouldBeNull()
+    playerRepository.findById(playerId).shouldBeNull()
+    playerStatsRepository.get(playerId).shouldBeNull()
   }
 
   test("refresh reflects the player's current identity, not the one from token issuance") {

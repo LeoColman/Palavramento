@@ -174,6 +174,30 @@ class AuthService(
     rebuildPlayerStats(targetId)
   }
 
+  /**
+   * Erases [playerId] and everything about them (ADR 0020): `refresh_tokens`, `submissions`,
+   * `round_results`, `player_stats` and the `players` row itself, all in a single transaction so a
+   * crash partway through never leaves an orphaned row behind. `rounds`/`round_words` are untouched:
+   * they describe the board and its solution, not the player. Returns false without changing
+   * anything if [playerId] does not exist (already deleted, or never did), so the caller (`DELETE
+   * /players/me`) can answer 404 instead of a misleading 204.
+   */
+  suspend fun deleteAccount(playerId: String): Boolean {
+    if (playerRepository.findById(playerId) == null) return false
+
+    playerRepository.transaction {
+      // Order follows the foreign keys into `players`: every table referencing the player row is
+      // cleared first, the row itself goes last. Order among these four does not matter to
+      // Postgres, none of them reference each other.
+      refreshTokenRepository.deleteAllForPlayer(this, playerId)
+      submissionRepository.deleteAllForPlayer(this, playerId)
+      roundResultRepository.deleteAllForPlayer(this, playerId)
+      playerStatsRepository.delete(this, playerId)
+      playerRepository.delete(this, playerId)
+    }
+    return true
+  }
+
   /** Recomputes `player_stats` from `round_results`/`submissions` (dossier §8, ADR 0007). */
   private suspend fun rebuildPlayerStats(playerId: String) {
     val results = roundResultRepository.findByPlayerAll(playerId)

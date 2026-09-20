@@ -49,11 +49,13 @@ services:
       - --storage.tsdb.retention.time=1y
     volumes:
       # Config e dashboard ficam versionados no código enviado pelo publish.sh (ADR 0013).
-      - /root/manual-stacks/palavramento/src/deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       # Token de autenticação da raspagem: nunca no git, escrito pelo deploy.sh a partir de
       # METRICS_TOKEN (.env), dono uid 65534 (usuário "nobody" desta imagem), chmod 600.
       - /root/manual-stacks/palavramento/metrics_token:/etc/prometheus/metrics_token:ro
       - /root/manual-stacks/palavramento/prometheus-data:/prometheus
+    configs:
+      - source: prometheus
+        target: /etc/prometheus/prometheus.yml
     deploy:
       replicas: 1
       restart_policy: { condition: any, delay: 5s }
@@ -71,9 +73,14 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_SERVER_ROOT_URL: https://${GRAFANA_HOST}/
     volumes:
-      - /root/manual-stacks/palavramento/src/deploy/grafana/provisioning:/etc/grafana/provisioning:ro
-      - /root/manual-stacks/palavramento/src/deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - /root/manual-stacks/palavramento/grafana-data:/var/lib/grafana
+    configs:
+      - source: grafana-datasource
+        target: /etc/grafana/provisioning/datasources/prometheus.yml
+      - source: grafana-dashboards
+        target: /etc/grafana/provisioning/dashboards/palavramento.yml
+      - source: grafana-dashboard-palavramento
+        target: /var/lib/grafana/dashboards/palavramento.json
     deploy:
       replicas: 1
       restart_policy: { condition: any, delay: 5s }
@@ -95,9 +102,11 @@ services:
     volumes:
       # Diretório cru do Postgres, somente leitura: rede de segurança do pg_dump (ADR 0021).
       - /root/manual-stacks/palavramento/pgdata:/data:ro
-      - /root/manual-stacks/palavramento/src/deploy/borgmatic.yaml:/etc/borgmatic.d/config.yaml:ro
       # Volume externo com a chave SSH do servidor, compartilhado com os outros stacks do ritalee.
       - ssh:/root/.ssh/
+    configs:
+      - source: borgmatic
+        target: /etc/borgmatic.d/config.yaml
     deploy:
       replicas: 1
       restart_policy: { condition: any, delay: 30s }
@@ -113,3 +122,25 @@ networks:
 volumes:
   ssh:
     external: true
+
+# Configuração vai como `config` do Swarm, não como bind mount: é assim que os outros stacks do
+# ritalee fazem, o conteúdo fica no raft junto com o serviço e o container não depende de caminho
+# do host. Config do Swarm é imutável, então o nome carrega o hash do conteúdo (CONFIG_VERSION,
+# calculado pelo deploy.sh): conteúdo novo, config novo, serviço atualizado; conteúdo igual, nada
+# muda. Assim ninguém precisa criar config à mão nem inventar sufixo -v2, -v3.
+configs:
+  prometheus:
+    name: palavramento-prometheus-${CONFIG_VERSION}
+    file: ./prometheus.yml
+  grafana-datasource:
+    name: palavramento-grafana-datasource-${CONFIG_VERSION}
+    file: ./grafana/provisioning/datasources/prometheus.yml
+  grafana-dashboards:
+    name: palavramento-grafana-dashboards-${CONFIG_VERSION}
+    file: ./grafana/provisioning/dashboards/palavramento.yml
+  grafana-dashboard-palavramento:
+    name: palavramento-grafana-dashboard-${CONFIG_VERSION}
+    file: ./grafana/dashboards/palavramento.json
+  borgmatic:
+    name: palavramento-borgmatic-${CONFIG_VERSION}
+    file: ./borgmatic.yaml

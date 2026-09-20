@@ -28,6 +28,14 @@ done
 IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
 export IMAGE_TAG
 
+# Config do Swarm é imutável: o nome carrega o hash do conteúdo, então mudar um arquivo de
+# configuração cria um config novo e atualiza o serviço, e não mudar nada não mexe em nada.
+CONFIG_VERSION="$(cat src/deploy/prometheus.yml src/deploy/borgmatic.yaml \
+  src/deploy/grafana/provisioning/datasources/prometheus.yml \
+  src/deploy/grafana/provisioning/dashboards/palavramento.yml \
+  src/deploy/grafana/dashboards/palavramento.json | sha256sum | cut -c1-12)"
+export CONFIG_VERSION
+
 # O Swarm exige que os diretórios dos bind mounts já existam.
 mkdir -p pgdata prometheus-data grafana-data
 
@@ -51,6 +59,11 @@ docker stack deploy \
   -c src/deploy/docker-compose.yml \
   --detach=false \
   palavramento
+
+# Config antigo não some sozinho quando o serviço para de usar: remove os que sobraram.
+docker config ls --format '{{.Name}}' | grep '^palavramento-' | grep -v "${CONFIG_VERSION}" | while read -r antigo; do
+  docker config rm "$antigo" >/dev/null 2>&1 && echo ">> removido config antigo ${antigo}"
+done
 
 docker service ls --filter name=palavramento
 echo ">> pronto. Caddy publica o servidor em https://${APP_HOST} e o Grafana em https://${GRAFANA_HOST}"

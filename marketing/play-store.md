@@ -24,7 +24,7 @@ para a busca.
 <!-- limite: 80 -->
 | Texto | Car. |
 |---|---|
-| Todos na mesma grade 4x4, dois minutos, placar ao vivo. Grátis e sem anúncios. | 78 |
+| Todos na mesma grade 4x4, dois minutos e placar ao vivo. Grátis para jogar. | 75 |
 
 ## Descrição completa
 
@@ -69,9 +69,9 @@ As palavras são validadas com o dicionário Hunspell pt_BR do projeto VERO. Ace
 dígrafo funcionam como você espera de um jogo de letras feito para o português, não de uma tradução
 de jogo em inglês.
 
-SEM ANÚNCIO, SEM COMPRA, SEM RASTREAMENTO
-Não existe anúncio no meio da rodada, não existe item para comprar, não existe versão paga e não
-existe telemetria. O app pede uma permissão só: acesso à internet, porque o jogo é multijogador.
+SEM COMPRA E SEM RASTREAMENTO
+Não existe item para comprar dentro do jogo e não existe telemetria de uso. O app pede uma permissão
+só: acesso à internet, porque o jogo é multijogador.
 
 CÓDIGO ABERTO
 O Palavramento é software livre sob licença AGPL-3.0-or-later, app e servidor. O código está em
@@ -100,7 +100,7 @@ troca.
 | vocabulário | sim |
 | placar | sim |
 | grátis | sim |
-| sem anúncios | sim |
+| caça-palavras multijogador | sim |
 | dicionário português | sim |
 | código aberto | sim |
 | jogo de letras | sim |
@@ -171,7 +171,10 @@ deploy.
 Jogo de palavras: sem violência, sem conteúdo sexual, sem linguagem imprópria, sem jogo de azar, sem
 compra. Interação entre usuários **indireta**: jogadores veem nome de exibição e pontuação uns dos
 outros no placar da rodada, e não existe chat nem mensagem direta. Sem localização compartilhada.
-Sem anúncio dentro do app.
+Sem anúncio dentro do app **nesta versão**. Quando o anúncio de rodapé entrar (decisão de
+2026-09-20: fica para depois da 1.0.0), este questionário precisa ser refeito, a ficha passa a
+declarar "contém anúncios" no Console, e a política de privacidade e o formulário de Segurança de
+Dados mudam junto.
 
 ### Público-alvo
 

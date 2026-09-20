@@ -22,7 +22,7 @@ conferidor está em [`src/check-copy.js`](src/check-copy.js).
 
 ## O objetivo real desta campanha
 
-O Palavramento não tem anúncio, não tem compra dentro do app e não tem assinatura. Uma instalação
+O Palavramento não tem compra dentro do app e não tem assinatura. Uma instalação
 não gera receita, então não existe ROI para calcular e não adianta perguntar "quanto vale um
 usuário". O que a campanha compra é **liquidez de sala**: a v1 só tem multijogador, e uma sala com
 um jogador só não é o jogo. Isso muda duas decisões:
@@ -48,7 +48,7 @@ grupo, então cada grupo carrega um argumento diferente e o sistema descobre qua
 | Idioma | Português |
 | Estratégia de lance | CPI desejado (custo por instalação) |
 | Orçamento diário | no mínimo 50x o CPI desejado |
-| Grupos de anúncios | Ao vivo, Sem anúncios, Desafio |
+| Grupos de anúncios | Ao vivo, Sem pegadinha, Desafio |
 
 Sobre o orçamento: a recomendação do próprio Google é orçamento diário de pelo menos 50 vezes o CPI
 desejado, senão a campanha fica limitada e nunca sai da fase de aprendizado. Se o CPI desejado for
@@ -83,23 +83,23 @@ Descrições:
 <!-- limite: 90 -->
 | Texto | Car. |
 |---|---|
-| Grade 4x4, dois minutos, todo mundo na mesma grade ao mesmo tempo. Grátis, sem anúncios. | 88 |
+| Grade 4x4, dois minutos, todo mundo na mesma grade ao mesmo tempo. Grátis para jogar. | 85 |
 | Mesma grade, mesmo cronômetro, placar na hora. Só depende de quem acha mais palavra. | 84 |
 | Entre quando quiser: a próxima rodada começa em menos de um minuto. | 67 |
 | Trace a palavra com o dedo e some pontos. Quem achar mais palavra sobe no placar. | 81 |
 | No fim da rodada você vê todas as palavras que existiam e quais deixou passar. | 78 |
 
-### Grupo "Sem anúncios" - gratuito, sem pegadinha, código aberto
+### Grupo "Sem pegadinha" - gratuito, sem cadastro obrigatório, código aberto
 
 Títulos:
 
 <!-- limite: 30 -->
 | Texto | Car. |
 |---|---|
-| Sem anúncios, sem compras | 25 |
+| Grátis, sem compras | 19 |
 | Jogo de palavras grátis | 23 |
-| Caça-palavras sem anúncio | 25 |
-| Nada de anúncio no meio | 23 |
+| Jogue sem criar conta | 21 |
+| Sem assinatura | 14 |
 | Código aberto e gratuito | 24 |
 
 Descrições:
@@ -107,14 +107,14 @@ Descrições:
 <!-- limite: 90 -->
 | Texto | Car. |
 |---|---|
-| Sem anúncios, sem compras, sem rastreamento. Código aberto sob licença AGPL. | 76 |
-| Só pede internet. Nenhuma outra permissão, nenhum anúncio no meio da rodada. | 76 |
+| Sem compras e sem rastreamento de uso. Código aberto sob licença AGPL. | 70 |
+| Só pede internet. Nenhuma outra permissão, nenhum cadastro para começar. | 72 |
 | Caça-palavras multijogador de graça do começo ao fim. Não existe versão paga. | 77 |
-| Grade 4x4, dois minutos, placar ao vivo. Nenhum anúncio interrompe a partida. | 77 |
+| Grade 4x4, dois minutos, placar ao vivo. Entre numa rodada e jogue na hora. | 75 |
 | Feito em português do Brasil, com dicionário pt-BR de verdade. | 62 |
 
 Tudo aqui é verificável no repositório, o que importa porque o Google reprova promessa que a ficha
-da loja contradiz: o `:app` não declara nenhuma biblioteca de anúncio, faturamento ou telemetria, e
+da loja contradiz: hoje o `:app` não declara biblioteca de faturamento nem de telemetria, e
 `AndroidManifest.xml` pede só `android.permission.INTERNET`.
 
 ### Grupo "Desafio" - habilidade e vocabulário

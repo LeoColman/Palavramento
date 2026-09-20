@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<!--
+  Source for the Google Ads image assets in marketing/ads/.
+  Rendered by marketing/src/render.sh, which drives headless Chrome at the exact
+  pixel size Google asks for, so nothing is ever resampled.
+
+  Query string: ?f=<square|wide|tall>&v=<a|b>
+    f  picks the aspect ratio (1:1, 1.91:1, 4:5)
+    v  picks the layout variant (a = drawn board, b = real app screenshot)
+
+  Colors are the app's own palette (app/src/main/kotlin/.../ui/theme/PalavramentoColors.kt),
+  so an ad and the screen it leads to look like the same product.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Palavramento - banners</title>
+<style>
+  :root {
+    --background: #0B1B34;
+    --surface: #122A4D;
+    --surface-variant: #1B3760;
+    --tile: #E08A2B;
+    --tile-text: #1A1005;
+    --tile-value: #4A2E05;
+    --text-primary: #F5F0E6;
+    --text-secondary: #B9C2D0;
+    --highlight: #E0B84A;
+    --accepted: #4CAF7D;
+    --match-accent: #3E7BD6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { background: #000; }
+
+  body {
+    font-family: 'Inter Display', 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+  }
+
+  .canvas {
+    position: relative;
+    overflow: hidden;
+    background: var(--background);
+    color: var(--text-primary);
+    display: flex;
+    flex-shrink: 0;
+  }
+
+  /* One warm pool of light behind the board, so the flat navy does not read as dead space. */
+  .canvas::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(60% 55% at var(--glow-x, 50%) var(--glow-y, 42%), rgba(224, 138, 43, 0.22), transparent 70%),
+      radial-gradient(90% 70% at 15% 100%, rgba(62, 123, 214, 0.18), transparent 70%);
+  }
+
+  .canvas > * { position: relative; }
+
+  /* ---------- wordmark ---------- */
+  .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 0.62em;
+    font-size: var(--wordmark-size, 26px);
+  }
+  .wordmark .glyph {
+    width: 1.92em;
+    height: 1.92em;
+    border-radius: 0.42em;
+    background: var(--tile);
+    color: var(--tile-text);
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 1.15em;
+    line-height: 1;
+    box-shadow: 0 0.12em 0 rgba(0, 0, 0, 0.32);
+  }
+  .wordmark .name {
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-size: 0.86em;
+    color: var(--text-primary);
+  }
+
+  /* ---------- copy ---------- */
+  .headline {
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.022em;
+    font-size: var(--headline-size, 76px);
+  }
+  .headline em { font-style: normal; color: var(--highlight); }
+
+  .subline {
+    color: var(--text-secondary);
+    font-weight: 500;
+    line-height: 1.35;
+    font-size: var(--subline-size, 30px);
+  }
+
+  .badges { display: flex; gap: 0.6em; flex-wrap: wrap; font-size: var(--badge-size, 22px); }
+  .badge {
+    border: 1.5px solid rgba(185, 194, 208, 0.38);
+    border-radius: 999px;
+    padding: 0.5em 1.05em;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* ---------- board ---------- */
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--board-gap, 14px);
+    width: var(--board-size, 560px);
+    aspect-ratio: 1;
+  }
+  .tile {
+    position: relative;
+    border-radius: 14%;
+    background: var(--tile);
+    color: var(--tile-text);
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: calc(var(--board-size, 560px) / 4 * 0.46);
+    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);
+  }
+  .tile .value {
+    position: absolute;
+    top: 7%;
+    left: 9%;
+    font-size: 0.34em;
+    font-weight: 700;
+    color: var(--tile-value);
+  }
+  .tile.lit {
+    background: var(--highlight);
+    box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);
+  }
+
+  .board-wrap { position: relative; display: grid; }
+  .board-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  /* The accepted-word toast the match screen shows, reused as proof of the core loop. */
+  .toast {
+    align-self: center;
+    background: var(--accepted);
+    color: #06230F;
+    font-weight: 800;
+    border-radius: 999px;
+    padding: 0.5em 1.2em;
+    font-size: var(--toast-size, 30px);
+    letter-spacing: 0.01em;
+  }
+
+  /* ---------- phone ---------- */
+  .phone {
+    border-radius: var(--phone-radius, 44px);
+    border: var(--phone-bezel, 10px) solid #060F1F;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+    background: #060F1F;
+    flex-shrink: 0;
+  }
+  .phone img { display: block; width: 100%; height: auto; }
+
+  /* ---------- formats ---------- */
+  body.square .canvas {
+    width: 1200px; height: 1200px;
+    flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 76px 64px 72px;
+    --wordmark-size: 30px;
+    --headline-size: 82px;
+    --subline-size: 32px;
+    --badge-size: 24px;
+    --board-size: 620px;
+    --board-gap: 16px;
+    --toast-size: 32px;
+  }
+  body.square .stack { display: flex; flex-direction: column; align-items: center; gap: 30px; text-align: center; }
+
+  body.wide .canvas {
+    width: 1200px; height: 628px;
+    flex-direction: row; align-items: center;
+    padding: 0 60px;
+    gap: 52px;
+    --glow-x: 76%;
+    --glow-y: 50%;
+    --wordmark-size: 24px;
+    --headline-size: 58px;
+    --subline-size: 24px;
+    --badge-size: 19px;
+    --board-size: 400px;
+    --board-gap: 11px;
+  }
+  body.wide .left { display: flex; flex-direction: column; gap: 26px; flex: 1; }
+  /* The screenshot variant needs an explicit width: the raw capture is 1080px wide and would
+     otherwise push the copy off the canvas. 248px keeps the whole phone inside 628px of height. */
+  body.wide .phone { width: 248px; --phone-radius: 26px; --phone-bezel: 6px; }
+
+  body.tall .canvas {
+    width: 1200px; height: 1500px;
+    flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 96px 72px 88px;
+    --glow-y: 55%;
+    --wordmark-size: 32px;
+    --headline-size: 88px;
+    --subline-size: 34px;
+    --badge-size: 25px;
+    --board-size: 720px;
+    --board-gap: 18px;
+    --phone-radius: 56px;
+    --phone-bezel: 12px;
+  }
+  body.tall .stack { display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center; }
+
+  /* Play Store icon: 512x512, full bleed, no transparency, the launcher's own orange tile. */
+  body.icon .canvas {
+    width: 512px; height: 512px;
+    background: var(--tile);
+    align-items: center; justify-content: center;
+    padding: 0;
+  }
+  body.icon .canvas::before { display: none; }
+  body.icon .monogram { width: 512px; height: 512px; display: block; }
+
+  /* Play Store feature graphic: 1024x500, safe margins because the edges get cropped. */
+  body.feature .canvas {
+    width: 1024px; height: 500px;
+    flex-direction: row; align-items: center; justify-content: center;
+    padding: 0 84px;
+    gap: 56px;
+    --glow-x: 72%;
+    --wordmark-size: 26px;
+    --headline-size: 52px;
+    --subline-size: 23px;
+    --board-size: 320px;
+    --board-gap: 9px;
+  }
+  body.feature .left { display: flex; flex-direction: column; gap: 22px; flex: 1; }
+
+  /* Backdrop for the 16:9 video cut: the app is portrait, so the landscape frame is a
+     composition, not a crop. The slot on the right is where render-video.sh overlays the
+     recording, at exactly these coordinates. */
+  body.backdrop .canvas {
+    width: 1920px; height: 1080px;
+    flex-direction: row; align-items: center;
+    padding: 0 120px;
+    gap: 90px;
+    --glow-x: 74%;
+    --wordmark-size: 34px;
+    --headline-size: 92px;
+    --subline-size: 40px;
+    --badge-size: 28px;
+  }
+  body.backdrop .left { display: flex; flex-direction: column; gap: 40px; flex: 1; }
+  body.backdrop .slot {
+    width: 428px; height: 960px;
+    border-radius: 44px;
+    background: #060F1F;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<script>
+const params = new URLSearchParams(location.search)
+const format = params.get('f') || 'square'
+const variant = params.get('v') || 'a'
+document.body.className = format
+
+// A real-looking 4x4 with a real path: PALAVRA over tiles 0,1,2,3,7,6,5 (eight-way adjacency,
+// no tile reused), scoring 5+1+3+1+6+2+1 = 19 with the dossier's letter values.
+const BOARD = [
+  ['P', 5], ['A', 1], ['L', 3], ['A', 1],
+  ['M', 3], ['A', 1], ['R', 2], ['V', 6],
+  ['E', 1], ['S', 1], ['O', 2], ['T', 3],
+  ['I', 2], ['N', 2], ['C', 4], ['D', 2],
+]
+const PATH = [0, 1, 2, 3, 7, 6, 5]
+
+function board() {
+  const lit = new Set(PATH)
+  const wrap = document.createElement('div')
+  wrap.className = 'board-wrap'
+  const grid = document.createElement('div')
+  grid.className = 'board'
+  BOARD.forEach(([letter, value], i) => {
+    const tile = document.createElement('div')
+    tile.className = 'tile' + (lit.has(i) ? ' lit' : '')
+    tile.innerHTML = `<span class="value">${value}</span>${letter}`
+    grid.appendChild(tile)
+  })
+  wrap.appendChild(grid)
+
+  // The traced path, drawn in the grid's own percentage space so it scales with --board-size.
+  const cell = 100 / 4
+  const points = PATH.map(i => {
+    const col = i % 4, row = Math.floor(i / 4)
+    return `${(col + 0.5) * cell},${(row + 0.5) * cell}`
+  }).join(' ')
+  wrap.insertAdjacentHTML('beforeend', `
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+      <polyline points="${points}" fill="none" stroke="#1A1005" stroke-opacity="0.55"
+                stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${0.5 * cell}" cy="${0.5 * cell}" r="1.5" fill="#1A1005" fill-opacity="0.55"/>
+    </svg>`)
+  return wrap
+}
+
+function wordmark() {
+  const el = document.createElement('div')
+  el.className = 'wordmark'
+  el.innerHTML = '<span class="glyph">P</span><span class="name">Palavramento</span>'
+  return el
+}
+
+function el(tag, cls, html) {
+  const node = document.createElement(tag)
+  if (cls) node.className = cls
+  if (html) node.innerHTML = html
+  return node
+}
+
+function phone(src) {
+  const box = el('div', 'phone')
+  const img = document.createElement('img')
+  img.src = src
+  box.appendChild(img)
+  return box
+}
+
+const canvas = el('div', 'canvas')
+document.body.appendChild(canvas)
+
+const COPY = {
+  square: {
+    headline: 'Todos na <em>mesma</em> grade',
+    subline: 'Caça-palavras multijogador em português.<br>Rodada de 2 minutos, placar na hora.',
+  },
+  wide: {
+    headline: 'Dois minutos.<br>Uma grade <em>só</em>.',
+    subline: 'Você e a sala inteira no mesmo 4x4, ao mesmo tempo.',
+  },
+  tall: {
+    headline: 'Ache mais<br>palavras <em>que eles</em>',
+    subline: 'Grade 4x4, 2 minutos, placar ao vivo.',
+  },
+}
+
+const BADGES = ['Sem anúncios', 'Sem compras', 'Código aberto']
+
+function badges() {
+  const box = el('div', 'badges')
+  BADGES.forEach(text => box.appendChild(el('span', 'badge', text)))
+  return box
+}
+
+if (format === 'backdrop') {
+  const left = el('div', 'left')
+  left.appendChild(wordmark())
+  left.appendChild(el('h1', 'headline', 'Dois minutos.<br>Uma grade <em>só</em>.'))
+  left.appendChild(el('p', 'subline', 'Caça-palavras multijogador em português.'))
+  left.appendChild(badges())
+  canvas.appendChild(left)
+  canvas.appendChild(el('div', 'slot'))
+} else if (format === 'icon') {
+  // The launcher icon itself: ic_launcher_foreground.xml's path over ic_launcher_background's
+  // orange, rendered at the full 108x108 viewport so the Play Store icon and the installed
+  // icon are the same drawing.
+  canvas.appendChild(el('div', 'monogram', `
+    <svg viewBox="0 0 108 108" xmlns="http://www.w3.org/2000/svg" width="512" height="512">
+      <rect width="108" height="108" fill="#E08A2B"/>
+      <path fill="#1A1005" fill-rule="evenodd"
+            d="M40,24 L78,24 L78,54 L58,54 L58,84 L40,84 Z M50,32 L68,32 L68,46 L50,46 Z"/>
+    </svg>`))
+} else if (format === 'feature') {
+  const left = el('div', 'left')
+  left.appendChild(wordmark())
+  left.appendChild(el('h1', 'headline', 'Caça-palavras<br>multijogador'))
+  left.appendChild(el('p', 'subline', 'Grade 4x4, dois minutos, todo mundo junto.'))
+  canvas.appendChild(left)
+  canvas.appendChild(board())
+} else if (format === 'wide') {
+  const left = el('div', 'left')
+  left.appendChild(wordmark())
+  left.appendChild(el('h1', 'headline', COPY.wide.headline))
+  left.appendChild(el('p', 'subline', COPY.wide.subline))
+  left.appendChild(badges())
+  canvas.appendChild(left)
+  canvas.appendChild(variant === 'b' ? phone('match.png') : board())
+} else {
+  const stack = el('div', 'stack')
+  stack.appendChild(wordmark())
+  stack.appendChild(el('h1', 'headline', COPY[format].headline))
+  canvas.appendChild(stack)
+
+  if (format === 'tall' && variant === 'b') {
+    canvas.appendChild(el('p', 'subline', COPY.tall.subline))
+    const shot = phone('match.png')
+    shot.style.width = '620px'
+    canvas.appendChild(shot)
+  } else {
+    canvas.appendChild(board())
+    if (format === 'square') {
+      canvas.appendChild(el('div', 'toast', 'palavra +19'))
+      canvas.appendChild(el('p', 'subline', COPY.square.subline))
+    } else {
+      canvas.appendChild(el('p', 'subline', COPY.tall.subline))
+      canvas.appendChild(badges())
+    }
+  }
+}
+</script>
+</body>
+</html>

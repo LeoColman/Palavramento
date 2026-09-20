@@ -117,6 +117,12 @@ rode `deploy/deploy.sh` (ou `deploy/publish.sh`) de novo. O script reescreve o a
 Prometheus lê e reinicia o servidor com o novo valor; o Prometheus relê o arquivo sozinho, sem
 precisar reiniciar.
 
+## Divulgação
+
+`marketing/` tem o media kit para anunciar no Google Ads: textos dentro dos limites do Google,
+imagens e vídeo nas proporções que a campanha de App aceita, e a ficha da Play Store. Nada disso
+entra no build. Detalhes em [`marketing/README.md`](marketing/README.md).
+
 ## Licença
 
 AGPL-3.0-or-later. Léxico e lista de frequência têm licenças próprias, descritas em

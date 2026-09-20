@@ -1,0 +1,59 @@
+# Backup do Palavramento (ADR 0021), no mesmo formato dos outros stacks do ritalee: container
+# b3vis/borgmatic com cron próprio, dois repositórios Borg e a senha vinda do .env.
+#
+# O dado que não se refaz é o Postgres: conta, histórico de rodada e estatística de vida. O pg_dump
+# é a fonte confiável de restauração, porque sai consistente com o banco em uso. O diretório cru do
+# Postgres entra junto em /data, somente leitura, pelo mesmo motivo que nos outros stacks: é a
+# última cartada se o dump falhar, mesmo sabendo que cópia de arquivo de banco em uso pode sair
+# inconsistente.
+#
+# Ao contrário dos outros stacks, este arquivo não vira `docker config` criado à mão: o publish.sh
+# já envia o diretório deploy/ para o servidor, e o compose monta este arquivo direto. Mudou aqui,
+# rodou o deploy, valeu.
+
+source_directories:
+    - /data
+
+repositories:
+    - path: ssh://gn1yvera@gn1yvera.repo.borgbase.com/./repo
+      label: "Primary Backup on BorgBase"
+    - path: ssh://curupira@curupira.colman.com.br:2222/volume1/Borg/palavramento.colman.com.br
+      label: "Secondary Backup on Curupira"
+
+compression: auto,zstd
+archive_name_format: 'palavramento-{now:%Y-%m-%d-%H%M%S}'
+match_archives: 'sh:*'
+
+# Quantas vezes tentar de novo antes de desistir de um repositório.
+retries: 5
+retry_wait: 5
+
+keep_daily: 7
+keep_weekly: 4
+keep_monthly: 12
+
+checks:
+  - name: repository
+    frequency: 4 weeks
+  - name: archives
+    frequency: 8 weeks
+
+check_last: 3
+
+postgresql_databases:
+    - name: palavramento
+      hostname: postgres
+      port: 5432
+      username: palavramento
+      password: ${POSTGRES_PASSWORD}
+      format: custom
+
+commands:
+    - before: action
+      when: [create]
+      run:
+          - echo "`date` - Iniciando backup do Palavramento"
+    - after: action
+      when: [create]
+      run:
+          - echo "`date` - Backup do Palavramento terminado"

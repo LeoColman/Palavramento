@@ -84,7 +84,32 @@ services:
         caddy.reverse_proxy: "{{upstreams 3000}}"
     networks: [default, caddy]
 
+  backup:
+    image: b3vis/borgmatic:2.0.2-fix
+    environment:
+      # Senha do repositório Borg e senha do Postgres, que o borgmatic.yaml usa no pg_dump.
+      BORG_PASSPHRASE: ${BORG_PASSPHRASE}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # 4h da manhã, fora do horário de jogo.
+      BACKUP_CRON: "0 4 * * *"
+    volumes:
+      # Diretório cru do Postgres, somente leitura: rede de segurança do pg_dump (ADR 0021).
+      - /root/manual-stacks/palavramento/pgdata:/data:ro
+      - /root/manual-stacks/palavramento/src/deploy/borgmatic.yaml:/etc/borgmatic.d/config.yaml:ro
+      # Volume externo com a chave SSH do servidor, compartilhado com os outros stacks do ritalee.
+      - ssh:/root/.ssh/
+    deploy:
+      replicas: 1
+      restart_policy: { condition: any, delay: 30s }
+      resources:
+        limits: { memory: 512M }
+    networks: [default]
+
 networks:
   default:
   caddy:
+    external: true
+
+volumes:
+  ssh:
     external: true

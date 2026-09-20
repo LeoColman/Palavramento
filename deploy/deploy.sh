@@ -15,7 +15,8 @@ set -a
 source .env
 set +a
 
-for var in APP_HOST POSTGRES_PASSWORD JWT_SECRET METRICS_TOKEN GRAFANA_HOST GRAFANA_ADMIN_PASSWORD; do
+for var in APP_HOST POSTGRES_PASSWORD JWT_SECRET METRICS_TOKEN GRAFANA_HOST GRAFANA_ADMIN_PASSWORD \
+           BORG_PASSPHRASE; do
   if [[ -z "${!var:-}" ]]; then
     echo "Erro: $var vazio no .env" >&2
     exit 1

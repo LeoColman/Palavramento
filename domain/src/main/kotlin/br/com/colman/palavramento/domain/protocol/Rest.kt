@@ -22,6 +22,7 @@ import kotlinx.serialization.Serializable
  * GET  /players/me             -> PlayerProfile
  * GET  /players/me/stats       -> LifetimeStats
  * GET  /players/me/rounds?limit=50 -> List<RoundHistoryEntry>, newest first
+ * DELETE /players/me           -> 204, erases the player and everything about them (ADR 0020)
  */
 
 @Serializable

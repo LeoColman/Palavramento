@@ -1,5 +1,9 @@
 # Datasource do Prometheus para o Grafana do stack Palavramento. Provisionado: não aparece editável
 # na UI (editable: false), então não some numa próxima atualização deste arquivo.
+#
+# O nome completo do serviço (palavramento_prometheus), não o curto: o Grafana também está na rede
+# compartilhada do Caddy, onde outro stack do mesmo servidor tem um serviço chamado "prometheus", e
+# o nome curto resolvia para o Prometheus daquele stack. O painel ficava vazio sem nenhum erro.
 apiVersion: 1
 
 datasources:
@@ -7,6 +11,6 @@ datasources:
     uid: prometheus
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://palavramento_prometheus:9090
     isDefault: true
     editable: false

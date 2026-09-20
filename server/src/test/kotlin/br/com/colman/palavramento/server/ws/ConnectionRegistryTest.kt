@@ -190,4 +190,43 @@ class ConnectionRegistryTest : FunSpec({
 
     registry.connectedPlayerCount() shouldBe 0
   }
+
+  test("disconnect closes and removes the named player's connection with the given code and reason") {
+    val registry = ConnectionRegistry()
+    val session = FakeWebSocketServerSession()
+    registry.register("alice", Connection(session))
+
+    registry.disconnect("alice", CloseCodes.AccountDeleted, "Account deleted")
+
+    val closeFrame = session.sent.tryReceive().getOrThrow()
+    closeFrame.shouldBeInstanceOf<Frame.Close>()
+    val reason = closeFrame.readReason()
+    reason.shouldNotBeNull()
+    reason.code shouldBe CloseCodes.AccountDeleted
+    reason.message shouldBe "Account deleted"
+    registry.connectedPlayerCount() shouldBe 0
+    registry.connectedPlayerIds().shouldBeEmpty()
+  }
+
+  test("disconnect for a player nobody registered is a silent no-op") {
+    val registry = ConnectionRegistry()
+
+    registry.disconnect("ghost", CloseCodes.AccountDeleted, "Account deleted")
+
+    registry.connectedPlayerCount() shouldBe 0
+  }
+
+  test("disconnect leaves every other connected player untouched") {
+    val registry = ConnectionRegistry()
+    val aliceSession = FakeWebSocketServerSession()
+    val bobSession = FakeWebSocketServerSession()
+    registry.register("alice", Connection(aliceSession))
+    registry.register("bob", Connection(bobSession))
+
+    registry.disconnect("alice", CloseCodes.AccountDeleted, "Account deleted")
+
+    registry.connectedPlayerIds() shouldContainExactlyInAnyOrder listOf("bob")
+    registry.sendTo("bob", ServerMessage.LobbyState(nextRoundStartsAt = 1L, playersWaiting = 1))
+    bobSession.sent.tryReceive().isSuccess shouldBe true
+  }
 })

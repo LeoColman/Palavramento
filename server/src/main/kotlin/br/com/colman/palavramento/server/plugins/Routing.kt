@@ -17,6 +17,7 @@ import br.com.colman.palavramento.server.rest.metricsRoutes
 import br.com.colman.palavramento.server.rest.playerRoutes
 import br.com.colman.palavramento.server.round.GameClock
 import br.com.colman.palavramento.server.round.RoomScheduler
+import br.com.colman.palavramento.server.ws.ConnectionRegistry
 import br.com.colman.palavramento.server.ws.multiplayerRoute
 import io.ktor.server.application.Application
 import io.ktor.server.response.respondText
@@ -44,12 +45,21 @@ fun Application.configureRouting() {
   val submissionRepository = koinGet<SubmissionRepository>()
   val roomScheduler = koinGet<RoomScheduler>()
   val meterRegistry = koinGet<PrometheusMeterRegistry>()
+  val connectionRegistry = koinGet<ConnectionRegistry>()
 
   routing {
     get("/health") { call.respondText("ok") }
     legalRoutes()
     authRoutes(authService)
-    playerRoutes(playerRepository, playerStatsRepository, roundResultRepository, roundRepository, submissionRepository)
+    playerRoutes(
+      playerRepository,
+      playerStatsRepository,
+      roundResultRepository,
+      roundRepository,
+      submissionRepository,
+      authService,
+      connectionRegistry,
+    )
     multiplayerRoute(roomScheduler, jwtService, config, clock)
     metricsRoutes(meterRegistry, config.metricsToken)
   }

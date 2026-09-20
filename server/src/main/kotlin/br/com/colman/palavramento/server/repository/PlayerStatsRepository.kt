@@ -51,6 +51,16 @@ class PlayerStatsRepository(private val database: Database) {
   }
 
   /**
+   * Same as [delete], but within an already-open [transaction] (account deletion, ADR 0020), for
+   * callers composing several tables' deletes in one transaction.
+   */
+  fun delete(transaction: JdbcTransaction, playerId: String) {
+    with(transaction) {
+      PlayerStatsTable.deleteWhere { PlayerStatsTable.playerId eq playerId }
+    }
+  }
+
+  /**
    * Folds [contribution] into [playerId]'s row within [transaction], creating it on the player's
    * first completed round. Runs inside a caller-supplied [JdbcTransaction] so it commits atomically
    * with the same round's `round_results` row (dossier §7).

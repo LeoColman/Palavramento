@@ -3,30 +3,52 @@
 
 package br.com.colman.palavramento.server.rest
 
+import br.com.colman.palavramento.domain.board.Board
+import br.com.colman.palavramento.domain.board.Tile
+import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.protocol.AuthTokens
+import br.com.colman.palavramento.domain.protocol.ClientMessage
 import br.com.colman.palavramento.domain.protocol.GuestAuthRequest
 import br.com.colman.palavramento.domain.protocol.LifetimeStats
 import br.com.colman.palavramento.domain.protocol.LoginRequest
 import br.com.colman.palavramento.domain.protocol.PlayerProfile
 import br.com.colman.palavramento.domain.protocol.RegisterRequest
 import br.com.colman.palavramento.domain.protocol.RoundHistoryEntry
+import br.com.colman.palavramento.domain.protocol.ServerMessage
+import br.com.colman.palavramento.domain.solver.SolvedWord
+import br.com.colman.palavramento.domain.solver.WordTier
+import br.com.colman.palavramento.server.auth.TokenHasher
 import br.com.colman.palavramento.server.module
 import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.PlayerStatsRepository
 import br.com.colman.palavramento.server.repository.PlayerStatsRow
+import br.com.colman.palavramento.server.repository.RefreshTokenRepository
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.RoundResultRow
+import br.com.colman.palavramento.server.repository.SubmissionRepository
+import br.com.colman.palavramento.server.round.AcceptedSubmission
+import br.com.colman.palavramento.server.round.RoundRecord
+import br.com.colman.palavramento.server.round.RoundStatus
 import br.com.colman.palavramento.server.testsupport.TestLexicon
 import br.com.colman.palavramento.server.testsupport.insertFakeFinishedRound
+import br.com.colman.palavramento.server.testsupport.nextServerMessage
+import br.com.colman.palavramento.server.testsupport.sendClientMessage
 import br.com.colman.palavramento.server.testsupport.testDatabase
 import br.com.colman.palavramento.server.testsupport.testHttpClient
 import br.com.colman.palavramento.server.testsupport.testRoomId
 import br.com.colman.palavramento.server.testsupport.testServerConfig
+import br.com.colman.palavramento.server.ws.CloseCodes
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import io.ktor.client.call.body
+import io.ktor.client.plugins.websocket.webSocket
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -36,7 +58,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import java.time.Instant
+import java.util.UUID
 
 /** `/players/me*` (dossier §6.1/§6.3/§6.4, `Rest.kt`). */
 class PlayerRoutesTest : FunSpec({
@@ -416,6 +442,225 @@ class PlayerRoutesTest : FunSpec({
       val client = testHttpClient()
 
       client.get("/players/me").status shouldBe HttpStatusCode.Unauthorized
+    }
+  }
+
+  test("DELETE players/me answers 401 without a bearer token") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      client.delete("/players/me").status shouldBe HttpStatusCode.Unauthorized
+    }
+  }
+
+  test("DELETE players/me erases a guest and answers 204, then 404 to any further /players/me call") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("ToDeleteGuest"))
+      }.body()
+
+      val response = client.delete("/players/me") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+      }
+      response.status shouldBe HttpStatusCode.NoContent
+
+      PlayerRepository(database).findById(guest.playerId).shouldBeNull()
+      val profile = client.get("/players/me") { header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}") }
+      profile.status shouldBe HttpStatusCode.NotFound
+    }
+  }
+
+  test("DELETE players/me erases a registered account, including its email lookup") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val email = "deleteme-$roomId@example.com"
+      val registered: AuthTokens = client.post("/auth/register") {
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest(email, "correct horse battery staple", "Deleteme"))
+      }.body()
+
+      val response = client.delete("/players/me") {
+        header(HttpHeaders.Authorization, "Bearer ${registered.accessToken}")
+      }
+      response.status shouldBe HttpStatusCode.NoContent
+
+      PlayerRepository(database).findByEmail(email).shouldBeNull()
+    }
+  }
+
+  test("DELETE players/me answers 404 the second time, once the account is already gone") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("TwiceDeleted"))
+      }.body()
+
+      client.delete("/players/me") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+      }.status shouldBe HttpStatusCode.NoContent
+
+      val second = client.delete("/players/me") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+      }
+      second.status shouldBe HttpStatusCode.NotFound
+    }
+  }
+
+  test(
+    "DELETE players/me clears refresh_tokens, submissions, round_results and player_stats, leaving " +
+      "rounds, round_words and another player's own result intact"
+  ) {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+
+      val deletedGuest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("TableProofDeleted"))
+      }.body()
+      val deleted: AuthTokens = client.post("/auth/register") {
+        header(HttpHeaders.Authorization, "Bearer ${deletedGuest.accessToken}")
+        contentType(ContentType.Application.Json)
+        setBody(RegisterRequest("tableproof-$roomId@example.com", "correct horse battery staple", "TableProof"))
+      }.body()
+      val other: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("TableProofBystander"))
+      }.body()
+
+      val roundRepository = RoundRepository(database)
+      val roundResultRepository = RoundResultRepository(database)
+      val playerRepository = PlayerRepository(database)
+      val submissionRepository = SubmissionRepository(database)
+      val playerStatsRepository = PlayerStatsRepository(database)
+      val refreshTokenRepository = RefreshTokenRepository(database)
+
+      // A round with a real (non-empty) solution, so round_words has something to prove untouched.
+      val roundId = UUID.randomUUID().toString()
+      val now = Instant.now()
+      roundRepository.insert(
+        RoundRecord(
+          id = roundId,
+          roomId = roomId,
+          seed = 0L,
+          board = Board(4, List(16) { Tile("A", 1) }),
+          mutator = Mutator.NoMutator,
+          themeTitle = "Grade padrão",
+          themeSubtitle = "0 palavras comuns",
+          commonMin = 0,
+          maxScore = 10,
+          maxWords = 1,
+          startsAt = now,
+          endsAt = now.plusSeconds(1),
+          status = RoundStatus.Finished,
+        ),
+        listOf(
+          SolvedWord(
+            normalized = "CASA",
+            display = "casa",
+            path = listOf(0, 1, 2, 3),
+            score = 10,
+            tier = WordTier.Common,
+          ),
+        ),
+      )
+
+      submissionRepository.insert(AcceptedSubmission(roundId, deleted.playerId, "CASA", "casa", 10, listOf(0, 1), now))
+      submissionRepository.insert(AcceptedSubmission(roundId, other.playerId, "SOL", "sol", 8, listOf(2, 3), now))
+      playerRepository.transaction {
+        roundResultRepository.insert(
+          this,
+          RoundResultRow(roundId, deleted.playerId, score = 10, words = 1, rank = 1, xp = 2, enteredAt = now)
+        )
+        roundResultRepository.insert(
+          this,
+          RoundResultRow(roundId, other.playerId, score = 8, words = 1, rank = 2, xp = 1, enteredAt = now)
+        )
+      }
+      playerStatsRepository.replace(
+        PlayerStatsRow(
+          playerId = deleted.playerId,
+          totalScore = 10,
+          totalWords = 1,
+          bestGameScore = 10,
+          bestWord = "casa",
+          bestWordScore = 10,
+          gamesPlayed = 1,
+          gamesCompleted = 1,
+          bestRank = 1,
+          totalXp = 2,
+        ),
+      )
+
+      val response = client.delete("/players/me") {
+        header(HttpHeaders.Authorization, "Bearer ${deleted.accessToken}")
+      }
+      response.status shouldBe HttpStatusCode.NoContent
+
+      // Every table that points to the deleted player has lost its line.
+      playerRepository.findById(deleted.playerId).shouldBeNull()
+      refreshTokenRepository.findByHash(TokenHasher.hash(deleted.refreshToken)).shouldBeNull()
+      submissionRepository.findByRoundAndPlayer(roundId, deleted.playerId) shouldHaveSize 0
+      roundResultRepository.findByRound(roundId).map { it.playerId } shouldNotContain deleted.playerId
+      playerStatsRepository.get(deleted.playerId).shouldBeNull()
+
+      // The round, its solution and the other player's own participation all survive.
+      roundRepository.findById(roundId).shouldNotBeNull()
+      roundRepository.loadSolution(roundId) shouldHaveSize 1
+      submissionRepository.findByRoundAndPlayer(roundId, other.playerId) shouldHaveSize 1
+      val remainingResults = roundResultRepository.findByRound(roundId)
+      remainingResults shouldHaveSize 1
+      remainingResults.single().playerId shouldBe other.playerId
+    }
+  }
+
+  test("DELETE players/me closes an already open socket with the AccountDeleted close code") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("SocketPlayer"))
+      }.body()
+
+      val joined = CompletableDeferred<Unit>()
+      var closeCode: Short? = null
+      var closeMessage: String? = null
+
+      coroutineScope {
+        launch {
+          client.webSocket("/ws/multiplayer") {
+            sendClientMessage(ClientMessage.JoinRoom(sessionToken = guest.accessToken))
+            nextServerMessage().shouldBeInstanceOf<ServerMessage.LobbyState>()
+            joined.complete(Unit)
+            val reason = closeReason.await()
+            closeCode = reason?.code
+            closeMessage = reason?.message
+          }
+        }
+
+        joined.await()
+        val response = client.delete("/players/me") {
+          header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+        }
+        response.status shouldBe HttpStatusCode.NoContent
+      }
+
+      closeCode shouldBe CloseCodes.AccountDeleted
+      closeMessage shouldBe "Account deleted"
     }
   }
 })

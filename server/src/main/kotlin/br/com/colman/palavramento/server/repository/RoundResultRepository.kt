@@ -112,6 +112,13 @@ class RoundResultRepository(private val database: Database) {
     }
   }
 
+  /** Deletes every round_results row for [playerId], across every round (account deletion, ADR 0020). */
+  fun deleteAllForPlayer(transaction: JdbcTransaction, playerId: String) {
+    with(transaction) {
+      RoundResultsTable.deleteWhere { RoundResultsTable.playerId eq playerId }
+    }
+  }
+
   private fun ResultRow.toRow() = RoundResultRow(
     roundId = this[RoundResultsTable.roundId],
     playerId = this[RoundResultsTable.playerId],

@@ -10,6 +10,7 @@ import br.com.colman.palavramento.domain.protocol.RoundHistoryEntry
 import br.com.colman.palavramento.domain.stats.AcceptedWord
 import br.com.colman.palavramento.domain.stats.LevelCurve
 import br.com.colman.palavramento.domain.stats.RoundStatsCalculator
+import br.com.colman.palavramento.server.auth.AuthService
 import br.com.colman.palavramento.server.plugins.JwtProviderName
 import br.com.colman.palavramento.server.plugins.toVerifiedAccessToken
 import br.com.colman.palavramento.server.repository.PlayerRepository
@@ -19,24 +20,30 @@ import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.RoundResultRow
 import br.com.colman.palavramento.server.repository.SubmissionRepository
+import br.com.colman.palavramento.server.ws.CloseCodes
+import br.com.colman.palavramento.server.ws.ConnectionRegistry
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 
 private const val DefaultRoundsLimit = 50
 private const val MaxRoundsLimit = 200
 
 /** `/players/me*` (dossier §6.1/§6.3/§6.4, `Rest.kt`), all requiring a valid access token. */
+@Suppress("LongParameterList") // every parameter is a distinct injected singleton (Koin wiring), not a group to bundle.
 fun Route.playerRoutes(
   playerRepository: PlayerRepository,
   playerStatsRepository: PlayerStatsRepository,
   roundResultRepository: RoundResultRepository,
   roundRepository: RoundRepository,
   submissionRepository: SubmissionRepository,
+  authService: AuthService,
+  connectionRegistry: ConnectionRegistry,
 ) {
   authenticate(JwtProviderName) {
     get("/players/me") {
@@ -71,6 +78,18 @@ fun Route.playerRoutes(
         buildHistoryEntry(result, roundRepository, submissionRepository, roundResultRepository)
       }
       call.respond(entries)
+    }
+
+    delete("/players/me") {
+      val token = call.principal<JWTPrincipal>()!!.toVerifiedAccessToken()
+      if (!authService.deleteAccount(token.playerId)) {
+        call.respond(HttpStatusCode.NotFound)
+        return@delete
+      }
+      // Drops the socket if this player had one open (ADR 0020: "o socket aberto cai"): its access
+      // token no longer resolves to anyone now that the account is gone.
+      connectionRegistry.disconnect(token.playerId, CloseCodes.AccountDeleted, "Account deleted")
+      call.respond(HttpStatusCode.NoContent)
     }
   }
 }

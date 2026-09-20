@@ -103,6 +103,16 @@ class PlayerRepository(private val database: Database) {
     Unit
   }
 
+  /**
+   * Same as [delete], but within an already-open [transaction] (account deletion, ADR 0020): the
+   * player row itself, deleted last, once every table referencing it through a foreign key is clear.
+   */
+  fun delete(transaction: JdbcTransaction, playerId: String) {
+    with(transaction) {
+      PlayersTable.deleteWhere { PlayersTable.id eq playerId }
+    }
+  }
+
   /** Runs [block] with an already-open [JdbcTransaction], for callers composing multi-table writes. */
   suspend fun <T> transaction(block: suspend JdbcTransaction.() -> T): T = suspendTransaction(
     database,

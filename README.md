@@ -139,8 +139,9 @@ trilha de produção**, junto com a ficha da loja e as capturas. Ele nunca dispa
 `v*` ou no botão de `workflow_dispatch`. A tag precisa bater com o `versionName` do build, senão o
 fastlane para antes de subir qualquer coisa.
 
-Para rodar da própria máquina, com a chave revelada (`git secret reveal`) e o JSON da conta de
-serviço em `fastlane/play-service-account.json`:
+Para rodar da própria máquina, basta `git secret reveal`: ele devolve a chave de assinatura e
+também o JSON da conta de serviço em `fastlane/play-service-account.json`, os dois versionados
+cifrados (ADR 0017, ADR 0022).
 
 ```bash
 gem install fastlane -v 2.240.1

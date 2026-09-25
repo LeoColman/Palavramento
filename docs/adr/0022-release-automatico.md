@@ -51,6 +51,15 @@ O `keystore.properties` é remontado no runner a partir deles, e o `Fastfile` fa
 arquivo não existir, em vez de deixar sair um bundle sem assinatura que o Google recusa com um erro
 que não diz nada sobre a causa.
 
+O segredo do GitHub é **cópia**, não a fonte. A chave de envio já morava cifrada no repositório
+(ADR 0017), e o JSON da conta de serviço passou a morar do mesmo jeito, em
+`fastlane/play-service-account.json.secret`, pelo mesmo motivo que levou a chave para lá: uma
+credencial que só existe na pasta de downloads de uma máquina é uma credencial que some. O
+plaintext está no `.gitignore`, e quem tem a chave GPG o recupera com `git secret reveal`, que é
+também o que os lanes locais usam. O CI não decifra nada: ele recebe as cópias em segredo do
+GitHub, porque dar-lhe a chave GPG abriria o cofre inteiro, que é justamente o que esta ADR
+recusa acima.
+
 ### As imagens continuam morando em `marketing/`
 
 O `supply` quer as imagens dentro de `fastlane/metadata/.../images`, mas elas são feitas e revisadas

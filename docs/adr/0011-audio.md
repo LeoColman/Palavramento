@@ -137,13 +137,29 @@ assina) e usa o valor atual para decidir se chama `gameAudio.startMusic`/`play` 
 `RoomAudioPolicy` continua sem saber de ajustes; o filtro é só no ponto de chamada, mesmo lugar onde
 `MatchScreen` já filtra o haptics por `hapticsEnabled`.
 
+### Os dois toggles valem na hora, sem reiniciar o app
+
+O de efeitos já valia por construção: o gate é relido a cada som. O da música não, e o dono do
+projeto relatou o sintoma (2026-09-25): a trilha é decidida uma vez por rodada, então desligar o
+toggle no meio da rodada não parava nada e ligar de volta só era ouvido na rodada seguinte.
+`RoomViewModel` passou a coletar `musicEnabled` num segundo `launch` do `viewModelScope`, e tanto a
+transição de rodada quanto o toggle agora passam por um único `setMusicPlaying(shouldPlay)`. Ele
+guarda em `musicTrackPlaying` se `GameAudio` chegou mesmo a ser mandado tocar, coisa que a
+`musicRoundId` da política não sabe (ela também é preenchida para a rodada que está em silêncio por
+causa do ajuste), e com isso nunca manda um `stopMusic()` de mentira.
+
+O haptics (ADR 0008) tinha o mesmo sintoma por outro motivo, do lado do Compose: o `pointerInput` de
+`BoardView` só reinicia quando o tabuleiro ou a rotação mudam, então os dois handlers de gesto
+capturavam o `hapticsEnabled` da composição em que a rodada começou. Agora leem o valor por
+`rememberUpdatedState`, que é a mesma `State` em toda recomposição.
+
 ### Ciclo de vida: sem vazamento de `MediaPlayer`/`SoundPool`
 
 Cada `RoomViewModel` recebe seu próprio `GameAudio` (`factory`, não `single`, ver acima).
 `RoomViewModel.onCleared()` chama `gameAudio.release()` (que por sua vez para a música e libera o
 `SoundPool`), o mesmo ponto onde `session.stop()` já rodava (ADR 0006). `leaveRoom()` e `pause()`
-também chamam `gameAudio.stopMusic()` diretamente, sem esperar o `onCleared`/a próxima mensagem do
-servidor, para que sair da sala ou ir para segundo plano corte o som de imediato.
+também param a trilha na hora (`setMusicPlaying(false)`, ver acima), sem esperar o `onCleared`/a
+próxima mensagem do servidor, para que sair da sala ou ir para segundo plano corte o som de imediato.
 
 ## Consequências
 

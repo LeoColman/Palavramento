@@ -266,6 +266,54 @@ class RoomViewModelTest : FunSpec({
     }
   }
 
+  test("turning the music off mid-round stops the track at once, with no restart of the app") {
+    runTest {
+      val fixture = Fixture()
+      completeHandshake(fixture.transport)
+      fixture.transport.push(sampleRoundStart("round-1"))
+      advanceUntilIdle()
+      fixture.gameAudio.startedRoundIds shouldBe listOf("round-1")
+
+      fixture.settings.setMusicEnabled(false)
+      advanceUntilIdle()
+
+      fixture.gameAudio.stopCount shouldBe 1
+      fixture.viewModel.leaveRoom()
+    }
+  }
+
+  test("turning the music back on mid-round starts the round already in progress") {
+    runTest {
+      val fixture = Fixture(musicEnabled = false)
+      completeHandshake(fixture.transport)
+      fixture.transport.push(sampleRoundStart("round-1"))
+      advanceUntilIdle()
+      fixture.gameAudio.startedRoundIds shouldBe emptyList()
+
+      fixture.settings.setMusicEnabled(true)
+      advanceUntilIdle()
+
+      fixture.gameAudio.startedRoundIds shouldBe listOf("round-1")
+      fixture.viewModel.leaveRoom()
+    }
+  }
+
+  test("flipping the music toggle outside a round never touches the track") {
+    runTest {
+      val fixture = Fixture()
+      completeHandshake(fixture.transport)
+
+      fixture.settings.setMusicEnabled(false)
+      advanceUntilIdle()
+      fixture.settings.setMusicEnabled(true)
+      advanceUntilIdle()
+
+      fixture.gameAudio.startedRoundIds shouldBe emptyList()
+      fixture.gameAudio.stopCount shouldBe 0
+      fixture.viewModel.leaveRoom()
+    }
+  }
+
   test("an accepted word plays the Accepted effect") {
     runTest {
       val fixture = Fixture()
@@ -309,6 +357,50 @@ class RoomViewModelTest : FunSpec({
       advanceUntilIdle()
 
       fixture.gameAudio.playedEffects shouldBe emptyList()
+      fixture.viewModel.leaveRoom()
+    }
+  }
+
+  test("turning the effects off mid-round silences the next result, with no restart of the app") {
+    runTest {
+      val fixture = Fixture()
+      completeHandshake(fixture.transport)
+      fixture.transport.push(sampleRoundStart("round-1"))
+      advanceUntilIdle()
+      fixture.transport.push(
+        ServerMessage.WordAccepted("CASA", 6, runningScore = 6, runningWords = 1, path = listOf(0, 1, 2, 3))
+      )
+      advanceUntilIdle()
+      fixture.gameAudio.playedEffects shouldBe listOf(SoundEffect.Accepted)
+
+      fixture.settings.setEffectsEnabled(false)
+      advanceUntilIdle()
+      fixture.transport.push(ServerMessage.WordRejected(RejectionReason.NotAWord, path = listOf(0, 1)))
+      advanceUntilIdle()
+
+      fixture.gameAudio.playedEffects shouldBe listOf(SoundEffect.Accepted)
+      fixture.viewModel.leaveRoom()
+    }
+  }
+
+  test("turning the effects back on mid-round sounds the next result again") {
+    runTest {
+      val fixture = Fixture(effectsEnabled = false)
+      completeHandshake(fixture.transport)
+      fixture.transport.push(sampleRoundStart("round-1"))
+      advanceUntilIdle()
+      fixture.transport.push(ServerMessage.WordRejected(RejectionReason.NotAWord, path = listOf(0, 1)))
+      advanceUntilIdle()
+      fixture.gameAudio.playedEffects shouldBe emptyList()
+
+      fixture.settings.setEffectsEnabled(true)
+      advanceUntilIdle()
+      fixture.transport.push(
+        ServerMessage.WordAccepted("CASA", 6, runningScore = 6, runningWords = 1, path = listOf(0, 1, 2, 3))
+      )
+      advanceUntilIdle()
+
+      fixture.gameAudio.playedEffects shouldBe listOf(SoundEffect.Accepted)
       fixture.viewModel.leaveRoom()
     }
   }

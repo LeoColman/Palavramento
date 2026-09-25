@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -100,6 +101,11 @@ fun BoardView(
   var boxSize by remember { mutableStateOf(IntSize.Zero) }
   val haptics = LocalHapticFeedback.current
   val flashState = rememberTileFlashState(feedback)
+  // Read through a State instead of straight off the parameter: the two handlers below are captured
+  // by a pointerInput that only restarts when the board or its rotation changes, so a plain capture
+  // would keep ticking with whatever the setting was back then - a toggle flipped mid-round
+  // (MatchSettingsSheet) would only be obeyed after the next round or the next "Girar".
+  val hapticsOn by rememberUpdatedState(hapticsEnabled)
 
   fun handlePointer(offset: Offset) {
     val displayIndex = displayIndexAt(offset, boxSize, gridSize) ?: return
@@ -107,7 +113,7 @@ fun BoardView(
     val sizeBefore = tracer.path.size
     if (tracer.onTileEntered(logicalIndex)) {
       path = tracer.path
-      if (hapticsEnabled && tracer.path.size > sizeBefore) {
+      if (hapticsOn && tracer.path.size > sizeBefore) {
         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
       }
     }
@@ -116,7 +122,7 @@ fun BoardView(
   fun endDrag() {
     if (tracer.path.size >= MinSubmittablePathLength) {
       onSubmit(tracer.path)
-      if (hapticsEnabled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+      if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     }
     tracer.clear()
     path = emptyList()

@@ -40,8 +40,11 @@ import kotlinx.coroutines.launch
  * folding every [state] update through [RoomAudioPolicy] (pure logic, see its KDoc) into calls on
  * [gameAudio] - not [MatchScreen], so the track's lifetime is tied to the room, not to whether the
  * match screen happens to be composed. [musicEnabled]/[effectsEnabled] gate those calls the same way
- * [br.com.colman.palavramento.ui.settings.MatchSettingsSheet] gates haptics, and [updateMusicSpeed]
- * is called from [MatchScreen]'s own countdown tick ([br.com.colman.palavramento.ui.common.rememberRemainingMs]),
+ * [br.com.colman.palavramento.ui.settings.MatchSettingsSheet] gates haptics, and both are followed
+ * for as long as the room lives, not only sampled at a round transition: the music toggle is applied
+ * to the track already playing (see [setMusicPlaying]) and the effects one is re-read at every
+ * sound, so flipping either is heard at once, with no restart. [updateMusicSpeed] is called from
+ * [MatchScreen]'s own countdown tick ([br.com.colman.palavramento.ui.common.rememberRemainingMs]),
  * reusing that existing ticker instead of a second one here.
  */
 class RoomViewModel(
@@ -71,6 +74,10 @@ class RoomViewModel(
   private var lastPlayedFeedback: SubmissionFeedback? = null
   private var lastMusicSpeed: Float? = null
 
+  // Whether [gameAudio] was actually asked to play: [musicRoundId] cannot answer that, since it is
+  // also set for a round whose track the music toggle is keeping silent.
+  private var musicTrackPlaying = false
+
   init {
     start()
     viewModelScope.launch {
@@ -83,6 +90,10 @@ class RoomViewModel(
         handleFeedbackSound(current)
       }
     }
+    // The music toggle has to be heard the moment it is flipped. The track outlives any single state
+    // update, so nothing else would revisit the decision before the next round: a sound effect is
+    // gated again at every [handleFeedbackSound], but the music is decided once and then just plays.
+    viewModelScope.launch { musicEnabled.collect(::setMusicPlaying) }
   }
 
   /** (Re)starts the connect/handshake/reconnect loop; a no-op while it is already running. */
@@ -106,7 +117,7 @@ class RoomViewModel(
   fun pause() {
     runJob?.cancel()
     viewModelScope.launch { session.disconnect() }
-    gameAudio.stopMusic()
+    setMusicPlaying(false)
     musicRoundId = null
   }
 
@@ -136,7 +147,7 @@ class RoomViewModel(
   fun leaveRoom() {
     session.stop()
     runJob?.cancel()
-    gameAudio.stopMusic()
+    setMusicPlaying(false)
     musicRoundId = null
     viewModelScope.launch {
       runCatching { session.leaveRoom() }
@@ -154,16 +165,37 @@ class RoomViewModel(
     when (val action = RoomAudioPolicy.musicAction(musicRoundId, state)) {
       is RoomAudioPolicy.MusicAction.Start -> {
         musicRoundId = action.roundId
-        lastMusicSpeed = null
-        if (musicEnabled.value) gameAudio.startMusic(action.roundId)
+        setMusicPlaying(musicEnabled.value)
       }
 
       RoomAudioPolicy.MusicAction.Stop -> {
         musicRoundId = null
-        gameAudio.stopMusic()
+        setMusicPlaying(false)
       }
 
       RoomAudioPolicy.MusicAction.None -> Unit
+    }
+  }
+
+  /**
+   * Starts or stops the track for the round in progress: the single place a round transition, a flip
+   * of the music toggle and [pause]/[leaveRoom] all go through, so turning the music off is heard
+   * right away and turning it back on picks the current round up again instead of the next one.
+   *
+   * Stopping is a no-op while nothing is playing ([musicTrackPlaying]), so a toggle flipped between
+   * rounds - or one that was already off when the round started - never fakes a stop.
+   */
+  private fun setMusicPlaying(shouldPlay: Boolean) {
+    val roundId = musicRoundId
+    if (shouldPlay && roundId != null) {
+      musicTrackPlaying = true
+      // A track that (re)starts always plays at normal speed, so the next countdown tick has to
+      // reapply the ramp even when it lands on the very speed [updateMusicSpeed] last sent.
+      lastMusicSpeed = null
+      gameAudio.startMusic(roundId)
+    } else if (musicTrackPlaying) {
+      musicTrackPlaying = false
+      gameAudio.stopMusic()
     }
   }
 

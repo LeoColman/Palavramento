@@ -72,7 +72,12 @@ private fun emptyRoundsResponse(request: HttpRequestData, scope: MockRequestHand
     null
   }
 
-private val EventuallyTimeout = 2.seconds
+// 10 s, not 2: `eventually` returns the moment the condition holds, so this bound costs nothing on
+// a healthy run and only decides how long to wait before giving up. Two seconds was enough running
+// the suite alone and not enough under PIT, which re-runs it while `org.gradle.parallel` has another
+// module's mutation run on the same machine. One of these timing out there fails the coverage phase,
+// and PIT needs a green suite to start at all, so the whole :app gate died on a flake.
+private val EventuallyTimeout = 10.seconds
 
 /**
  * [LobbyViewModel] bootstrap/sync/error/retry state (task brief 2/4, orchestrator finding: a

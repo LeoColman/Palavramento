@@ -55,20 +55,26 @@ internal class ClockSyncCoordinator(
   private var estimator: ClockSyncEstimator? = null
 
   /**
-   * Round-trips [sampleCount] `ClockSync` messages and publishes the offset, replacing whatever a
-   * previous connection had measured. Reads straight off the transport, which nothing else is
-   * collecting yet: this runs before `JoinRoom`, so no other message can be on the wire.
+   * Round-trips [sampleCount] `ClockSync` messages and publishes the offset. Reads straight off the
+   * transport, which nothing else is collecting yet: this runs before `JoinRoom`, so no other
+   * message can be on the wire.
+   *
+   * A reconnect keeps the estimator a previous connection built instead of starting over. These
+   * samples are taken while the network is coming back, which is when a round trip is at its worst,
+   * and throwing away a good measurement to make room for them is how a mid-round reconnect used to
+   * hand the rest of the round a badly skewed countdown. Nothing is lost by keeping it: the samples
+   * are all timed against `elapsedRealtime`, which keeps running across connections, so an old one
+   * stays comparable, and [ClockSyncEstimator]'s own staleness rule retires it on schedule anyway.
    */
   suspend fun handshake() {
-    val fresh = ClockSyncEstimator()
-    estimator = fresh
+    val current = estimator ?: ClockSyncEstimator().also { estimator = it }
     repeat(settings.sampleCount) {
       val sentAt = elapsedRealtimeMs()
       transport.send(ClientMessage.ClockSync(sentAt))
       val response = transport.incoming()
         .first { it is ServerMessage.ClockSyncResponse && it.clientSentAt == sentAt }
         as ServerMessage.ClockSyncResponse
-      fresh.record(ClockSyncSample(sentAt, response.serverTime, elapsedRealtimeMs()))
+      current.record(ClockSyncSample(sentAt, response.serverTime, elapsedRealtimeMs()))
     }
     publish()
   }

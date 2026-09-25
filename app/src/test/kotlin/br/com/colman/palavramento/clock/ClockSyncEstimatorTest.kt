@@ -5,10 +5,12 @@ package br.com.colman.palavramento.clock
 
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.property.Arb
 import io.kotest.property.arbitrary.long
 import io.kotest.property.checkAll
+import kotlin.math.abs
 
 class ClockSyncEstimatorTest : FunSpec({
 
@@ -16,6 +18,8 @@ class ClockSyncEstimatorTest : FunSpec({
     val sample =
       ClockSyncSample(clientSentAtElapsedMs = 1_000, serverTimeMs = 50_000, clientReceivedAtElapsedMs = 1_200)
     // midpoint = 1000 + (200 / 2) = 1100; offset = 50000 - 1100
+    sample.serverTimeMs shouldBe 50_000
+    sample.roundTripMs shouldBe 200
     sample.midpointElapsedMs shouldBe 1_100
     sample.offsetMs shouldBe 48_900
   }
@@ -92,4 +96,148 @@ class ClockSyncEstimatorTest : FunSpec({
 
     estimator.bestSample?.clientSentAtElapsedMs shouldBe 0
   }
+
+  test("a five second round trip never takes over, however stale the kept sample went") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    // An honest sample: 80 ms round trip.
+    estimator.record(ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_040, clientReceivedAtElapsedMs = 80))
+
+    // Two minutes later, far past stale, the network hiccups: five seconds, all of it coming back.
+    // This is the sample that ended a player's round with two seconds still on their countdown.
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 120_000, serverTimeMs = 220_000, clientReceivedAtElapsedMs = 125_000),
+    )
+
+    estimator.bestSample?.clientSentAtElapsedMs shouldBe 0
+  }
+
+  test("the very first sample is kept whatever it measured, so there is a clock at all") {
+    val estimator = ClockSyncEstimator(maxRoundTripMs = 1_000)
+    val slow = ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 50_000, clientReceivedAtElapsedMs = 9_000)
+
+    estimator.record(slow)
+
+    estimator.bestSample shouldBe slow
+  }
+
+  test("anything inside the ceiling replaces a slow first sample at once, without waiting for it to go stale") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 50_000, clientReceivedAtElapsedMs = 9_000),
+    )
+    val honest =
+      ClockSyncSample(clientSentAtElapsedMs = 10_000, serverTimeMs = 60_000, clientReceivedAtElapsedMs = 10_100)
+
+    estimator.record(honest)
+
+    estimator.bestSample shouldBe honest
+  }
+
+  test("with nothing inside the ceiling yet, the least bad sample is still the one kept") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 50_000, clientReceivedAtElapsedMs = 9_000),
+    )
+    val lessBad =
+      ClockSyncSample(clientSentAtElapsedMs = 10_000, serverTimeMs = 60_000, clientReceivedAtElapsedMs = 13_000)
+
+    estimator.record(lessBad)
+
+    estimator.bestSample shouldBe lessBad
+  }
+
+  test("a sample measured at exactly the ceiling is still trusted enough to refresh a stale one") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 500),
+    )
+    // A whole second, the ceiling exactly: inside it, so it may take over a sample gone stale.
+    val atTheCeiling =
+      ClockSyncSample(clientSentAtElapsedMs = 59_000, serverTimeMs = 160_000, clientReceivedAtElapsedMs = 60_000)
+
+    estimator.record(atTheCeiling)
+
+    estimator.bestSample shouldBe atTheCeiling
+  }
+
+  test("between two samples both exactly at the ceiling, the one already kept stays") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    val first = ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 1_000)
+    estimator.record(first)
+
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 2_000, serverTimeMs = 102_000, clientReceivedAtElapsedMs = 3_000),
+    )
+
+    estimator.bestSample shouldBe first
+  }
+
+  test("with nothing inside the ceiling, an equally bad sample does not displace the kept one") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    val first = ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 5_000)
+    estimator.record(first)
+
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 6_000, serverTimeMs = 106_000, clientReceivedAtElapsedMs = 11_000),
+    )
+
+    estimator.bestSample shouldBe first
+  }
+
+  test("an equally good sample does not displace the kept one either") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    val first = ClockSyncSample(clientSentAtElapsedMs = 0, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 100)
+    estimator.record(first)
+
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 1_000, serverTimeMs = 101_000, clientReceivedAtElapsedMs = 1_100),
+    )
+
+    estimator.bestSample shouldBe first
+  }
+
+  test("a sample arriving exactly staleAfterMs later has not made the kept one stale yet") {
+    val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = 1_000)
+    // Received at 10_000, not at zero, so measuring the gap by adding instead of subtracting
+    // would not land on the same number.
+    val first =
+      ClockSyncSample(clientSentAtElapsedMs = 9_900, serverTimeMs = 100_000, clientReceivedAtElapsedMs = 10_000)
+    estimator.record(first)
+
+    // Exactly 45_000 later, and a worse round trip: staleness is strictly greater than, so it loses.
+    estimator.record(
+      ClockSyncSample(clientSentAtElapsedMs = 54_800, serverTimeMs = 145_000, clientReceivedAtElapsedMs = 55_000),
+    )
+
+    estimator.bestSample shouldBe first
+  }
+
+  test("once a sample inside the ceiling arrives, the offset is never off by more than half the ceiling") {
+    val ceiling = 1_000L
+    checkAll(
+      Arb.long(-5_000L..5_000L),
+      Arb.long(0L..500L),
+      Arb.long(0L..500L),
+      Arb.long(1_001L..60_000L),
+    ) { trueOffset, uplink, downlink, hiccupMs ->
+      val estimator = ClockSyncEstimator(staleAfterMs = 45_000, maxRoundTripMs = ceiling)
+      // A sample whose delay all went one way, then an honest one, then one that all came back.
+      estimator.record(sampleFor(trueOffset, sentAt = 0, uplinkMs = hiccupMs, downlinkMs = 0))
+      estimator.record(sampleFor(trueOffset, sentAt = 100_000, uplinkMs = uplink, downlinkMs = downlink))
+      estimator.record(sampleFor(trueOffset, sentAt = 200_000, uplinkMs = 0, downlinkMs = hiccupMs))
+
+      abs(estimator.offsetMs!! - trueOffset) shouldBeLessThanOrEqual ceiling / 2
+    }
+  }
 })
+
+/**
+ * A sample of a server whose clock really is [trueOffsetMs] ahead of the client's elapsed time,
+ * answered after [uplinkMs] and carried back over [downlinkMs]. The estimator cannot see those two
+ * legs apart, which is the whole reason an offset can be wrong at all.
+ */
+private fun sampleFor(trueOffsetMs: Long, sentAt: Long, uplinkMs: Long, downlinkMs: Long) = ClockSyncSample(
+  clientSentAtElapsedMs = sentAt,
+  serverTimeMs = sentAt + uplinkMs + trueOffsetMs,
+  clientReceivedAtElapsedMs = sentAt + uplinkMs + downlinkMs,
+)

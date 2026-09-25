@@ -75,6 +75,35 @@ class ClockSyncCoordinatorTest : FunSpec({
     }
   }
 
+  test("a reconnect's bad samples never displace a good one the previous connection measured") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      val clock = MutableStateFlow<ServerClock?>(null)
+      // Sent at 0, answered 20 ms later: an honest sample, so the server is elapsed + 99_990.
+      // Then a reconnect a minute later whose answer takes five seconds to come back.
+      val readings = ArrayDeque(listOf(0L, 20L, 60_000L, 65_000L))
+      var last = 65_000L
+      val elapsed = { readings.removeFirstOrNull()?.also { last = it } ?: last }
+      val coordinator = ClockSyncCoordinator(
+        transport,
+        elapsed,
+        ClockSyncSettings(sampleCount = 1),
+        clockFlow = clock,
+      )
+      transport.connect()
+      transport.push(ServerMessage.ClockSyncResponse(clientSentAt = 0, serverTime = 100_000))
+      coordinator.handshake()
+
+      transport.connect()
+      // The server really is at 159_990 when this leaves, and the answer crawls back over five
+      // seconds, so this sample on its own would put the clock 2.5 s behind the server.
+      transport.push(ServerMessage.ClockSyncResponse(clientSentAt = 60_000, serverTime = 159_990))
+      coordinator.handshake()
+
+      clock.value.shouldNotBeNull().nowMs() shouldBe 164_990
+    }
+  }
+
   test("keepSyncing asks for the time once per interval") {
     runTest {
       val transport = FakeMultiplayerTransport()

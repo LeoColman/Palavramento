@@ -2,11 +2,11 @@
   "id": null,
   "uid": "palavramento",
   "title": "Palavramento",
-  "description": "Jogadores conectados e ativos, contas por tipo, taxa e latência das requisições HTTP do servidor Palavramento.",
+  "description": "Jogadores conectados e ativos, contas por tipo, taxa e latência das requisições HTTP, descompasso do relógio dos jogadores e saúde da JVM do servidor Palavramento.",
   "tags": ["palavramento"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": false,
   "refresh": "30s",
   "time": { "from": "now-24h", "to": "now" },
@@ -199,6 +199,248 @@
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "expr": "max by (route) (ktor_http_server_requests_seconds_max)",
           "legendFormat": "máxima {{route}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Relógio do cliente",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Descompasso do relógio do jogador",
+      "description": "Distância entre o relógio que o jogador estima e o deste servidor, medida a cada palavra submetida (palavramento_client_clock_skew_seconds). Positivo significa jogador atrasado, que é quem corre o risco de ver a rodada acabar com o cronômetro ainda marcando segundos. Inclui uma viagem de rede, que são dezenas de milissegundos. Sem escala mínima fixa: o valor pode ser negativo.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 31, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "palavramento_client_clock_skew_seconds{quantile=\"0.5\"}",
+          "legendFormat": "mediana"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "palavramento_client_clock_skew_seconds{quantile=\"0.95\"}",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "palavramento_client_clock_skew_seconds{quantile=\"0.99\"}",
+          "legendFormat": "p99"
+        },
+        {
+          "refId": "D",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "palavramento_client_clock_skew_seconds_max",
+          "legendFormat": "máximo"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Palavras submetidas por segundo",
+      "description": "Taxa de submissões de palavra (rate de palavramento_client_clock_skew_seconds_count). O servidor mede o relógio do jogador exatamente uma vez por SubmitWord aceito pelo limitador de taxa, então contar essas medições conta as submissões. Palavra rejeitada entra igual: é submissão, não acerto.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 31, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "rate(palavramento_client_clock_skew_seconds_count[5m])",
+          "legendFormat": "palavras/s"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Saúde do servidor",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 1 },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Memória da JVM",
+      "description": "Heap usado, comprometido e máximo, e o que a JVM usa fora do heap (jvm_memory_*_bytes). O container tem limite de 1536M no docker-compose: é contra ele que o total importa, não contra o heap máximo sozinho.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "min": 0 },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(jvm_memory_used_bytes{area=\"heap\"})",
+          "legendFormat": "heap usado"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(jvm_memory_committed_bytes{area=\"heap\"})",
+          "legendFormat": "heap comprometido"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(jvm_memory_max_bytes{area=\"heap\"})",
+          "legendFormat": "heap máximo"
+        },
+        {
+          "refId": "D",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(jvm_memory_used_bytes{area=\"nonheap\"})",
+          "legendFormat": "fora do heap"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "CPU",
+      "description": "Uso de CPU do processo e da máquina inteira (process_cpu_usage, system_cpu_usage). 100% é todos os núcleos ocupados, não um só.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "min": 0, "max": 1 },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "process_cpu_usage",
+          "legendFormat": "processo"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "system_cpu_usage",
+          "legendFormat": "sistema"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Threads",
+      "description": "Threads vivas, daemon e o pico desde que o processo subiu (jvm_threads_*). Cada jogador conectado segura uma sessão de WebSocket, então isso acompanha o número de conexões.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 48, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0 },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "jvm_threads_live_threads",
+          "legendFormat": "vivas"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "jvm_threads_daemon_threads",
+          "legendFormat": "daemon"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "jvm_threads_peak_threads",
+          "legendFormat": "pico"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Pausas de GC",
+      "description": "Segundos de pausa por segundo de relógio, por coletor (rate de jvm_gc_pause_seconds_sum). 0,01 quer dizer 1% do tempo parado. O Micrometer só cria essa série depois da primeira coleta, então o painel fica vazio logo após um deploy.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 48, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "min": 0 },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (gc) (rate(jvm_gc_pause_seconds_sum[5m]))",
+          "legendFormat": "{{gc}}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Tempo desde o último reinício",
+      "description": "Há quanto tempo este processo está de pé (process_uptime_seconds). Zera a cada deploy e a cada crash, então um número baixo sem deploy recente é reinício que ninguém pediu.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 48, "w": 8, "h": 8 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "min": 0 },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "textMode": "value",
+        "colorMode": "none",
+        "graphMode": "area"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "process_uptime_seconds",
+          "legendFormat": "uptime",
+          "instant": true
         }
       ]
     }

@@ -105,9 +105,15 @@ O stack sobe também Prometheus e Grafana ao lado do servidor:
   (nunca pela internet, nunca publicado pelo Caddy) e guarda 1 ano de dados em
   `/root/manual-stacks/palavramento/prometheus-data`.
 - O **Grafana** é publicado pelo Caddy em `https://${GRAFANA_HOST}` com um dashboard "Palavramento"
-  já provisionado (`deploy/grafana/`): jogadores conectados agora, jogadores ativos em 24h/7d/30d,
-  contas por tipo (convidado/cadastrada) e taxa e latência das requisições HTTP. Login `admin` com a
-  senha de `GRAFANA_ADMIN_PASSWORD`; cadastro de usuários e acesso anônimo ficam desligados.
+  já provisionado (`deploy/grafana/`), em três partes. Login `admin` com a senha de
+  `GRAFANA_ADMIN_PASSWORD`; cadastro de usuários e acesso anônimo ficam desligados.
+  - **Jogadores**: conectados agora, ativos em 24h/7d/30d, contas por tipo (convidado/cadastrada), e
+    taxa e latência das requisições HTTP.
+  - **Relógio do cliente**: descompasso entre o relógio do jogador e o do servidor (mediana, p95, p99
+    e máximo) e palavras submetidas por segundo. O servidor mede o relógio do jogador uma vez por
+    `SubmitWord`, então contar essas medições conta as submissões.
+  - **Saúde do servidor**: memória da JVM, CPU, threads, pausas de GC e tempo desde o último
+    reinício. Vem dos binders que o plugin do Ktor registra sozinho, sem código nosso.
 
 Para acessar, entre em `https://${GRAFANA_HOST}` com o usuário `admin` e a senha do `.env`. O
 Prometheus não é acessível de fora do servidor (por desenho).

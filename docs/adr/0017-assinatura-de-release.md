@@ -59,6 +59,9 @@ Versionar a chave no repositório, cifrada com [git-secret](https://sobolevn.me/
   remédio é outro `applicationId`, não uma rotação.
 - O CI não assina nada, porque não tem a chave GPG. Se um dia precisar, as opções são uma chave GPG só
   do CI em `git secret tell`, ou os secrets do GitHub Actions. A primeira mantém uma fonte de verdade só.
+  **Resolvido pela ADR 0022** (2026-09-25): ficou a segunda, por privilégio mínimo. Uma chave GPG no CI
+  abriria tudo que o git-secret protege; a chave de envio sozinha abre uma coisa só, e com o app já na
+  Play ela é a *upload key*, cuja perda o Google resolve com uma troca em vez de um `applicationId` novo.
 - Se o app um dia for para a Play Store, esta chave passa a ser a *upload key* e o Google guarda a
   chave de assinatura real (Play App Signing). Aí a perda desta deixa de ser fatal, mas até lá é.
 - O APK de debug continua como estava, assinado com a chave de debug, e serve para desenvolvimento.

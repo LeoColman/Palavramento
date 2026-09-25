@@ -1,0 +1,47 @@
+Palavramento é um caça-palavras multijogador em português do Brasil. Você e todo mundo da sala
+jogam a MESMA grade 4x4, no MESMO cronômetro de dois minutos. Quando o tempo acaba, o placar
+aparece na hora e todo mundo vê quem achou mais palavra.
+
+COMO SE JOGA
+Arraste o dedo por letras vizinhas para formar palavras. Vale ligar na horizontal, na vertical e
+na diagonal, desde que você não repita a mesma peça. Palavras a partir de três letras contam. Cada
+letra tem um valor, e a pontuação da palavra é a soma das peças que você percorreu, então achar a
+palavra comprida nem sempre é o melhor negócio.
+
+TODO MUNDO NA MESMA GRADE
+Não é jogo por turnos nem partida contra robô. A sala inteira recebe o mesmo tabuleiro no mesmo
+instante e joga ao mesmo tempo. Uma rodada nova começa a cada poucos minutos, e você pode entrar no
+meio: não precisa esperar ninguém.
+
+TEMAS QUE MUDAM AS REGRAS
+Cada rodada anuncia um tema no topo. Às vezes uma letra vale muito mais que o normal. Às vezes
+entram peças de dígrafo (QU, CH, LH, NH, RR, SS, GU) que contam como uma letra só. Às vezes aparece uma
+peça de duas letras alternativas, que serve para uma ou para outra. O tabuleiro nunca é o mesmo
+duas vezes.
+
+O FIM DA RODADA ENSINA
+Acabou o tempo, o jogo mostra a lista completa de palavras que a grade tinha: as que você achou, as
+comuns que deixou passar e as difíceis que só um especialista acharia. Dá para ver quantos pontos
+existiam ali e quanto você tirou. É assim que se melhora.
+
+SEU PROGRESSO FICA GUARDADO
+Crie uma conta e o jogo guarda sua pontuação total, suas palavras, sua melhor partida, sua melhor
+palavra, sua média de pontos e sua melhor colocação. Você ganha experiência e sobe de nível a cada
+partida. O histórico deixa você revisitar rodadas antigas com o tabuleiro e a solução inteira.
+
+PORTUGUÊS DE VERDADE
+As palavras são validadas com o dicionário Hunspell pt_BR do projeto VERO. Acento, cedilha e
+dígrafo funcionam como você espera de um jogo de letras feito para o português, não de uma tradução
+de jogo em inglês.
+
+SEM COMPRA E SEM RASTREAMENTO
+Não existe item para comprar dentro do jogo e não existe telemetria de uso. O app pede uma permissão
+só: acesso à internet, porque o jogo é multijogador.
+
+CÓDIGO ABERTO
+O Palavramento é software livre sob licença AGPL-3.0-or-later, app e servidor. O código está em
+github.com/LeoColman/Palavramento, e qualquer pessoa pode ler, estudar, modificar e rodar o próprio
+servidor.
+
+Se você gosta de caça-palavras, jogo de palavras cruzadas, desafio de vocabulário ou simplesmente
+de provar que é bom de palavra, a próxima rodada começa em menos de um minuto.

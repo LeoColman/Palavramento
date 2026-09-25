@@ -123,6 +123,37 @@ rode `deploy/deploy.sh` (ou `deploy/publish.sh`) de novo. O script reescreve o a
 Prometheus lê e reinicia o servidor com o novo valor; o Prometheus relê o arquivo sozinho, sem
 precisar reiniciar.
 
+## Publicar na Google Play
+
+Uma versão vai para a loja por tag, e o GitHub Actions faz o resto (ADR 0022):
+
+```bash
+# 1. Suba versionCode e versionName em app/build.gradle.kts, e escreva a nota da versao em
+#    fastlane/metadata/android/pt-BR/changelogs/<versionCode>.txt
+# 2. Commite.
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+O workflow `Release` roda `./gradlew check` inteiro, monta o `.aab` assinado e publica **ao vivo na
+trilha de produção**, junto com a ficha da loja e as capturas. Ele nunca dispara sozinho: só em tag
+`v*` ou no botão de `workflow_dispatch`. A tag precisa bater com o `versionName` do build, senão o
+fastlane para antes de subir qualquer coisa.
+
+Para rodar da própria máquina, com a chave revelada (`git secret reveal`) e o JSON da conta de
+serviço em `fastlane/play-service-account.json`:
+
+```bash
+gem install fastlane -v 2.240.1
+fastlane android validate    # manda tudo ao Google para conferir, sem publicar nada
+fastlane android internal    # sobe para teste interno
+fastlane android listing     # so a ficha e as capturas, sem binario
+fastlane android release     # producao, ao vivo
+```
+
+Os três segredos que o CI precisa estão na ADR 0022. As imagens da ficha não são versionadas em
+`fastlane/`: elas são copiadas de [`marketing/`](marketing/) na hora do release, que segue sendo
+onde se editam.
+
 ## Backup
 
 O stack sobe um serviço `backup` (borgmatic) que roda às 4h e empurra para dois repositórios Borg:

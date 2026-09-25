@@ -1,0 +1,5 @@
+Correções desta versão:
+
+- O cronômetro da partida não termina mais antes da hora.
+- Os ajustes de som, música e vibração passam a valer na hora, sem reiniciar o app.
+- A tela de fim de rodada mostra o placar sozinha, na metade da espera.

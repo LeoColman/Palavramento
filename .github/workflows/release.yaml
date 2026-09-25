@@ -1,0 +1,89 @@
+# This file was generated using Kotlin DSL (.github/workflows/release.main.kts).
+# If you want to modify the workflow, please change the Kotlin file and regenerate this YAML file.
+# Generated with https://github.com/typesafegithub/github-workflows-kt
+
+name: 'Release'
+on:
+  push:
+    tags:
+    - 'v*'
+  workflow_dispatch: {}
+jobs:
+  check_yaml_consistency:
+    name: 'Check YAML consistency'
+    runs-on: 'ubuntu-latest'
+    steps:
+    - id: 'step-0'
+      name: 'Check out'
+      uses: 'actions/checkout@v4'
+    - id: 'step-1'
+      name: 'Execute script'
+      run: 'rm ''.github/workflows/release.yaml'' && ''.github/workflows/release.main.kts'''
+    - id: 'step-2'
+      name: 'Consistency check'
+      run: 'git diff --exit-code ''.github/workflows/release.yaml'''
+  check:
+    runs-on: 'ubuntu-latest'
+    needs:
+    - 'check_yaml_consistency'
+    steps:
+    - id: 'step-0'
+      name: 'Checkout'
+      uses: 'actions/checkout@v4'
+    - id: 'step-1'
+      name: 'Setup JDK'
+      uses: 'actions/setup-java@v5'
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+    - id: 'step-2'
+      name: 'Setup Gradle'
+      uses: 'gradle/actions/setup-gradle@v4'
+    - id: 'step-3'
+      name: 'Check'
+      run: './gradlew check'
+  release:
+    runs-on: 'ubuntu-latest'
+    needs:
+    - 'check'
+    - 'check_yaml_consistency'
+    steps:
+    - id: 'step-0'
+      name: 'Checkout'
+      uses: 'actions/checkout@v4'
+    - id: 'step-1'
+      name: 'Setup JDK'
+      uses: 'actions/setup-java@v5'
+      with:
+        java-version: '21'
+        distribution: 'temurin'
+    - id: 'step-2'
+      name: 'Setup Gradle'
+      uses: 'gradle/actions/setup-gradle@v4'
+    - id: 'step-3'
+      name: 'Install fastlane'
+      run: 'gem install fastlane -v 2.240.1 --no-document'
+    - id: 'step-4'
+      name: 'Write the signing key'
+      env:
+        RELEASE_KEYSTORE_BASE64: '${{ secrets.RELEASE_KEYSTORE_BASE64 }}'
+        RELEASE_KEYSTORE_PASSWORD: '${{ secrets.RELEASE_KEYSTORE_PASSWORD }}'
+      run: |-
+        printf '%s' "$RELEASE_KEYSTORE_BASE64" | base64 -d > app/palavramento-release.jks
+        cat > keystore.properties <<'PROPERTIES'
+        storeFile=app/palavramento-release.jks
+        keyAlias=palavramento
+        PROPERTIES
+        printf 'storePassword=%s\nkeyPassword=%s\n' \
+          "$RELEASE_KEYSTORE_PASSWORD" "$RELEASE_KEYSTORE_PASSWORD" >> keystore.properties
+    - id: 'step-5'
+      name: 'Write the Play service account'
+      env:
+        PLAY_SERVICE_ACCOUNT_JSON: '${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}'
+      run: 'printf ''%s'' "$PLAY_SERVICE_ACCOUNT_JSON" > fastlane/play-service-account.json'
+    - id: 'step-6'
+      name: 'Publish'
+      env:
+        SUPPLY_JSON_KEY: 'fastlane/play-service-account.json'
+        RELEASE_TAG: '${{ startsWith(github.ref, ''refs/tags/'') && github.ref_name || '''' }}'
+      run: 'fastlane android release'

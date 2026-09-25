@@ -15,3 +15,10 @@ captures/
 # cifradas pelo git-secret (*.jks.secret, keystore.properties.secret).
 keystore.properties
 *.jks
+
+# Ficha da loja (ADR 0022): as imagens sao copiadas de marketing/ na hora do release,
+# nao versionadas duas vezes. O JSON da conta de servico da Play nunca entra no git.
+fastlane/metadata/android/*/images/
+fastlane/play-service-account.json
+fastlane/report.xml
+fastlane/README.md

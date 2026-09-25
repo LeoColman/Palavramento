@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2026 Leonardo Colman Lopes
+#
+# Release to the Google Play Store (ADR 0022). The store listing lives in
+# fastlane/metadata and the graphics come from marketing/, copied in at release time so that
+# directory stays the one place they are edited.
+
+require 'fileutils'
+
+default_platform(:android)
+
+BUILD_FILE = "app/build.gradle.kts"
+AAB = "app/build/outputs/bundle/release/app-release.aab"
+METADATA_IMAGES = "fastlane/metadata/android/pt-BR/images"
+
+platform :android do
+  desc "Builds the signed bundle and publishes it live on the production track."
+  lane :release do
+    publish(track: "production", status: "completed")
+  end
+
+  desc "Same bundle, internal testing track. The way to try the whole pipeline on real players."
+  lane :internal do
+    publish(track: "internal", status: "completed")
+  end
+
+  desc "Builds and sends everything to Google for validation without publishing anything."
+  lane :validate do
+    publish(track: "production", status: "completed", validate_only: true)
+  end
+
+  desc "Uploads the store listing and graphics, leaving the binary alone."
+  lane :listing do
+    stage_graphics
+    upload_to_play_store(
+      skip_upload_aab: true,
+      skip_upload_apk: true,
+      skip_upload_changelogs: true,
+      sync_image_upload: true,
+    )
+  end
+end
+
+# Builds the bundle and hands it to Google. Everything the lanes above have in common.
+def publish(track:, status:, validate_only: false)
+  version_name, version_code = read_version
+  check_tag_matches(version_name)
+  require_signing_key
+
+  UI.important("Palavramento #{version_name} (#{version_code}) -> #{track}, #{status}")
+  gradle(task: ":app:bundleRelease")
+  stage_graphics
+
+  upload_to_play_store(
+    track: track,
+    release_status: status,
+    aab: AAB,
+    validate_only: validate_only,
+    # The listing is versioned here, so it is not a surprise that it goes up with the binary.
+    skip_upload_metadata: false,
+    skip_upload_images: false,
+    skip_upload_screenshots: false,
+    sync_image_upload: true,
+  )
+end
+
+# versionName and versionCode as the build file declares them. That file stays the single source
+# of truth for the version: nothing here derives, bumps or writes it.
+def read_version
+  build = File.read(BUILD_FILE)
+  version_name = build[/versionName\s*=\s*"([^"]+)"/, 1]
+  version_code = build[/versionCode\s*=\s*(\d+)/, 1]
+  UI.user_error!("No versionName in #{BUILD_FILE}") if version_name.nil?
+  UI.user_error!("No versionCode in #{BUILD_FILE}") if version_code.nil?
+  [version_name, version_code]
+end
+
+# A release triggered by a tag has to be the version that tag names. Catches the tag that says
+# v1.0.1 over a build file still reading 1.0.0, which would otherwise publish the wrong thing
+# under the right name, or be rejected by Google for a versionCode already used.
+def check_tag_matches(version_name)
+  tag = ENV["RELEASE_TAG"]
+  return if tag.nil? || tag.empty?
+
+  expected = "v#{version_name}"
+  return if tag == expected
+
+  UI.user_error!("Tag #{tag} does not match #{BUILD_FILE}, which says #{expected}. Bump one of them.")
+end
+
+# The build silently produces an unsigned bundle when the keystore is missing (ADR 0017), which is
+# right for `check` on a fresh clone and wrong here: Google rejects it with an error that says
+# nothing about the cause. So this fails first, and says what to do.
+def require_signing_key
+  return if File.exist?("keystore.properties")
+
+  UI.user_error!(
+    "keystore.properties is missing, so the bundle would come out unsigned. " \
+    "Run `git secret reveal` locally, or check the signing secrets in CI (ADR 0017, ADR 0022)."
+  )
+end
+
+# Copies the store graphics out of marketing/, which is where they are made and reviewed. They are
+# not committed under fastlane/: one copy, one place to edit, no pair to drift apart.
+def stage_graphics
+  phone = "#{METADATA_IMAGES}/phoneScreenshots"
+  FileUtils.mkdir_p(phone)
+  FileUtils.rm_f(Dir.glob("#{phone}/*.png"))
+  FileUtils.cp(Dir.glob("marketing/screenshots/*.png").sort, phone)
+  FileUtils.cp("marketing/ads/play-icone-512x512.png", "#{METADATA_IMAGES}/icon.png")
+  FileUtils.cp("marketing/ads/play-destaque-1024x500.png", "#{METADATA_IMAGES}/featureGraphic.png")
+end

@@ -163,9 +163,10 @@ detekt {
   config.setFrom(rootProject.file("config/detekt/detekt.yml"))
 }
 
-// Mutation score is a build gate (dossier §10), not a weekly report.
+// Not part of `check` (ADR 0023): mutation runs weekly in CI and by hand now and then, and the
+// README badge shows the resulting test strength. The threshold above still fails this task.
 tasks.named("check") {
-  dependsOn("detekt", "pitest")
+  dependsOn("detekt")
 }
 
 // Local cache (dossier 7, ADR 0009): profile, lifetime stats and the last 50 rounds.

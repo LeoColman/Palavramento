@@ -353,7 +353,5 @@ val pitestTask = tasks.register<JavaExec>("pitest") {
   }
 }
 
-// Mutation score is a build gate (dossier §10), not a weekly report.
-tasks.check {
-  dependsOn(pitestTask)
-}
+// Not part of `check` (ADR 0023): mutation runs weekly in CI and by hand now and then, and the
+// README badge shows the resulting test strength. The threshold above still fails this task.

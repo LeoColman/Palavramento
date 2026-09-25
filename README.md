@@ -1,5 +1,7 @@
 # Palavramento
 
+[![Força dos testes (mutação)](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/LeoColman/Palavramento/badges/mutation.json)](https://github.com/LeoColman/Palavramento/actions/workflows/mutation.yaml)
+
 Clone do Wordament em português. Grade 4×4, rodadas de 2 minutos, todos os jogadores da sala na mesma
 grade ao mesmo tempo. A v1 tem só o modo Multiplayer.
 
@@ -19,14 +21,22 @@ Requisitos: JDK 21 (o Gradle baixa o 17 se faltar), Android SDK 36, Docker (test
 servidor).
 
 ```bash
-./gradlew check              # testes, detekt, lint e mutação
+./gradlew check              # testes, detekt e lint
+./gradlew pitest             # mutação nos três módulos (lento)
 ./gradlew :server:run        # servidor local na porta 8080
 ./gradlew :app:installDebug  # app num aparelho ou emulador
 ```
 
-`check` inclui teste de mutação (Pitest) nos três módulos, e o limite falha o build: 90% de mutantes
-mortos em `:domain` e `:server`, 50% no `:app`, onde metade do código é Compose e só os testes
-instrumentados alcançam. Detalhes e exclusões em [ADR 0016](docs/adr/0016-testes-de-mutacao.md).
+O teste de mutação (Pitest) fica fora do `check` ([ADR 0023](docs/adr/0023-mutacao-fora-do-check.md)):
+roda toda segunda no workflow `Mutation`, que atualiza o badge acima, e à mão quando se mexe em algo
+delicado. A tarefa `pitest` de cada módulo ainda falha abaixo do limite: 90% de mutantes mortos em
+`:domain` e `:server`, 50% no `:app`, onde metade do código é Compose e só os testes instrumentados
+alcançam. Exclusões em [ADR 0016](docs/adr/0016-testes-de-mutacao.md). Para ver a força dos testes
+depois de rodar:
+
+```bash
+kotlin tools/mutation-strength.main.kts
+```
 
 ## APK assinado para distribuir
 

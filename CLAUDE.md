@@ -30,6 +30,8 @@ Não criar módulos novos: o limite é 3.
   propriedade quando a regra é universal.
 - Pitest nos três módulos com o plugin do Kotest (ADR 0016). Limite: **90%** em `:domain` e
   `:server`, **50%** em `:app` (metade do módulo é Compose, que só o `androidTest` alcança).
+  Fora do `check` (ADR 0023): roda toda semana no workflow `Mutation` e à mão. Ao mexer em regra de
+  jogo, pontuação, relógio ou no laço de rodadas, rode o `pitest` do módulo antes de dar por pronto.
   - Montar fixtures dentro de cada teste, nunca no corpo da spec. Exceção lançada na construção da
     spec não chega ao PIT, e o mutante que quebra o construtor sobrevive.
   - Getter de data class só conta como coberto quando algum teste lê a propriedade; comparar por
@@ -48,7 +50,9 @@ Não criar módulos novos: o limite é 3.
 ## Comandos
 
 ```bash
-./gradlew check                 # tudo: testes, detekt, lint, pitest nos três módulos
+./gradlew check                 # testes, detekt e lint (sem mutação, ADR 0023)
+./gradlew pitest                # mutação nos três módulos, lento
+kotlin tools/mutation-strength.main.kts  # força dos testes dos últimos relatórios
 ./gradlew :domain:test          # rápido
 ./gradlew :domain:pitest        # mutação, limite 90%
 ./gradlew :server:test          # inclui Testcontainers (precisa de Docker)

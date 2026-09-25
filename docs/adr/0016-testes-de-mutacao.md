@@ -1,6 +1,7 @@
 # ADR 0016: Testes de mutação nos três módulos
 
-**Status:** aceita
+**Status:** aceita. Os portões de build foram substituídos pela ADR 0023 (2026-09-25): a mutação saiu
+do `check` e roda toda semana. Limites, exclusões e o resto desta ADR continuam valendo.
 
 ## Contexto
 

@@ -27,8 +27,8 @@ workflow(
     // 21 runs the Gradle daemon (gradle/gradle-daemon-jvm.properties); foojay fetches the 17 toolchain.
     uses(name = "Setup JDK", action = SetupJava(javaVersion = "21", distribution = SetupJava.Distribution.Temurin))
     uses(name = "Setup Gradle", action = ActionsSetupGradle())
-    // Tests, detekt, Android lint and the mutation gates on all three modules (ADR 0016).
-    // Testcontainers uses the runner's Docker, for :server:test and for :server:pitest's minions.
+    // Tests, detekt and Android lint on all three modules. Mutation testing is not here: it runs
+    // weekly in mutation.main.kts (ADR 0023). Testcontainers uses the runner's Docker for :server:test.
     run(name = "Check", command = "./gradlew check")
     uses(
       name = "Upload reports",

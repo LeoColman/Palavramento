@@ -17,6 +17,8 @@ import br.com.colman.palavramento.server.round.RoundGenerationService
 import br.com.colman.palavramento.server.ws.ConnectionRegistry
 import org.jetbrains.exposed.v1.jdbc.Database
 import kotlin.random.Random
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Wires a [RoomScheduler] the same way [br.com.colman.palavramento.server.plugins.appModule] does,
@@ -31,6 +33,7 @@ fun buildTestScheduler(
   roomId: String = testRoomId(),
   lexicon: Lexicon = TestLexicon.lexicon,
   seedSource: () -> Long = { Random.nextLong() },
+  failureBackoff: Duration = 5.seconds,
 ): RoomScheduler {
   val roundRepository = RoundRepository(database)
   val submissionRepository = SubmissionRepository(database)
@@ -49,5 +52,6 @@ fun buildTestScheduler(
     lexicon = lexicon,
     connectionRegistry = ConnectionRegistry(),
     roomId = roomId,
+    failureBackoff = failureBackoff,
   )
 }

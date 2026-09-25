@@ -46,3 +46,32 @@ Decisões dentro disso:
 - Quem exclui a conta perde o histórico e volta ao nível 1 como convidado novo.
 - O servidor passa a servir HTML, coisa que até aqui não fazia. São duas páginas estáticas, em pt-BR,
   sem framework.
+
+## Correção de 2026-09-25: exclusão durante a rodada derrubava a sala
+
+Fechar o socket não bastava. O jogador continuava no conjunto de participantes que a
+`RoundState` da rodada em andamento guarda em memória, e esse conjunto é o que o
+`RoundFinalizer` percorre quando a rodada acaba. Em produção, às 16:06 um jogador pediu a
+exclusão no meio de uma rodada; às 16:07:48 o `INSERT` em `round_results` para ele bateu na
+chave estrangeira para `players`, que já não existia:
+
+```
+ERROR: insert or update on table "round_results" violates foreign key constraint
+"round_results_player_id_fkey"
+```
+
+A exceção subiu pelo `RoundFinalizer.finalize`, pelo `RoomScheduler.finish` e pelo laço de
+rodadas, matando a corrotina. O processo ficou de pé, respondendo HTTP e servindo métrica, sem
+nunca mais iniciar uma rodada: meia hora com todo mundo preso em "Próxima partida em 00:00" até
+alguém reiniciar o serviço à mão.
+
+Duas mudanças, e a segunda é a que importa mais:
+
+- **O `RoundFinalizer` ignora participante cuja linha em `players` sumiu.** Ele já lia os
+  jogadores do banco para pegar o nome; agora quem não voltou dessa leitura sai da rodada
+  inteira, não só do `INSERT`. Assim a conta apagada também não aparece no placar de ninguém
+  como entrada sem nome, o que é o mesmo que esta ADR já decidiu para o placar histórico.
+- **O laço de rodadas contém o erro.** Um ciclo que falha é registrado em log e recomeçado do
+  banco depois de uma espera curta, em vez de encerrar a sala. A causa desta vez foi a exclusão
+  de conta, mas qualquer falha passageira de banco na hora de fechar a rodada tinha o mesmo
+  efeito, e nenhuma delas deveria custar o jogo para todo mundo até alguém perceber.

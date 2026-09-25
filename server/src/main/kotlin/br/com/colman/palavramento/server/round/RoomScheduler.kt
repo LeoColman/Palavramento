@@ -15,15 +15,23 @@ import br.com.colman.palavramento.server.config.ServerConfig
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.SubmissionRepository
 import br.com.colman.palavramento.server.ws.ConnectionRegistry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
+import kotlin.time.Duration.Companion.seconds
 import br.com.colman.palavramento.domain.protocol.FoundWord as WireFoundWord
+
+private val logger = LoggerFactory.getLogger("RoomScheduler")
+
+/** How long [RoomScheduler] waits before restarting a round cycle that failed. */
+private val DefaultFailureBackoff = 5.seconds
 
 /** [RoomScheduler.join]'s two possible answers to a `JoinRoom` (dossier §1.4/§5.3). */
 sealed interface JoinResult {
@@ -53,6 +61,8 @@ class RoomScheduler(
   private val lexicon: Lexicon,
   val connectionRegistry: ConnectionRegistry,
   private val roomId: String = GlobalRoomId,
+  // Injectable so a test can prove the loop survives a failed cycle without waiting out the real one.
+  private val failureBackoff: kotlin.time.Duration = DefaultFailureBackoff,
 ) {
   @Volatile
   private var currentRoundState: RoundState? = null
@@ -80,7 +90,35 @@ class RoomScheduler(
     currentRoundState = null
   }
 
+  /**
+   * Keeps [runRounds] running for as long as the scope lives. A round that fails takes its own
+   * cycle down and nothing else: on 2026-09-25 a player deleted their account mid-round (ADR 0020),
+   * the foreign key rejected their `round_results` row, and the exception travelled out of [finish],
+   * out of the loop and out of the coroutine. The process stayed up answering HTTP and serving
+   * metrics for half an hour without ever starting another round, and every client sat on "Proxima
+   * partida em 00:00" until someone restarted the server by hand.
+   *
+   * So a failed cycle is logged and retried instead of ending the room. [runRounds] is re-entered
+   * from scratch, reading the schedule back out of the database rather than trusting the rounds the
+   * failed cycle had in hand, and [failureBackoff] keeps a failure that returns immediately (the
+   * database being unreachable, say) from turning this into a hot loop.
+   */
+  @Suppress("TooGenericExceptionCaught") // Anything a cycle throws has to stay inside it; that is the point.
   private suspend fun runLoop() {
+    while (currentCoroutineContext().isActive) {
+      try {
+        runRounds()
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (failure: Exception) {
+        logger.error("Round cycle failed for room $roomId, restarting it in $failureBackoff", failure)
+        currentRoundState = null
+        delay(failureBackoff)
+      }
+    }
+  }
+
+  private suspend fun runRounds() {
     var current = roundGenerationService.recoverOrGenerateCurrent(roomId, clock.now())
     var next = roundGenerationService.recoverOrGenerateNext(roomId, current)
     nextRoundStartsAt = current.record.startsAt

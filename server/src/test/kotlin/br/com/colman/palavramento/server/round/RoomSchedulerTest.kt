@@ -15,11 +15,19 @@ import br.com.colman.palavramento.server.testsupport.insertGuest
 import br.com.colman.palavramento.server.testsupport.testDatabase
 import br.com.colman.palavramento.server.testsupport.testRoomId
 import br.com.colman.palavramento.server.testsupport.testServerConfig
+import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -376,5 +384,40 @@ class RoomSchedulerTest : FunSpec({
 
     state.isParticipant(player.id) shouldBe true
     state.playerState(player.id).snapshot().found.map { it.display } shouldBe listOf(word.display)
+  }
+
+  test("a cycle that throws does not end the room: the loop logs it and starts another one") {
+    // The clock is the first thing a cycle touches, so a clock that throws fails the cycle exactly
+    // where a broken database, a rejected round_results row or any other surprise would: inside it.
+    val real = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
+    val broken = AtomicBoolean(false)
+    val attempts = AtomicInteger(0)
+    val clock = GameClock {
+      if (!broken.get()) {
+        real.now()
+      } else {
+        attempts.incrementAndGet()
+        error("the database is having a moment")
+      }
+    }
+    val roomId = testRoomId()
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes)
+    // Built while the clock still works: RoomScheduler reads it once to seed nextRoundStartsAt.
+    val scheduler = buildTestScheduler(database, clock, config, roomId, failureBackoff = 20.milliseconds)
+
+    broken.set(true)
+    val scope = CoroutineScope(Dispatchers.Default)
+    val job = scheduler.start(scope)
+
+    // Before this fix the first throw escaped the coroutine and the room never ran again: on
+    // 2026-09-25 that left production answering HTTP for half an hour without starting a round.
+    eventually(5.seconds) { attempts.get() shouldBeGreaterThan 2 }
+    job.isActive shouldBe true
+
+    // And once whatever broke is over, the room picks itself back up with no restart.
+    broken.set(false)
+    eventually(10.seconds) { RoundRepository(database).findPending(roomId, limit = 1).shouldNotBeEmpty() }
+
+    scope.cancel()
   }
 })

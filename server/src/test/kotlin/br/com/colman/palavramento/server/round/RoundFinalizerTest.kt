@@ -181,4 +181,62 @@ class RoundFinalizerTest : FunSpec({
     scoringStats?.bestWord shouldBe "casa"
     scoringStats?.bestWordScore shouldBe 9
   }
+
+  test("a player who deleted their account mid-round is dropped instead of breaking the whole round") {
+    val roomId = testRoomId()
+    val playerRepository = PlayerRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val playerStatsRepository = PlayerStatsRepository(database)
+    val finalizer = RoundFinalizer(playerRepository, roundResultRepository, playerStatsRepository)
+
+    val stayed = playerRepository.insertGuest()
+    val deleted = playerRepository.insertGuest()
+    val roundId = roundRepository.insertFakeFinishedRound(roomId)
+    val roundStartsAt = Instant.parse("2026-01-01T00:00:00Z")
+    val stayedWord = FoundWord("casa", "casa", 10, listOf(0, 1, 2, 3), roundStartsAt.plusSeconds(10))
+    val deletedWord = FoundWord("sol", "sol", 99, listOf(4, 5, 6), roundStartsAt.plusSeconds(20))
+
+    // What happened in production on 2026-09-25: they played the round, then called
+    // DELETE /players/me before it ended, so the row round_results points at is already gone.
+    playerRepository.delete(deleted.id)
+
+    val result = finalizer.finalize(
+      roundId = roundId,
+      perPlayerFound = mapOf(stayed.id to listOf(stayedWord), deleted.id to listOf(deletedWord)),
+      perPlayerEnteredAt = mapOf(stayed.id to roundStartsAt, deleted.id to roundStartsAt),
+    )
+
+    // The round finishes for everyone else, and the deleted account is in nobody's leaderboard,
+    // not even as a nameless entry holding first place with its 99 points.
+    result.outcomes.map { it.playerId } shouldBe listOf(stayed.id)
+    result.totalPlayers shouldBe 1
+    result.outcomes.single().rank shouldBe 1
+    roundResultRepository.findByRound(roundId).map { it.playerId } shouldBe listOf(stayed.id)
+  }
+
+  test("a round whose only player deleted their account finishes with nothing to persist") {
+    val roomId = testRoomId()
+    val playerRepository = PlayerRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val playerStatsRepository = PlayerStatsRepository(database)
+    val finalizer = RoundFinalizer(playerRepository, roundResultRepository, playerStatsRepository)
+
+    val deleted = playerRepository.insertGuest()
+    val roundId = roundRepository.insertFakeFinishedRound(roomId)
+    val roundStartsAt = Instant.parse("2026-01-01T00:00:00Z")
+    val word = FoundWord("casa", "casa", 10, listOf(0, 1, 2, 3), roundStartsAt.plusSeconds(10))
+    playerRepository.delete(deleted.id)
+
+    val result = finalizer.finalize(
+      roundId = roundId,
+      perPlayerFound = mapOf(deleted.id to listOf(word)),
+      perPlayerEnteredAt = mapOf(deleted.id to roundStartsAt),
+    )
+
+    result.outcomes shouldBe emptyList()
+    result.totalPlayers shouldBe 0
+    roundResultRepository.findByRound(roundId) shouldBe emptyList()
+  }
 })

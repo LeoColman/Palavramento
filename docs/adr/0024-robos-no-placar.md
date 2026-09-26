@@ -1,4 +1,4 @@
-# ADR 0024: Robôs completam o placar até 5 jogadores
+# ADR 0024: Robôs no placar, de 2 a 5 por rodada
 
 **Status:** aceita (2026-09-26)
 
@@ -11,9 +11,13 @@ pontuação baixa, e que as métricas separem jogadores humanos de robôs.
 
 ## Decisão
 
-**Os robôs só existem no fim da rodada.** Quando a rodada termina, o `RoomScheduler` pede ao
-`BotFiller` (`:domain`) quantos robôs faltam para chegar a `MINIMUM_PLAYERS` (padrão 5, `0` desliga)
-e o `RoundFinalizer` os ranqueia junto com as pessoas. Eles não jogam durante a rodada, não abrem
+**Os robôs só existem no fim da rodada.** Quando a rodada termina, o `BotFiller` (`:domain`) sorteia
+quantos robôs um jogador sozinho veria, entre `MIN_BOTS` e `MAX_BOTS` (padrão 2 e 5, `MAX_BOTS=0`
+desliga), e cada pessoa além da primeira toma o lugar de um deles: com 3 pessoas e sorteio 4 entram 2
+robôs, com 6 pessoas ou mais nenhum. O `RoundFinalizer` ranqueia os robôs junto com as pessoas.
+
+A primeira versão desta decisão completava sempre até exatamente 5 jogadores. No mesmo dia o dono
+pediu o sorteio: uma sala que tem sempre o mesmo tamanho não parece uma sala. Eles não jogam durante a rodada, não abrem
 socket, não mandam palavra: durante a partida nada no app mostra os outros jogadores, então não há o
 que simular ali.
 
@@ -44,8 +48,8 @@ com a série empilhada de humanos e robôs por rodada e um com a última rodada.
 
 ## Consequências
 
-- Uma pessoa sozinha vê "1º de 5, Percentil 100" em vez de "1º de 1, Percentil 0", e pode perder
-  para um robô numa rodada ruim.
+- Uma pessoa sozinha vê de 3 a 6 linhas no placar ("1º de 4, Percentil 100") em vez de "1º de 1,
+  Percentil 0", e pode perder para um robô numa rodada ruim.
 - A melhor colocação e o percentil de quem jogou com robôs não são comparáveis com os de antes desta
   mudança. Nenhuma estatística antiga é reescrita.
 - Os robôs não se distinguem de pessoas no app. Se isso precisar mudar (um ícone, um sufixo no
@@ -53,4 +57,4 @@ com a série empilhada de humanos e robôs por rodada e um com a última rodada.
   as regras de compatibilidade da ADR 0018.
 - O contador "N jogadores aguardando" do lobby continua contando só sockets abertos: os robôs não
   existem fora do placar.
-- Com 5 pessoas ou mais, nada muda.
+- Com 6 pessoas ou mais, nada muda.

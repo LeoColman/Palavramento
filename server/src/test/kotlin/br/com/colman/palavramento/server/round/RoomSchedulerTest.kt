@@ -363,7 +363,7 @@ class RoomSchedulerTest : FunSpec({
 
   test("a player alone gets a leaderboard of five, filled with robots, and the round records both counts") {
     val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
-    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, minimumPlayers = 5)
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, bots = 4)
     val roomId = testRoomId()
     val scheduler = buildTestScheduler(database, clock, config, roomId, botRandom = Random(11))
     val player = PlayerRepository(database).insertGuest()
@@ -397,7 +397,7 @@ class RoomSchedulerTest : FunSpec({
 
   test("with robots off, a player alone is alone in the leaderboard") {
     val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
-    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, minimumPlayers = 0)
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, bots = 0)
     val roomId = testRoomId()
     val scheduler = buildTestScheduler(database, clock, config, roomId)
     val player = PlayerRepository(database).insertGuest()

@@ -20,7 +20,7 @@ fun testServerConfig(
   lateJoinMinRemaining: kotlin.time.Duration = 10.seconds,
   metricsToken: String? = null,
   // Off unless a test is about robots (ADR 0024): the rest count exactly the players they connect.
-  minimumPlayers: Int = 0,
+  bots: Int = 0,
 ): ServerConfig = ServerConfig(
   roundDuration = roundDuration,
   intermissionDuration = intermissionDuration,
@@ -32,5 +32,6 @@ fun testServerConfig(
   leaderboardSize = 10,
   lateJoinMinRemaining = lateJoinMinRemaining,
   metricsToken = metricsToken,
-  minimumPlayers = minimumPlayers,
+  minBots = bots,
+  maxBots = bots,
 )

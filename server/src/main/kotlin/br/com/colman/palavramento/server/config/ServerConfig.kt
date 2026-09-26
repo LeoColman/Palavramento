@@ -50,8 +50,10 @@ data class ServerConfig(
   // Metrics (ADR 0019). Null token leaves /metrics off: nothing to scrape, nothing to guess.
   val metricsToken: String? = null,
   val metricsRefreshInterval: Duration = DefaultMetricsRefreshSeconds.seconds,
-  // Robots fill each round's leaderboard up to this many players (ADR 0024). 0 turns them off.
-  val minimumPlayers: Int = BotFiller.DefaultMinimumPlayers,
+  // Robots a lone player sees, drawn per round in this range; each other person replaces one
+  // (ADR 0024). A maximum of 0 turns them off.
+  val minBots: Int = BotFiller.DefaultMinBots,
+  val maxBots: Int = BotFiller.DefaultMaxBots,
 ) {
   companion object {
     private const val DefaultPort = 8080
@@ -83,7 +85,8 @@ data class ServerConfig(
         lateJoinMinRemaining = envSeconds(env, "LATE_JOIN_MIN_REMAINING_SECONDS", defaults.lateJoinMinRemaining),
         metricsToken = env("METRICS_TOKEN")?.takeIf { it.isNotBlank() },
         metricsRefreshInterval = envSeconds(env, "METRICS_REFRESH_SECONDS", defaults.metricsRefreshInterval),
-        minimumPlayers = envInt(env, "MINIMUM_PLAYERS", defaults.minimumPlayers),
+        minBots = envInt(env, "MIN_BOTS", defaults.minBots),
+        maxBots = envInt(env, "MAX_BOTS", defaults.maxBots),
       )
     }
 

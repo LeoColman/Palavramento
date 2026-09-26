@@ -17,13 +17,16 @@ data class BotPlayer(val id: String, val name: String, val words: List<SolvedWor
 }
 
 /**
- * Fills a round's leaderboard with robots up to [minimumPlayers] (ADR 0024), so a player alone in
- * the room still sees a room with people in it. Robots are weak on purpose: each one is credited
- * with a handful of short common words, the ones any beginner finds first, so a human who plays at
- * all almost always finishes above them.
+ * Puts robots in a round's leaderboard (ADR 0024), so a player alone in the room still sees a room
+ * with people in it. Each round draws how many robots a lone player would see, between [minBots] and
+ * [maxBots], and every other person in the round takes one robot's place, so a busy round has none.
+ *
+ * Robots are weak on purpose: each one is credited with a handful of short common words, the ones
+ * any beginner finds first, so a human who plays at all almost always finishes above them.
  */
 object BotFiller {
-  const val DefaultMinimumPlayers = 5
+  const val DefaultMinBots = 2
+  const val DefaultMaxBots = 5
 
   /** A robot finds between these many words, inclusive. */
   const val MinWords = 3
@@ -32,17 +35,23 @@ object BotFiller {
   /** Longest word a robot finds, when the board has enough of them. */
   const val MaxEasyLength = 5
 
-  /** How many robots [humans] need to reach [minimumPlayers]; none when they already do. */
-  fun countFor(humans: Int, minimumPlayers: Int = DefaultMinimumPlayers): Int =
-    (minimumPlayers - humans).coerceAtLeast(0)
+  /** How many robots a lone player would see this round: somewhere in [minBots]..[maxBots]. */
+  fun quota(random: Random, minBots: Int = DefaultMinBots, maxBots: Int = DefaultMaxBots): Int {
+    if (maxBots <= 0) return 0
+    return random.nextInt(minBots.coerceIn(0, maxBots), maxBots + 1)
+  }
+
+  /** [quota] robots for one person; each person beyond the first replaces one of them. */
+  fun countFor(humans: Int, quota: Int): Int = (quota - (humans - 1).coerceAtLeast(0)).coerceAtLeast(0)
 
   fun fill(
     humans: Int,
     solution: List<SolvedWord>,
     random: Random,
-    minimumPlayers: Int = DefaultMinimumPlayers,
+    minBots: Int = DefaultMinBots,
+    maxBots: Int = DefaultMaxBots,
   ): List<BotPlayer> {
-    val count = countFor(humans, minimumPlayers)
+    val count = countFor(humans, quota(random, minBots, maxBots))
     val names = names(count, random)
     val pool = easyWords(solution)
     return (1..count).map { number ->

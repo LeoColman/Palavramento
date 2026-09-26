@@ -29,25 +29,37 @@ private fun board(): List<SolvedWord> =
 
 class BotFillerTest : FunSpec({
 
-  test("robots fill the room up to the minimum, and never past it") {
-    checkAll(Arb.int(0..12), Arb.int(0..8), Arb.long()) { humans, minimum, seed ->
-      val bots = BotFiller.fill(humans, board(), Random(seed), minimum)
-      bots shouldHaveSize maxOf(0, minimum - humans)
-      bots.size shouldBe BotFiller.countFor(humans, minimum)
-    }
+  test("a lone player gets between two and five robots, and sees every count in that range") {
+    val counts = (1L..400L).map { seed -> BotFiller.fill(1, board(), Random(seed)).size }
+    counts.forEach { it shouldBeInRange BotFiller.DefaultMinBots..BotFiller.DefaultMaxBots }
+    counts.toSet() shouldBe (2..5).toSet()
+    BotFiller.DefaultMinBots shouldBe 2
+    BotFiller.DefaultMaxBots shouldBe 5
   }
 
-  test("the default minimum is five players") {
-    BotFiller.DefaultMinimumPlayers shouldBe 5
-    BotFiller.fill(1, board(), Random(1)) shouldHaveSize 4
-    BotFiller.fill(5, board(), Random(1)) shouldHaveSize 0
-    BotFiller.countFor(2) shouldBe 3
+  test("each person beyond the first replaces one robot, and a full room has none") {
+    checkAll(Arb.int(1..12), Arb.int(0..6), Arb.long()) { humans, quota, seed ->
+      BotFiller.countFor(humans, quota) shouldBe maxOf(0, quota - (humans - 1))
+      val alone = BotFiller.fill(1, board(), Random(seed)).size
+      BotFiller.fill(humans, board(), Random(seed)).size shouldBe maxOf(0, alone - (humans - 1))
+    }
+    BotFiller.countFor(humans = 0, quota = 3) shouldBe 3
+    BotFiller.countFor(humans = 6, quota = 5) shouldBe 0
+  }
+
+  test("the quota stays inside its bounds, a bound of zero turns robots off, and a min above the max yields") {
+    checkAll(Arb.int(0..6), Arb.int(0..6), Arb.long()) { min, max, seed ->
+      val quota = BotFiller.quota(Random(seed), min, max)
+      if (max == 0) quota shouldBe 0 else quota shouldBeInRange minOf(min, max)..max
+    }
+    BotFiller.fill(1, board(), Random(1), minBots = 0, maxBots = 0) shouldHaveSize 0
+    BotFiller.quota(Random(1), minBots = 3, maxBots = 3) shouldBe 3
   }
 
   test("each robot finds a few distinct short common words from the board") {
     checkAll(Arb.long()) { seed ->
       val solution = board()
-      BotFiller.fill(0, solution, Random(seed)).forEach { bot ->
+      BotFiller.fill(1, solution, Random(seed)).forEach { bot ->
         bot.words.size shouldBeInRange BotFiller.MinWords..BotFiller.MaxWords
         bot.words.distinct() shouldBe bot.words
         bot.words.forEach { found ->
@@ -78,7 +90,7 @@ class BotFillerTest : FunSpec({
   }
 
   test("a board with no words still gives every robot a place, with nothing found") {
-    val bots = BotFiller.fill(2, emptyList(), Random(7))
+    val bots = BotFiller.fill(1, emptyList(), Random(7), minBots = 3, maxBots = 3)
     bots shouldHaveSize 3
     bots.forEach {
       it.words shouldBe emptyList()
@@ -88,7 +100,7 @@ class BotFillerTest : FunSpec({
 
   test("robots have distinct names and ids, each a nickname or a guest's default name") {
     checkAll(Arb.long()) { seed ->
-      val bots = BotFiller.fill(0, board(), Random(seed), minimumPlayers = 8)
+      val bots = BotFiller.fill(1, board(), Random(seed), minBots = 8, maxBots = 8)
       bots.map { it.name }.distinct() shouldHaveSize 8
       bots.map { it.id } shouldBe (1..8).map { "bot-$it" }
       bots.forEach { bot ->

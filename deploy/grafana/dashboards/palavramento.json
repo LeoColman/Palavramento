@@ -152,7 +152,7 @@
       "id": 16,
       "type": "timeseries",
       "title": "Jogadores humanos e robôs por rodada",
-      "description": "Quem estava no placar da última rodada encerrada, pessoas e robôs à parte (palavramento_round_players). Os robôs completam o placar até 5 jogadores (ADR 0024).",
+      "description": "Quem estava no placar da última rodada encerrada, pessoas e robôs à parte (palavramento_round_players). Os robôs entram de 2 a 5 por rodada, um a menos por pessoa além da primeira (ADR 0024).",
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "x": 0, "y": 22, "w": 16, "h": 8 },
       "fieldConfig": {

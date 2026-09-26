@@ -252,7 +252,7 @@ class RoomScheduler(
     val perPlayerFound = participantIds.associateWith { playerId -> state.playerState(playerId).snapshot().found }
     val perPlayerEnteredAt = participantIds.associateWith { state.entryTimeOf(it) ?: record.startsAt }
     val result = roundFinalizer.finalize(record.id, perPlayerFound, perPlayerEnteredAt) { humans ->
-      BotFiller.fill(humans, state.generated.solution, botRandom, config.minimumPlayers)
+      BotFiller.fill(humans, state.generated.solution, botRandom, config.minBots, config.maxBots)
     }
     if (result.humans > 0) roundRepository.recordPlayerCounts(record.id, RoundPlayerCounts(result.humans, result.bots))
     val leaderboardRows = result.leaderboard

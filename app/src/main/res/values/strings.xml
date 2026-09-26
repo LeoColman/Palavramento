@@ -41,6 +41,14 @@
   <string name="lobby_invite_chooser_title">Convidar para o Palavramento</string>
   <string name="lobby_invite_message">Bora jogar Palavramento? É um caça-palavras multijogador em português: todo mundo na mesma grade, rodadas de 2 minutos. %1$s</string>
 
+  <!-- Anúncios (ADR 0025): o aviso que a política de privacidade prometeu e o acesso ao consentimento. -->
+  <string name="ads_notice_title">O Palavramento agora tem anúncios</string>
+  <string name="ads_notice_body">Um banner no lobby e na tela de resultados ajuda a manter o servidor no ar. Nunca durante a partida.</string>
+  <string name="ads_notice_policy_button">Ver a política de privacidade</string>
+  <string name="ads_notice_policy_url" translatable="false">https://palavramento.colman.com.br/privacidade</string>
+  <string name="ads_notice_dismiss">Entendi</string>
+  <string name="ads_privacy_options_button">Privacidade dos anúncios</string>
+
   <!-- Exclusão de conta (ADR 0020, deliverable Play Store 1.0.0) -->
   <string name="lobby_delete_account_button">Excluir conta</string>
   <string name="lobby_delete_account_dialog_title">Excluir conta</string>

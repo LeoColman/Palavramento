@@ -20,6 +20,8 @@ class FakeSettingsRepository(
   override val hapticsEnabled: Flow<Boolean> = hapticsState
   override val musicEnabled: Flow<Boolean> = musicState
   override val effectsEnabled: Flow<Boolean> = effectsState
+  private val adsNoticeState = MutableStateFlow(false)
+  override val adsNoticeDismissed: Flow<Boolean> = adsNoticeState
 
   override suspend fun setHapticsEnabled(enabled: Boolean) {
     hapticsState.value = enabled
@@ -31,5 +33,9 @@ class FakeSettingsRepository(
 
   override suspend fun setEffectsEnabled(enabled: Boolean) {
     effectsState.value = enabled
+  }
+
+  override suspend fun setAdsNoticeDismissed() {
+    adsNoticeState.value = true
   }
 }

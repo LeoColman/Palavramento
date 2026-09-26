@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.domain.protocol.LifetimeStats
 import br.com.colman.palavramento.domain.protocol.PlayerProfile
+import br.com.colman.palavramento.ui.common.AdBanner
 import br.com.colman.palavramento.ui.common.oneDecimal
 import br.com.colman.palavramento.ui.theme.PalavramentoColors
 import org.koin.androidx.compose.koinViewModel
@@ -83,35 +84,45 @@ fun LobbyScreen(
     Modifier
       .fillMaxSize()
       .background(colors.background)
-      .windowInsetsPadding(WindowInsets.safeDrawing)
-      // The session-expired notice makes the lobby taller than a small phone's screen.
-      .verticalScroll(rememberScrollState())
-      .padding(16.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
+      .windowInsetsPadding(WindowInsets.safeDrawing),
   ) {
-    LobbyHeader(uiState.profile, uiState.isGuest, onLogoutClicked = viewModel::onLogoutClicked)
-    if (uiState.sessionExpired) {
-      SessionExpiredNotice(onLoginClicked = onLoginClicked, onDismiss = viewModel::onSessionExpiredDismissed)
+    Column(
+      Modifier
+        .weight(1f)
+        .fillMaxWidth()
+        // The session-expired notice makes the lobby taller than a small phone's screen.
+        .verticalScroll(rememberScrollState())
+        .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+      AdsNotice()
+      LobbyHeader(uiState.profile, uiState.isGuest, onLogoutClicked = viewModel::onLogoutClicked)
+      if (uiState.sessionExpired) {
+        SessionExpiredNotice(onLoginClicked = onLoginClicked, onDismiss = viewModel::onSessionExpiredDismissed)
+      }
+      TextButton(onClick = onHistoryClicked) { Text(stringResource(R.string.lobby_history_button)) }
+      if (uiState.loadError && uiState.profile == null) {
+        LoadErrorState(onRetry = viewModel::refresh)
+      } else {
+        // The notice above already offers "Entrar"; a second invite below it would only repeat it.
+        val showGuestInvite = uiState.isGuest && !uiState.sessionExpired
+        StatsPanel(uiState.stats, uiState.isGuest, showGuestInvite, uiState.isLoading, onLoginClicked = onLoginClicked)
+      }
+      LanguageSelector()
+      Button(onClick = onPlayClicked, modifier = Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.lobby_play_button))
+      }
+      InviteFriendsCard()
+      DeleteAccountSection(
+        isGuest = uiState.isGuest,
+        isDeleting = uiState.isDeletingAccount,
+        showError = uiState.deleteAccountError,
+        onConfirmed = viewModel::onDeleteAccountConfirmed,
+      )
+      AdPrivacyOptionsButton()
     }
-    TextButton(onClick = onHistoryClicked) { Text(stringResource(R.string.lobby_history_button)) }
-    if (uiState.loadError && uiState.profile == null) {
-      LoadErrorState(onRetry = viewModel::refresh)
-    } else {
-      // The notice above already offers "Entrar"; a second invite below it would only repeat it.
-      val showGuestInvite = uiState.isGuest && !uiState.sessionExpired
-      StatsPanel(uiState.stats, uiState.isGuest, showGuestInvite, uiState.isLoading, onLoginClicked = onLoginClicked)
-    }
-    LanguageSelector()
-    Button(onClick = onPlayClicked, modifier = Modifier.fillMaxWidth()) {
-      Text(stringResource(R.string.lobby_play_button))
-    }
-    InviteFriendsCard()
-    DeleteAccountSection(
-      isGuest = uiState.isGuest,
-      isDeleting = uiState.isDeletingAccount,
-      showError = uiState.deleteAccountError,
-      onConfirmed = viewModel::onDeleteAccountConfirmed,
-    )
+    // Outside the scrolling column, so it stays anchored at the bottom (ADR 0025).
+    AdBanner()
   }
 }
 

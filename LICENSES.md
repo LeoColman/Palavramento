@@ -8,6 +8,15 @@ ela pode conviver com a licença do projeto.
 Palavramento (app Android e servidor) é distribuído sob **AGPL-3.0-or-later**. Texto integral em
 [`LICENSE`](LICENSE).
 
+### Permissão adicional: SDKs de anúncio do Google (ADR 0025)
+
+O app Android usa o Google Mobile Ads SDK (`com.google.android.gms:play-services-ads`) e o User
+Messaging Platform (`com.google.android.ump:user-messaging-platform`), que são proprietários. Como
+permissão adicional nos termos da seção 7 da AGPLv3, o detentor dos direitos autorais do Palavramento
+permite combinar o programa com essas duas bibliotecas e distribuir o resultado. Os termos da AGPLv3
+continuam valendo para todo o resto, e o código-fonte correspondente não precisa incluir o dessas
+bibliotecas. Quem modificar o Palavramento pode remover esta permissão da sua versão.
+
 ## Léxico: Hunspell pt_BR (projeto VERO)
 
 | Item | Valor |

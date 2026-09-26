@@ -80,4 +80,18 @@ class DataStoreSettingsRepositoryTest : FunSpec({
       repository.musicEnabled.first() shouldBe true
     }
   }
+
+  test("the ads notice starts undismissed, and dismissing it sticks without touching the toggles") {
+    runTest {
+      val repository = DataStoreSettingsRepository(tempDataStore())
+      repository.adsNoticeDismissed.first() shouldBe false
+
+      repository.setAdsNoticeDismissed()
+
+      repository.adsNoticeDismissed.first() shouldBe true
+      repository.hapticsEnabled.first() shouldBe true
+      repository.musicEnabled.first() shouldBe true
+      repository.effectsEnabled.first() shouldBe true
+    }
+  }
 })

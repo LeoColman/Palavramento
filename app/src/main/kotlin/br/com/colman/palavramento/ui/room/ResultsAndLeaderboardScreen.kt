@@ -4,6 +4,7 @@
 package br.com.colman.palavramento.ui.room
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.clock.ServerClock
 import br.com.colman.palavramento.state.MatchUiState
+import br.com.colman.palavramento.ui.common.AdBanner
 import br.com.colman.palavramento.ui.common.FlipCountdown
 import br.com.colman.palavramento.ui.common.SmallDigitSize
 import br.com.colman.palavramento.ui.common.formatCountdown
@@ -93,16 +95,20 @@ fun ResultsAndLeaderboardScreen(postRound: MatchUiState.PostRound, clock: Server
       )
     }
 
-    when (selectedTab) {
-      PostRoundTab.Leaderboard -> postRound.leaderboard?.let { LeaderboardScreen(it) }
-      PostRoundTab.Results -> ResultsScreen(
-        board = postRound.board,
-        stats = postRound.stats,
-        maxScore = postRound.maxScore,
-        maxWords = postRound.maxWords,
-        words = postRound.words,
-      )
+    Box(Modifier.weight(1f)) {
+      when (selectedTab) {
+        PostRoundTab.Leaderboard -> postRound.leaderboard?.let { LeaderboardScreen(it) }
+        PostRoundTab.Results -> ResultsScreen(
+          board = postRound.board,
+          stats = postRound.stats,
+          maxScore = postRound.maxScore,
+          maxWords = postRound.maxWords,
+          words = postRound.words,
+        )
+      }
     }
+    // Below both tabs, never on the match screen (ADR 0025).
+    AdBanner()
   }
 }
 

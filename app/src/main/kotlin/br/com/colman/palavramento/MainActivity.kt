@@ -11,12 +11,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import br.com.colman.palavramento.ads.Ads
 import br.com.colman.palavramento.ui.navigation.PalavramentoNavHost
 import br.com.colman.palavramento.ui.theme.PalavramentoTheme
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+  private val ads: Ads by inject()
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // Consent first, SDK second (ADR 0025): the banners stay hidden until this says ads may load.
+    ads.start(this)
     setContent {
       PalavramentoTheme {
         Surface(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

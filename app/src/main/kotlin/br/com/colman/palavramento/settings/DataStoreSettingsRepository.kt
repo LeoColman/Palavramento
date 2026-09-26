@@ -16,12 +16,16 @@ class DataStoreSettingsRepository(private val dataStore: DataStore<Preferences>)
   override val hapticsEnabled: Flow<Boolean> = booleanPreference(HapticsEnabledKey)
   override val musicEnabled: Flow<Boolean> = booleanPreference(MusicEnabledKey)
   override val effectsEnabled: Flow<Boolean> = booleanPreference(EffectsEnabledKey)
+  override val adsNoticeDismissed: Flow<Boolean> =
+    dataStore.data.map { preferences -> preferences[AdsNoticeDismissedKey] ?: false }
 
   override suspend fun setHapticsEnabled(enabled: Boolean) = setPreference(HapticsEnabledKey, enabled)
 
   override suspend fun setMusicEnabled(enabled: Boolean) = setPreference(MusicEnabledKey, enabled)
 
   override suspend fun setEffectsEnabled(enabled: Boolean) = setPreference(EffectsEnabledKey, enabled)
+
+  override suspend fun setAdsNoticeDismissed() = setPreference(AdsNoticeDismissedKey, true)
 
   private fun booleanPreference(key: Preferences.Key<Boolean>): Flow<Boolean> =
     dataStore.data.map { preferences -> preferences[key] ?: DefaultEnabled }
@@ -34,6 +38,7 @@ class DataStoreSettingsRepository(private val dataStore: DataStore<Preferences>)
     val HapticsEnabledKey: Preferences.Key<Boolean> = booleanPreferencesKey("haptics_enabled")
     val MusicEnabledKey: Preferences.Key<Boolean> = booleanPreferencesKey("music_enabled")
     val EffectsEnabledKey: Preferences.Key<Boolean> = booleanPreferencesKey("effects_enabled")
+    val AdsNoticeDismissedKey: Preferences.Key<Boolean> = booleanPreferencesKey("ads_notice_dismissed")
     const val DefaultEnabled = true
   }
 }

@@ -30,6 +30,16 @@ val serverUrl: String = providers.gradleProperty("palavramento.serverUrl").orNul
  * of any CI job without the key, the release variant stays unsigned instead of failing the build, so
  * `check`, `assembleDebug` and the whole test suite keep working for everyone.
  */
+/**
+ * AdMob (ADR 0025). Debug builds always use Google's public test IDs, so nobody developing the app
+ * ever taps a real ad, which AdMob treats as invalid traffic. Release builds use the real IDs below:
+ * they are not secret, they ship inside every APK.
+ */
+val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
+val admobTestBannerUnitId = "ca-app-pub-3940256099942544/9214589741"
+val admobRealAppId: String? = null
+val admobRealBannerUnitId: String? = null
+
 val keystoreProperties: Properties? = rootProject.file("keystore.properties")
   .takeIf { it.exists() }
   ?.let { file -> Properties().apply { file.inputStream().use { load(it) } } }
@@ -50,6 +60,9 @@ android {
 
     // See serverUrl above. A production build will need its own HTTPS address.
     buildConfigField("String", "SERVER_URL", "\"$serverUrl\"")
+
+    manifestPlaceholders["admobAppId"] = admobTestAppId
+    buildConfigField("String", "ADMOB_BANNER_UNIT_ID", "\"$admobTestBannerUnitId\"")
   }
 
   signingConfigs {
@@ -69,6 +82,9 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       // Null without the revealed keystore: the APK is then built unsigned, exactly as before.
       signingConfig = signingConfigs.findByName("release")
+      // Test IDs until the real ones exist; verifyAdmobIds below stops a bundle from shipping them.
+      manifestPlaceholders["admobAppId"] = admobRealAppId ?: admobTestAppId
+      buildConfigField("String", "ADMOB_BANNER_UNIT_ID", "\"${admobRealBannerUnitId ?: admobTestBannerUnitId}\"")
     }
   }
 
@@ -137,6 +153,9 @@ dependencies {
 
   implementation(libs.datastore.preferences)
 
+  implementation(libs.play.services.ads)
+  implementation(libs.user.messaging.platform)
+
   implementation(libs.sqldelight.android.driver)
   implementation(libs.sqldelight.coroutines)
   testImplementation(libs.sqldelight.sqlite.driver)
@@ -168,6 +187,15 @@ detekt {
 tasks.named("check") {
   dependsOn("detekt")
 }
+
+// A release bundle carrying AdMob's test IDs would show "Test Ad" to every player and earn nothing.
+val verifyAdmobIds = tasks.register("verifyAdmobIds") {
+  val missing = admobRealAppId == null || admobRealBannerUnitId == null
+  doLast {
+    check(!missing) { "Real AdMob IDs are missing: set admobRealAppId and admobRealBannerUnitId (ADR 0025)" }
+  }
+}
+tasks.matching { it.name == "bundleRelease" }.configureEach { dependsOn(verifyAdmobIds) }
 
 // Local cache (dossier 7, ADR 0009): profile, lifetime stats and the last 50 rounds.
 sqldelight {
@@ -207,8 +235,9 @@ afterEvaluate {
  *   branches a JVM unit test cannot reach at all. What is testable about them (the gesture, the
  *   countdown, tile rendering) is covered by the instrumented specs in `src/androidTest`, which run
  *   on a device and are invisible to PIT.
- * - `MainActivity`, `PalavramentoApplication`, `AndroidGameAudio`, the SQLDelight Android driver
- *   wiring: Android framework entry points with no JVM-side behavior to assert.
+ * - `MainActivity`, `PalavramentoApplication`, `AndroidGameAudio`, `GmsAds` (AdMob and its consent
+ *   SDK), the SQLDelight Android driver wiring: Android framework entry points with no JVM-side
+ *   behavior to assert.
  * - `br.com.colman.palavramento.data` SQLDelight output (`Database*`, `*Queries*`, the three table
  *   row types): generated code, not ours to test. The hand written repositories in the same package
  *   stay in scope.
@@ -221,6 +250,7 @@ val excludedFromMutation = listOf(
   "br.com.colman.palavramento.MainActivity*",
   "br.com.colman.palavramento.PalavramentoApplication*",
   "br.com.colman.palavramento.audio.AndroidGameAudio*",
+  "br.com.colman.palavramento.ads.GmsAds*",
   "br.com.colman.palavramento.data.Database*",
   "br.com.colman.palavramento.data.Profile",
   "br.com.colman.palavramento.data.RoundHistory",

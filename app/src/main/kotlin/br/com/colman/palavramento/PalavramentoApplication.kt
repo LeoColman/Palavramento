@@ -4,6 +4,7 @@
 package br.com.colman.palavramento
 
 import android.app.Application
+import br.com.colman.palavramento.di.AdsModule
 import br.com.colman.palavramento.di.AppModule
 import br.com.colman.palavramento.di.AudioModule
 import br.com.colman.palavramento.di.PersistenceModule
@@ -16,7 +17,7 @@ class PalavramentoApplication : Application() {
     super.onCreate()
     startKoin {
       androidContext(this@PalavramentoApplication)
-      modules(AppModule, PersistenceModule, AudioModule, ViewModelModule)
+      modules(AppModule, PersistenceModule, AudioModule, AdsModule, ViewModelModule)
     }
   }
 }

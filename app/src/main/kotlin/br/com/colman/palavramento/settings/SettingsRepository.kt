@@ -23,9 +23,14 @@ interface SettingsRepository {
   /** Whether the accept/reject/already-found sound effects (audio task brief) play. Defaults to true. */
   val effectsEnabled: Flow<Boolean>
 
+  /** Whether the player dismissed the lobby's "the app now shows ads" notice (ADR 0025). Defaults to false. */
+  val adsNoticeDismissed: Flow<Boolean>
+
   suspend fun setHapticsEnabled(enabled: Boolean)
 
   suspend fun setMusicEnabled(enabled: Boolean)
 
   suspend fun setEffectsEnabled(enabled: Boolean)
+
+  suspend fun setAdsNoticeDismissed()
 }

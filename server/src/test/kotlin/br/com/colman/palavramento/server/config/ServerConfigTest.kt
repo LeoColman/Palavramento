@@ -39,6 +39,7 @@ class ServerConfigTest : FunSpec({
     config.generationCriteria shouldBe GenerationCriteria()
     config.leaderboardSize shouldBe 20
     config.lateJoinMinRemaining shouldBe 10.seconds
+    config.minimumPlayers shouldBe 5
   }
 
   test("Every variable is read from its own key") {
@@ -59,6 +60,7 @@ class ServerConfigTest : FunSpec({
       "COMMON_CUTOFF" to "7",
       "LEADERBOARD_SIZE" to "50",
       "LATE_JOIN_MIN_REMAINING_SECONDS" to "42",
+      "MINIMUM_PLAYERS" to "3",
     )
 
     val config = ServerConfig.fromEnv(env::get)
@@ -79,6 +81,7 @@ class ServerConfigTest : FunSpec({
     config.commonCutoff shouldBe 7
     config.leaderboardSize shouldBe 50
     config.lateJoinMinRemaining shouldBe 42.seconds
+    config.minimumPlayers shouldBe 3
   }
 
   test("A value that is not a number falls back to the default instead of failing startup") {

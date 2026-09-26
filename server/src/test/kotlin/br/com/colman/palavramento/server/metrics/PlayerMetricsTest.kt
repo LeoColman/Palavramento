@@ -4,6 +4,7 @@
 package br.com.colman.palavramento.server.metrics
 
 import br.com.colman.palavramento.server.repository.PlayerRepository
+import br.com.colman.palavramento.server.repository.RoundPlayerCounts
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.RoundResultRow
@@ -42,6 +43,9 @@ private suspend fun enterRound(database: Database, roomId: String, playerId: Str
 private fun PrometheusMeterRegistry.activePlayers(window: ActivityWindow): Double =
   get("palavramento.players.active").tag("window", window.label).gauge().value()
 
+private fun PrometheusMeterRegistry.roundPlayers(kind: String): Double =
+  get("palavramento.round.players").tag("kind", kind).gauge().value()
+
 private fun PrometheusMeterRegistry.playersOfKind(kind: String): Double =
   get("palavramento.players.accounts").tag("kind", kind).gauge().value()
 
@@ -62,6 +66,7 @@ class PlayerMetricsTest : FunSpec({
         connections,
         RoundResultRepository(database),
         PlayerRepository(database),
+        RoundRepository(database),
         MutableGameClock(Now),
         refreshInterval = 1.minutes,
       )
@@ -82,6 +87,7 @@ class PlayerMetricsTest : FunSpec({
         ConnectionRegistry(),
         RoundResultRepository(database),
         PlayerRepository(database),
+        RoundRepository(database),
         MutableGameClock(Now),
         refreshInterval = 1.minutes,
       )
@@ -110,6 +116,7 @@ class PlayerMetricsTest : FunSpec({
         ConnectionRegistry(),
         RoundResultRepository(database),
         PlayerRepository(database),
+        RoundRepository(database),
         MutableGameClock(Now),
         refreshInterval = 1.minutes,
       )
@@ -139,6 +146,7 @@ class PlayerMetricsTest : FunSpec({
         ConnectionRegistry(),
         RoundResultRepository(database),
         PlayerRepository(database),
+        RoundRepository(database),
         MutableGameClock(Now),
         refreshInterval = 1.minutes,
       )
@@ -151,6 +159,37 @@ class PlayerMetricsTest : FunSpec({
 
       registry.playersOfKind("guest") shouldBe guestsBefore + 1.0
       registry.playersOfKind("registered") shouldBe registeredBefore
+    }
+  }
+
+  test("the round gauges show the people and robots of the room's last counted round") {
+    runTest {
+      val registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+      val roomId = testRoomId()
+      val rounds = RoundRepository(database)
+      val metrics = PlayerMetrics(
+        registry,
+        ConnectionRegistry(),
+        RoundResultRepository(database),
+        PlayerRepository(database),
+        rounds,
+        MutableGameClock(Now),
+        refreshInterval = 1.minutes,
+        roomId = roomId,
+      )
+
+      metrics.refresh()
+      registry.roundPlayers("human") shouldBe 0.0
+      registry.roundPlayers("bot") shouldBe 0.0
+
+      val earlier = rounds.insertFakeFinishedRound(roomId, Now.minusSeconds(300))
+      val latest = rounds.insertFakeFinishedRound(roomId, Now.minusSeconds(150))
+      rounds.recordPlayerCounts(earlier, RoundPlayerCounts(humans = 4, bots = 1))
+      rounds.recordPlayerCounts(latest, RoundPlayerCounts(humans = 2, bots = 3))
+      metrics.refresh()
+
+      registry.roundPlayers("human") shouldBe 2.0
+      registry.roundPlayers("bot") shouldBe 3.0
     }
   }
 })

@@ -23,6 +23,7 @@ import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.PlayerStatsRepository
 import br.com.colman.palavramento.server.repository.PlayerStatsRow
 import br.com.colman.palavramento.server.repository.RefreshTokenRepository
+import br.com.colman.palavramento.server.repository.RoundPlayerCounts
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.RoundResultRow
@@ -432,6 +433,36 @@ class PlayerRoutesTest : FunSpec({
       history.first().roundId shouldBe round
       history.first().rank shouldBe 1
       history.first().totalPlayers shouldBe 1
+    }
+  }
+
+  test("the history counts the robots its leaderboard showed, once the round recorded them") {
+    val roomId = testRoomId()
+    testApplication {
+      application { module(testServerConfig(), database, TestLexicon.lexicon, roomId = roomId) }
+      val client = testHttpClient()
+      val guest: AuthTokens = client.post("/auth/guest") {
+        contentType(ContentType.Application.Json)
+        setBody(GuestAuthRequest("RobotRoomPlayer"))
+      }.body()
+
+      val roundRepository = RoundRepository(database)
+      val roundResultRepository = RoundResultRepository(database)
+      val round = roundRepository.insertFakeFinishedRound(roomId)
+      PlayerRepository(database).transaction {
+        roundResultRepository.insert(
+          this,
+          RoundResultRow(round, guest.playerId, score = 12, words = 1, rank = 2, xp = 2, enteredAt = Instant.now())
+        )
+      }
+      roundRepository.recordPlayerCounts(round, RoundPlayerCounts(humans = 1, bots = 4))
+
+      val history: List<RoundHistoryEntry> = client.get("/players/me/rounds") {
+        header(HttpHeaders.Authorization, "Bearer ${guest.accessToken}")
+      }.body()
+
+      history.single().rank shouldBe 2
+      history.single().totalPlayers shouldBe 5
     }
   }
 

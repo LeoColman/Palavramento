@@ -17,10 +17,10 @@ import java.util.UUID
  * need a valid `rounds.id` to attach `round_results`/`submissions` to (auth migration tests), not a
  * playable round.
  */
-suspend fun RoundRepository.insertFakeFinishedRound(roomId: String): String {
+suspend fun RoundRepository.insertFakeFinishedRound(roomId: String, startsAt: Instant = Instant.now()): String {
   val id = UUID.randomUUID().toString()
   val board = Board(4, List(16) { Tile("A", 1) })
-  val now = Instant.now()
+  val now = startsAt
   val record = RoundRecord(
     id = id,
     roomId = roomId,

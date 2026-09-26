@@ -24,6 +24,7 @@ mesmo `docker stack`.
 | `palavramento_players_connected` | gauge | jogadores com socket aberto agora |
 | `palavramento_players_active{window="24h","7d","30d"}` | gauge | jogadores distintos que entraram em rodada na janela |
 | `palavramento_players_accounts{kind="guest","registered"}` | gauge | contas que existem, por tipo |
+| `palavramento_round_players{kind="human","bot"}` | gauge | humanos e robôs no placar da última rodada (ADR 0024) |
 | `ktor_http_server_requests_seconds_*` | timer | requisições REST, por rota e status |
 | `jvm_*`, `process_*` | gauge | memória, threads e GC, de graça com o Micrometer |
 

@@ -4,8 +4,10 @@
 package br.com.colman.palavramento.server.metrics
 
 import br.com.colman.palavramento.server.repository.PlayerRepository
+import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.round.GameClock
+import br.com.colman.palavramento.server.round.GlobalRoomId
 import br.com.colman.palavramento.server.ws.ConnectionRegistry
 import io.micrometer.core.instrument.DistributionSummary
 import io.micrometer.core.instrument.Gauge
@@ -30,7 +32,8 @@ enum class ActivityWindow(val label: String, val span: Duration) {
 
 /**
  * Player-facing gauges for Prometheus (ADR 0019): who is connected right now, how many distinct
- * players entered a round inside each [ActivityWindow], and how many accounts exist.
+ * players entered a round inside each [ActivityWindow], how many accounts exist, and how many people
+ * and robots (ADR 0024) the last finished round had.
  *
  * Connections are counted straight from [ConnectionRegistry] whenever Prometheus scrapes, since that
  * is a number already in memory. The rest comes from the database, which a scrape must not query
@@ -38,13 +41,16 @@ enum class ActivityWindow(val label: String, val span: Duration) {
  * the monitoring the heaviest client the server has. [start] refreshes those into plain counters
  * every [refreshInterval] instead, so a scrape only ever reads memory.
  */
+@Suppress("LongParameterList") // each one a distinct source the gauges read from, wired by Koin; nothing to bundle.
 class PlayerMetrics(
   registry: MeterRegistry,
   private val connections: ConnectionRegistry,
   private val roundResults: RoundResultRepository,
   private val players: PlayerRepository,
+  private val rounds: RoundRepository,
   private val clock: GameClock,
   private val refreshInterval: Duration,
+  private val roomId: String = GlobalRoomId,
 ) {
 
   /**
@@ -64,6 +70,8 @@ class PlayerMetrics(
   private val activePlayers = ActivityWindow.entries.associateWith { AtomicLong() }
   private val guestPlayers = AtomicLong()
   private val registeredPlayers = AtomicLong()
+  private val roundHumans = AtomicLong()
+  private val roundBots = AtomicLong()
 
   init {
     Gauge.builder(ConnectedGauge) { connections.connectedPlayerCount().toDouble() }
@@ -79,6 +87,9 @@ class PlayerMetrics(
 
     registerTotal(registry, KindGuest, guestPlayers)
     registerTotal(registry, KindRegistered, registeredPlayers)
+
+    registerRoundPlayers(registry, KindHuman, roundHumans)
+    registerRoundPlayers(registry, KindBot, roundBots)
   }
 
   /** Records how far [clientTimestampMs] fell from this server's clock. See [clockSkew]. */
@@ -104,11 +115,23 @@ class PlayerMetrics(
     val byKind = players.countByKind()
     guestPlayers.set(byKind[true] ?: 0)
     registeredPlayers.set(byKind[false] ?: 0)
+    // No finished round yet keeps the last numbers read, which on a fresh server are zeros.
+    rounds.findLatestPlayerCounts(roomId)?.let { counts ->
+      roundHumans.set(counts.humans.toLong())
+      roundBots.set(counts.bots.toLong())
+    }
   }
 
   private fun registerTotal(registry: MeterRegistry, kind: String, value: AtomicLong) {
     Gauge.builder(TotalGauge) { value.get().toDouble() }
       .description("Player accounts on this server")
+      .tag(KindTag, kind)
+      .register(registry)
+  }
+
+  private fun registerRoundPlayers(registry: MeterRegistry, kind: String, value: AtomicLong) {
+    Gauge.builder(RoundPlayersGauge) { value.get().toDouble() }
+      .description("Players in the last finished round's leaderboard, people and robots apart")
       .tag(KindTag, kind)
       .register(registry)
   }
@@ -126,5 +149,8 @@ class PlayerMetrics(
     const val KindTag = "kind"
     const val KindGuest = "guest"
     const val KindRegistered = "registered"
+    const val RoundPlayersGauge = "palavramento.round.players"
+    const val KindHuman = "human"
+    const val KindBot = "bot"
   }
 }

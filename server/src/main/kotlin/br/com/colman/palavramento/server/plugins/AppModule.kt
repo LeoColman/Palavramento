@@ -70,5 +70,16 @@ fun appModule(
   // One registry for the whole process (ADR 0019): Ktor's HTTP metrics and PlayerMetrics' gauges
   // are scraped from the same /metrics answer.
   single { PrometheusMeterRegistry(PrometheusConfig.DEFAULT) }
-  single { PlayerMetrics(get<PrometheusMeterRegistry>(), get(), get(), get(), get(), config.metricsRefreshInterval) }
+  single {
+    PlayerMetrics(
+      registry = get<PrometheusMeterRegistry>(),
+      connections = get(),
+      roundResults = get(),
+      players = get(),
+      rounds = get(),
+      clock = get(),
+      refreshInterval = config.metricsRefreshInterval,
+      roomId = roomId,
+    )
+  }
 }

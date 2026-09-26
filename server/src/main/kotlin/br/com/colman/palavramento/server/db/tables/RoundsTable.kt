@@ -25,6 +25,8 @@ object RoundsTable : Table("rounds") {
   val startsAt = timestampWithTimeZone("starts_at")
   val endsAt = timestampWithTimeZone("ends_at")
   val status = text("status")
+  val humanPlayers = integer("human_players").nullable()
+  val botPlayers = integer("bot_players").nullable()
 
   override val primaryKey = PrimaryKey(id)
 }

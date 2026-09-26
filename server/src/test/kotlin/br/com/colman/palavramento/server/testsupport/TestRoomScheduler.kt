@@ -34,6 +34,7 @@ fun buildTestScheduler(
   lexicon: Lexicon = TestLexicon.lexicon,
   seedSource: () -> Long = { Random.nextLong() },
   failureBackoff: Duration = 5.seconds,
+  botRandom: Random = Random.Default,
 ): RoomScheduler {
   val roundRepository = RoundRepository(database)
   val submissionRepository = SubmissionRepository(database)
@@ -53,5 +54,6 @@ fun buildTestScheduler(
     connectionRegistry = ConnectionRegistry(),
     roomId = roomId,
     failureBackoff = failureBackoff,
+    botRandom = botRandom,
   )
 }

@@ -237,6 +237,8 @@ Aba 1, com contador "Próxima partida em MM:SS" no topo:
 - Faixa fixa com a posição do próprio jogador: rank, nome, pontuação, palavras, percentil.
 - Percentil = `(N − rank) / (N − 1) × 100`, arredondado para baixo; `0%` quando `N = 1`.
 - Tabela "Jogadores Top" com rank, nome, pontuação, palavras; a linha do próprio jogador destacada.
+- Com menos de 5 pessoas na rodada, robôs de pontuação baixa completam o placar até 5 e contam em `N`
+  e no rank (ADR 0024).
 
 ### 6.5 Estilo
 Paleta escura, azul para a partida e vinho para os resultados, tiles laranja — ver capturas de referência. Suporte a tema claro **fora do escopo**. Textos 100% em pt-BR, em `strings.xml`, sem strings literais na UI.

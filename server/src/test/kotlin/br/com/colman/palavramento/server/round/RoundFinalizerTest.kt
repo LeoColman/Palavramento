@@ -3,6 +3,9 @@
 
 package br.com.colman.palavramento.server.round
 
+import br.com.colman.palavramento.domain.bot.BotPlayer
+import br.com.colman.palavramento.domain.solver.SolvedWord
+import br.com.colman.palavramento.domain.solver.WordTier
 import br.com.colman.palavramento.server.repository.PasswordAuthProvider
 import br.com.colman.palavramento.server.repository.PlayerRepository
 import br.com.colman.palavramento.server.repository.PlayerRow
@@ -238,5 +241,86 @@ class RoundFinalizerTest : FunSpec({
     result.outcomes shouldBe emptyList()
     result.totalPlayers shouldBe 0
     roundResultRepository.findByRound(roundId) shouldBe emptyList()
+  }
+
+  test("robots are ranked with the people, count in the total, and are never written anywhere") {
+    val roomId = testRoomId()
+    val playerRepository = PlayerRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val playerStatsRepository = PlayerStatsRepository(database)
+    val finalizer = RoundFinalizer(playerRepository, roundResultRepository, playerStatsRepository)
+
+    val person = playerRepository.insertGuest()
+    val roundId = roundRepository.insertFakeFinishedRound(roomId)
+    val roundStartsAt = Instant.parse("2026-01-01T00:00:00Z")
+    val word = FoundWord("casa", "casa", 10, listOf(0, 1, 2, 3), roundStartsAt.plusSeconds(5))
+    val strongBot = BotPlayer("bot-1", "Bia", listOf(SolvedWord("SOLAR", "solar", listOf(0), 15, WordTier.Common)))
+    val weakBot = BotPlayer("bot-2", "Convidado 0A1B", listOf(SolvedWord("SOL", "sol", listOf(0), 3, WordTier.Common)))
+    var askedFor = -1
+
+    val result = finalizer.finalize(
+      roundId = roundId,
+      perPlayerFound = mapOf(person.id to listOf(word)),
+      perPlayerEnteredAt = mapOf(person.id to roundStartsAt),
+    ) { humans ->
+      askedFor = humans
+      listOf(strongBot, weakBot)
+    }
+
+    askedFor shouldBe 1
+    result.humans shouldBe 1
+    result.bots shouldBe 2
+    result.totalPlayers shouldBe 3
+    result.leaderboard.map { it.entry.name } shouldBe listOf("Bia", person.displayName, "Convidado 0A1B")
+    result.leaderboard.map { it.entry.score } shouldBe listOf(15, 10, 3)
+    result.leaderboard.map { it.entry.words } shouldBe listOf(1, 1, 1)
+    result.outcomes.single().playerId shouldBe person.id
+    result.outcomes.single().rank shouldBe 2
+    roundResultRepository.findByRound(roundId).single().rank shouldBe 2
+    roundResultRepository.findByRound(roundId).map { it.playerId } shouldBe listOf(person.id)
+  }
+
+  test("robots are asked for once the deleted accounts are gone, so they fill the room to the right size") {
+    val roomId = testRoomId()
+    val playerRepository = PlayerRepository(database)
+    val roundRepository = RoundRepository(database)
+    val roundResultRepository = RoundResultRepository(database)
+    val playerStatsRepository = PlayerStatsRepository(database)
+    val finalizer = RoundFinalizer(playerRepository, roundResultRepository, playerStatsRepository)
+
+    val stayed = playerRepository.insertGuest()
+    val deleted = playerRepository.insertGuest()
+    val roundId = roundRepository.insertFakeFinishedRound(roomId)
+    val roundStartsAt = Instant.parse("2026-01-01T00:00:00Z")
+    playerRepository.delete(deleted.id)
+    var askedFor = -1
+
+    finalizer.finalize(
+      roundId = roundId,
+      perPlayerFound = mapOf(stayed.id to emptyList(), deleted.id to emptyList()),
+      perPlayerEnteredAt = mapOf(stayed.id to roundStartsAt, deleted.id to roundStartsAt),
+    ) { humans ->
+      askedFor = humans
+      emptyList()
+    }
+
+    askedFor shouldBe 1
+  }
+
+  test("a round nobody finished asks for no robots at all") {
+    val playerRepository = PlayerRepository(database)
+    val finalizer = RoundFinalizer(playerRepository, RoundResultRepository(database), PlayerStatsRepository(database))
+    var asked = false
+
+    val result = finalizer.finalize("no-round", emptyMap(), emptyMap()) {
+      asked = true
+      emptyList()
+    }
+
+    asked shouldBe false
+    result shouldBe FinalizeResult.Empty
+    result.leaderboard shouldBe emptyList()
+    result.bots shouldBe 0
   }
 })

@@ -18,10 +18,12 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.suspendTransaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -29,6 +31,11 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import kotlin.math.sqrt
+
+/** How many people and how many robots took part in a finished round (ADR 0024). */
+data class RoundPlayerCounts(val humans: Int, val bots: Int) {
+  val total: Int get() = humans + bots
+}
 
 /** Persists and reloads rounds and their pre-computed solutions (`rounds`/`round_words`, dossier §7). */
 class RoundRepository(private val database: Database) {
@@ -64,6 +71,33 @@ class RoundRepository(private val database: Database) {
   suspend fun updateStatus(roundId: String, status: String) = suspendTransaction(database) {
     RoundsTable.update({ RoundsTable.id eq roundId }) { it[RoundsTable.status] = status }
     Unit
+  }
+
+  /** Records who took part in finished round [roundId], people and robots apart (ADR 0024). */
+  suspend fun recordPlayerCounts(roundId: String, counts: RoundPlayerCounts) = suspendTransaction(database) {
+    RoundsTable.update({ RoundsTable.id eq roundId }) {
+      it[humanPlayers] = counts.humans
+      it[botPlayers] = counts.bots
+    }
+    Unit
+  }
+
+  /** What [recordPlayerCounts] wrote for [roundId], or null for a round finished before it existed. */
+  suspend fun findPlayerCounts(roundId: String): RoundPlayerCounts? = suspendTransaction(database) {
+    RoundsTable.select(RoundsTable.humanPlayers, RoundsTable.botPlayers)
+      .where { RoundsTable.id eq roundId }
+      .singleOrNull()
+      ?.toPlayerCounts()
+  }
+
+  /** The counts of [roomId]'s most recently started round that has them: the metrics' "now". */
+  suspend fun findLatestPlayerCounts(roomId: String): RoundPlayerCounts? = suspendTransaction(database) {
+    RoundsTable.select(RoundsTable.humanPlayers, RoundsTable.botPlayers)
+      .where { (RoundsTable.roomId eq roomId) and RoundsTable.humanPlayers.isNotNull() }
+      .orderBy(RoundsTable.startsAt, SortOrder.DESC)
+      .limit(1)
+      .singleOrNull()
+      ?.toPlayerCounts()
   }
 
   suspend fun findById(roundId: String): RoundRecord? = suspendTransaction(database) {
@@ -104,6 +138,11 @@ class RoundRepository(private val database: Database) {
         tier = WordTier.valueOf(row[RoundWordsTable.tier]),
       )
     }
+  }
+
+  private fun ResultRow.toPlayerCounts(): RoundPlayerCounts? {
+    val humans = this[RoundsTable.humanPlayers] ?: return null
+    return RoundPlayerCounts(humans, this[RoundsTable.botPlayers] ?: 0)
   }
 
   private fun ResultRow.toRoundRecord(): RoundRecord {

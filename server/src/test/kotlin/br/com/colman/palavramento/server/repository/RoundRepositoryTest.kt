@@ -215,4 +215,53 @@ class RoundRepositoryTest : FunSpec({
 
     repository.findPending(roomA, limit = 10).map { it.id } shouldContainExactly listOf(roundA.id)
   }
+
+  test("player counts round-trip, and a round finished before V5 has none") {
+    val repository = RoundRepository(database)
+    val roomId = testRoomId()
+    val counted = fixtureRecord(roomId, status = RoundStatus.Finished)
+    val older = fixtureRecord(roomId, status = RoundStatus.Finished)
+    repository.insert(counted, emptyList())
+    repository.insert(older, emptyList())
+
+    repository.recordPlayerCounts(counted.id, RoundPlayerCounts(humans = 2, bots = 3))
+
+    val counts = repository.findPlayerCounts(counted.id).shouldNotBeNull()
+    counts.humans shouldBe 2
+    counts.bots shouldBe 3
+    counts.total shouldBe 5
+    repository.findPlayerCounts(older.id).shouldBeNull()
+    repository.findPlayerCounts("no-such-round").shouldBeNull()
+  }
+
+  test("the latest counts are the latest-starting round's that has them, in that room only") {
+    val repository = RoundRepository(database)
+    val roomId = testRoomId()
+    val otherRoom = testRoomId()
+    val base = Instant.parse("2026-04-01T00:00:00Z")
+    val earlier = fixtureRecord(roomId, startsAt = base, status = RoundStatus.Finished)
+    val later = fixtureRecord(roomId, startsAt = base.plusSeconds(300), status = RoundStatus.Finished)
+    val uncounted = fixtureRecord(roomId, startsAt = base.plusSeconds(600))
+    val elsewhere = fixtureRecord(otherRoom, startsAt = base.plusSeconds(900), status = RoundStatus.Finished)
+    listOf(later, earlier, uncounted, elsewhere).forEach { repository.insert(it, emptyList()) }
+
+    repository.findLatestPlayerCounts(roomId).shouldBeNull()
+
+    repository.recordPlayerCounts(later.id, RoundPlayerCounts(humans = 3, bots = 2))
+    repository.recordPlayerCounts(earlier.id, RoundPlayerCounts(humans = 1, bots = 4))
+    repository.recordPlayerCounts(elsewhere.id, RoundPlayerCounts(humans = 9, bots = 0))
+
+    repository.findLatestPlayerCounts(roomId) shouldBe RoundPlayerCounts(humans = 3, bots = 2)
+  }
+
+  test("recording counts leaves the rest of the round alone") {
+    val repository = RoundRepository(database)
+    val roomId = testRoomId()
+    val round = fixtureRecord(roomId, status = RoundStatus.Finished)
+    repository.insert(round, emptyList())
+
+    repository.recordPlayerCounts(round.id, RoundPlayerCounts(humans = 1, bots = 4))
+
+    repository.findById(round.id) shouldBe round
+  }
 })

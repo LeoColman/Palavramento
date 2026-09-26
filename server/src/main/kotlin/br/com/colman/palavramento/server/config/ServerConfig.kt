@@ -3,6 +3,7 @@
 
 package br.com.colman.palavramento.server.config
 
+import br.com.colman.palavramento.domain.bot.BotFiller
 import br.com.colman.palavramento.domain.generator.GenerationCriteria
 import br.com.colman.palavramento.domain.solver.Solver
 import kotlin.time.Duration
@@ -49,6 +50,8 @@ data class ServerConfig(
   // Metrics (ADR 0019). Null token leaves /metrics off: nothing to scrape, nothing to guess.
   val metricsToken: String? = null,
   val metricsRefreshInterval: Duration = DefaultMetricsRefreshSeconds.seconds,
+  // Robots fill each round's leaderboard up to this many players (ADR 0024). 0 turns them off.
+  val minimumPlayers: Int = BotFiller.DefaultMinimumPlayers,
 ) {
   companion object {
     private const val DefaultPort = 8080
@@ -80,6 +83,7 @@ data class ServerConfig(
         lateJoinMinRemaining = envSeconds(env, "LATE_JOIN_MIN_REMAINING_SECONDS", defaults.lateJoinMinRemaining),
         metricsToken = env("METRICS_TOKEN")?.takeIf { it.isNotBlank() },
         metricsRefreshInterval = envSeconds(env, "METRICS_REFRESH_SECONDS", defaults.metricsRefreshInterval),
+        minimumPlayers = envInt(env, "MINIMUM_PLAYERS", defaults.minimumPlayers),
       )
     }
 

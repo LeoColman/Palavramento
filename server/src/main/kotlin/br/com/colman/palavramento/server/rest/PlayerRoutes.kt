@@ -131,7 +131,10 @@ private suspend fun buildHistoryEntry(
     maxWords = record.maxWords,
     stats = stats,
     rank = result.rank,
-    totalPlayers = roundResultRepository.countPlayers(result.roundId),
+    // Robots included (ADR 0024), the same count the leaderboard showed; rounds older than V5 have
+    // none recorded, and back then round_results was the whole room.
+    totalPlayers = roundRepository.findPlayerCounts(result.roundId)?.total
+      ?: roundResultRepository.countPlayers(result.roundId),
     words = words,
   )
 }

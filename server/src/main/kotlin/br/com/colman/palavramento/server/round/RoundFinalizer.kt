@@ -3,8 +3,10 @@
 
 package br.com.colman.palavramento.server.round
 
+import br.com.colman.palavramento.domain.bot.BotPlayer
 import br.com.colman.palavramento.domain.stats.AcceptedWord
 import br.com.colman.palavramento.domain.stats.LeaderboardEntry
+import br.com.colman.palavramento.domain.stats.RankedEntry
 import br.com.colman.palavramento.domain.stats.Ranking
 import br.com.colman.palavramento.domain.stats.RoundStats
 import br.com.colman.palavramento.domain.stats.RoundStatsCalculator
@@ -26,12 +28,30 @@ data class PlayerRoundOutcome(
   val bestWord: FoundWord?,
 )
 
-data class FinalizeResult(val outcomes: List<PlayerRoundOutcome>, val totalPlayers: Int)
+/**
+ * A finished round: [outcomes] for the people who played it, [leaderboard] for everyone it ranks,
+ * robots included (ADR 0024), and [bots] for how many of those are robots.
+ */
+data class FinalizeResult(
+  val outcomes: List<PlayerRoundOutcome>,
+  val leaderboard: List<RankedEntry>,
+  val bots: Int,
+) {
+  val humans: Int get() = outcomes.size
+  val totalPlayers: Int get() = leaderboard.size
+
+  companion object {
+    val Empty = FinalizeResult(emptyList(), emptyList(), 0)
+  }
+}
 
 /**
  * Turns one finished round's in-memory found-word state into persisted results (dossier §7): ranks
  * every participant, computes [RoundStats] and XP, then writes `round_results` and updates
  * `player_stats` for registered players in a single transaction, exactly like the dossier requires.
+ *
+ * Robots (ADR 0024) are ranked alongside the people, so a person's rank, percentile and history all
+ * count them, but nothing about a robot is written: it has no player row and no stats to keep.
  */
 class RoundFinalizer(
   private val playerRepository: PlayerRepository,
@@ -44,8 +64,11 @@ class RoundFinalizer(
     roundId: String,
     perPlayerFound: Map<String, List<FoundWord>>,
     perPlayerEnteredAt: Map<String, Instant>,
+    // How many people ended up taking part in, what robots join them. Asked only once the people
+    // are known, after dropping deleted accounts, so the room is filled to the right size.
+    bots: (humans: Int) -> List<BotPlayer> = { emptyList() },
   ): FinalizeResult {
-    if (perPlayerFound.isEmpty()) return FinalizeResult(emptyList(), 0)
+    if (perPlayerFound.isEmpty()) return FinalizeResult.Empty
 
     val players = playerRepository.findByIds(perPlayerFound.keys)
     // A player who deleted their account while the round was running (ADR 0020) is already gone
@@ -55,9 +78,9 @@ class RoundFinalizer(
     // have no business in anyone's leaderboard either, so they leave the round altogether.
     val participants = perPlayerFound.filterKeys { it in players }
     return if (participants.isEmpty()) {
-      FinalizeResult(emptyList(), 0)
+      FinalizeResult.Empty
     } else {
-      persist(roundId, participants, perPlayerEnteredAt, players)
+      persist(roundId, participants, perPlayerEnteredAt, players, bots(participants.size))
     }
   }
 
@@ -66,13 +89,15 @@ class RoundFinalizer(
     participants: Map<String, List<FoundWord>>,
     perPlayerEnteredAt: Map<String, Instant>,
     players: Map<String, PlayerRow>,
+    bots: List<BotPlayer>,
   ): FinalizeResult {
     val entries = participants.map { (playerId, words) ->
       LeaderboardEntry(playerId, players.getValue(playerId).displayName, words.sumOf { it.score }, words.size)
     }
-    val ranked = Ranking.rank(entries)
+    val botEntries = bots.map { LeaderboardEntry(it.id, it.name, it.score, it.words.size) }
+    val ranked = Ranking.rank(entries + botEntries)
 
-    val outcomes = ranked.map { rankedEntry ->
+    val outcomes = ranked.filter { it.entry.playerId in participants }.map { rankedEntry ->
       val playerId = rankedEntry.entry.playerId
       val words = participants.getValue(playerId)
       val accepted = words.map { AcceptedWord(it.score, it.normalized.length, it.acceptedAt.toEpochMilli()) }
@@ -116,6 +141,6 @@ class RoundFinalizer(
       }
     }
 
-    return FinalizeResult(outcomes, outcomes.size)
+    return FinalizeResult(outcomes, ranked, bots.size)
   }
 }

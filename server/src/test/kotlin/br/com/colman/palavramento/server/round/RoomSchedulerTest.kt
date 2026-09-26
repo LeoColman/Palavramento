@@ -3,9 +3,11 @@
 
 package br.com.colman.palavramento.server.round
 
+import br.com.colman.palavramento.domain.protocol.PalavramentoJson
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.server.repository.PlayerRepository
+import br.com.colman.palavramento.server.repository.RoundPlayerCounts
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.RoundResultRepository
 import br.com.colman.palavramento.server.repository.SubmissionRepository
@@ -15,6 +17,8 @@ import br.com.colman.palavramento.server.testsupport.insertGuest
 import br.com.colman.palavramento.server.testsupport.testDatabase
 import br.com.colman.palavramento.server.testsupport.testRoomId
 import br.com.colman.palavramento.server.testsupport.testServerConfig
+import br.com.colman.palavramento.server.ws.Connection
+import br.com.colman.palavramento.server.ws.FakeWebSocketServerSession
 import io.kotest.assertions.nondeterministic.eventually
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -22,12 +26,16 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
+import io.ktor.websocket.Frame
+import io.ktor.websocket.readText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import kotlinx.serialization.decodeFromString
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
@@ -351,6 +359,62 @@ class RoomSchedulerTest : FunSpec({
     val results = RoundResultRepository(database).findByRound(generated.record.id)
     results shouldHaveSize 1
     results.first().playerId shouldBe player.id
+  }
+
+  test("a player alone gets a leaderboard of five, filled with robots, and the round records both counts") {
+    val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, minimumPlayers = 5)
+    val roomId = testRoomId()
+    val scheduler = buildTestScheduler(database, clock, config, roomId, botRandom = Random(11))
+    val player = PlayerRepository(database).insertGuest()
+    val session = FakeWebSocketServerSession()
+    scheduler.connectionRegistry.register(player.id, Connection(session))
+
+    val generated = RoundGenerationService(TestLexicon.lexicon, config, RoundRepository(database))
+      .generateAndPersist(roomId, clock.now(), RoundTiming.endsAt(clock.now(), config.roundDuration))
+    val state = scheduler.activateForTesting(generated)
+    val best = generated.solution.maxBy { it.score }
+    scheduler.submitWord(player.id, generated.record.id, best.path)
+
+    scheduler.finishForTesting(state)
+
+    val messages = generateSequence { session.sent.tryReceive().getOrNull() }
+      .map { PalavramentoJson.decodeFromString<ServerMessage>((it as Frame.Text).readText()) }
+      .toList()
+    val leaderboard = messages.filterIsInstance<ServerMessage.Leaderboard>().single()
+    leaderboard.totalPlayers shouldBe 5
+    leaderboard.players shouldHaveSize 5
+    leaderboard.players.map { it.rank } shouldBe listOf(1, 2, 3, 4, 5)
+    leaderboard.players.count { it.name == player.displayName } shouldBe 1
+    leaderboard.self.name shouldBe player.displayName
+    leaderboard.self.score shouldBe best.score
+    leaderboard.players.filter { it.name != player.displayName }.forEach { it.words shouldBeGreaterThan 0 }
+
+    // Only the person is persisted; the robots live in the counts alone.
+    RoundResultRepository(database).findByRound(generated.record.id).map { it.playerId } shouldBe listOf(player.id)
+    RoundRepository(database).findPlayerCounts(generated.record.id) shouldBe RoundPlayerCounts(1, 4)
+  }
+
+  test("with robots off, a player alone is alone in the leaderboard") {
+    val clock = MutableGameClock(Instant.parse("2026-01-01T00:00:00Z"))
+    val config = testServerConfig(roundDuration = 1.minutes, intermissionDuration = 1.minutes, minimumPlayers = 0)
+    val roomId = testRoomId()
+    val scheduler = buildTestScheduler(database, clock, config, roomId)
+    val player = PlayerRepository(database).insertGuest()
+    val session = FakeWebSocketServerSession()
+    scheduler.connectionRegistry.register(player.id, Connection(session))
+
+    val generated = RoundGenerationService(TestLexicon.lexicon, config, RoundRepository(database))
+      .generateAndPersist(roomId, clock.now(), RoundTiming.endsAt(clock.now(), config.roundDuration))
+    val state = scheduler.activateForTesting(generated)
+
+    scheduler.finishForTesting(state)
+
+    val messages = generateSequence { session.sent.tryReceive().getOrNull() }
+      .map { PalavramentoJson.decodeFromString<ServerMessage>((it as Frame.Text).readText()) }
+      .toList()
+    messages.filterIsInstance<ServerMessage.Leaderboard>().single().totalPlayers shouldBe 1
+    RoundRepository(database).findPlayerCounts(generated.record.id) shouldBe RoundPlayerCounts(1, 0)
   }
 
   test("restart recovery: activating an already-active round restores participants and found words") {

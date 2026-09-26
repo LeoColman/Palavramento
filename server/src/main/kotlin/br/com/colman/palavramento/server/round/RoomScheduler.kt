@@ -3,6 +3,7 @@
 
 package br.com.colman.palavramento.server.round
 
+import br.com.colman.palavramento.domain.bot.BotFiller
 import br.com.colman.palavramento.domain.lexicon.Lexicon
 import br.com.colman.palavramento.domain.protocol.LabelledWord
 import br.com.colman.palavramento.domain.protocol.LeaderboardRow
@@ -12,6 +13,7 @@ import br.com.colman.palavramento.domain.solver.SolvedWord
 import br.com.colman.palavramento.domain.stats.Percentile
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.server.config.ServerConfig
+import br.com.colman.palavramento.server.repository.RoundPlayerCounts
 import br.com.colman.palavramento.server.repository.RoundRepository
 import br.com.colman.palavramento.server.repository.SubmissionRepository
 import br.com.colman.palavramento.server.ws.ConnectionRegistry
@@ -25,6 +27,7 @@ import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 import br.com.colman.palavramento.domain.protocol.FoundWord as WireFoundWord
 
@@ -63,6 +66,8 @@ class RoomScheduler(
   private val roomId: String = GlobalRoomId,
   // Injectable so a test can prove the loop survives a failed cycle without waiting out the real one.
   private val failureBackoff: kotlin.time.Duration = DefaultFailureBackoff,
+  // Injectable so a test can pin down which robots fill the room (ADR 0024).
+  private val botRandom: Random = Random.Default,
 ) {
   @Volatile
   private var currentRoundState: RoundState? = null
@@ -246,11 +251,13 @@ class RoomScheduler(
 
     val perPlayerFound = participantIds.associateWith { playerId -> state.playerState(playerId).snapshot().found }
     val perPlayerEnteredAt = participantIds.associateWith { state.entryTimeOf(it) ?: record.startsAt }
-    val result = roundFinalizer.finalize(record.id, perPlayerFound, perPlayerEnteredAt)
-    val leaderboardRows = result.outcomes
-      .sortedBy { it.rank }
+    val result = roundFinalizer.finalize(record.id, perPlayerFound, perPlayerEnteredAt) { humans ->
+      BotFiller.fill(humans, state.generated.solution, botRandom, config.minimumPlayers)
+    }
+    if (result.humans > 0) roundRepository.recordPlayerCounts(record.id, RoundPlayerCounts(result.humans, result.bots))
+    val leaderboardRows = result.leaderboard
       .take(config.leaderboardSize)
-      .map { LeaderboardRow(it.rank, it.displayName, it.stats.points, it.stats.words) }
+      .map { LeaderboardRow(it.rank, it.entry.name, it.entry.score, it.entry.words) }
 
     result.outcomes.forEach { outcome ->
       val foundSet = perPlayerFound.getValue(outcome.playerId).map { it.normalized }.toSet()

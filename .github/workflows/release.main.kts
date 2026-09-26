@@ -6,10 +6,12 @@
 @file:DependsOn("actions:checkout:v4")
 @file:DependsOn("actions:setup-java:v5")
 @file:DependsOn("gradle:actions__setup-gradle:v4")
+@file:DependsOn("ruby:setup-ruby:v1")
 
 import io.github.typesafegithub.workflows.actions.actions.Checkout
 import io.github.typesafegithub.workflows.actions.actions.SetupJava
 import io.github.typesafegithub.workflows.actions.gradle.ActionsSetupGradle
+import io.github.typesafegithub.workflows.actions.ruby.SetupRuby
 import io.github.typesafegithub.workflows.domain.RunnerType
 import io.github.typesafegithub.workflows.domain.triggers.Push
 import io.github.typesafegithub.workflows.domain.triggers.WorkflowDispatch
@@ -38,7 +40,9 @@ workflow(
     uses(name = "Setup JDK", action = SetupJava(javaVersion = "21", distribution = SetupJava.Distribution.Temurin))
     uses(name = "Setup Gradle", action = ActionsSetupGradle())
 
-    // Ruby ships with the runner image; fastlane is pinned rather than resolved fresh.
+    // A Ruby of its own: the runner's system Ruby keeps its gems under /var/lib/gems, which the job
+    // cannot write, and the first release failed right there. fastlane is pinned, not resolved fresh.
+    uses(name = "Setup Ruby", action = SetupRuby(rubyVersion = "3.3"))
     run(name = "Install fastlane", command = "gem install fastlane -v $FastlaneVersion --no-document")
 
     // The upload key, and only the upload key. The GPG key that opens everything else git-secret

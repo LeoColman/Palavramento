@@ -61,9 +61,14 @@ jobs:
       name: 'Setup Gradle'
       uses: 'gradle/actions/setup-gradle@v4'
     - id: 'step-3'
+      name: 'Setup Ruby'
+      uses: 'ruby/setup-ruby@v1'
+      with:
+        ruby-version: '3.3'
+    - id: 'step-4'
       name: 'Install fastlane'
       run: 'gem install fastlane -v 2.240.1 --no-document'
-    - id: 'step-4'
+    - id: 'step-5'
       name: 'Write the signing key'
       env:
         RELEASE_KEYSTORE_BASE64: '${{ secrets.RELEASE_KEYSTORE_BASE64 }}'
@@ -76,12 +81,12 @@ jobs:
         PROPERTIES
         printf 'storePassword=%s\nkeyPassword=%s\n' \
           "$RELEASE_KEYSTORE_PASSWORD" "$RELEASE_KEYSTORE_PASSWORD" >> keystore.properties
-    - id: 'step-5'
+    - id: 'step-6'
       name: 'Write the Play service account'
       env:
         PLAY_SERVICE_ACCOUNT_JSON: '${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}'
       run: 'printf ''%s'' "$PLAY_SERVICE_ACCOUNT_JSON" > fastlane/play-service-account.json'
-    - id: 'step-6'
+    - id: 'step-7'
       name: 'Publish'
       env:
         SUPPLY_JSON_KEY: 'fastlane/play-service-account.json'

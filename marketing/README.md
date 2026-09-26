@@ -22,13 +22,14 @@ módulos.
 Pronto: os textos, as sete imagens, os três cortes de vídeo, o ícone e a imagem de destaque da
 loja, e as seis capturas de tela.
 
+O app está publicado na Google Play desde 2026-09-25
+(`br.com.colman.palavramento`), que era o que impedia criar a campanha.
+
 Falta, e nada disso dá para fazer do repositório:
 
-1. **Publicar o app na Google Play.** Campanha de App exige um app na Play Console; não existe
-   forma de anunciar um APK avulso. A ficha está escrita em [`play-store.md`](play-store.md).
-2. **Vincular a conta do Google Ads à Play Console**, senão a campanha não recebe a conversão de
+1. **Vincular a conta do Google Ads à Play Console**, senão a campanha não recebe a conversão de
    instalação e otimiza no escuro.
-3. **Subir os três vídeos ao YouTube** (não listado serve) e colar as URLs na campanha.
+2. **Subir os três vídeos ao YouTube** (não listado serve) e colar as URLs na campanha.
 
 ## Regerar
 

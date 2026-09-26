@@ -7,8 +7,8 @@ conferidor está em [`src/check-copy.js`](src/check-copy.js).
 ## Antes de criar a campanha
 
 1. **A campanha de App exige o app publicado no Google Play.** Ela não aceita APK avulso nem link
-   para site: você escolhe um app da Play Console e é isso. Enquanto o Palavramento não tiver ficha
-   publicada, não há campanha para criar. A ficha está escrita em [`play-store.md`](play-store.md).
+   para site: você escolhe um app da Play Console e é isso. O Palavramento está publicado desde
+   2026-09-25; a ficha está em [`play-store.md`](play-store.md).
 2. **A campanha de App não aceita palavra-chave.** A segmentação é automática e o Google decide onde
    exibir lendo a ficha da Play Store. Ou seja: o trabalho de palavra-chave acontece no título, na
    descrição curta e na descrição completa da ficha, não aqui. A lista está em
@@ -76,7 +76,7 @@ Títulos:
 | 2 minutos. Uma grade só. | 24 |
 | Placar ao vivo toda rodada | 26 |
 | Ache as palavras antes deles | 28 |
-| Nova rodada a cada 2 min | 24 |
+| Uma rodada atrás da outra | 25 |
 
 Descrições:
 
@@ -166,6 +166,10 @@ marketing/src/render.sh
 
 Uma restrição de política que o layout já respeita: nada nas imagens imita botão clicável. O Google
 reprova imagem com falso elemento de interface.
+
+Os selos das imagens dizem só o que continua verdadeiro: "Sem cadastro", "Sem compras", "Código
+aberto". Um selo "Sem anúncios" ficaria falso no dia em que o anúncio de rodapé entrar (planejado
+para depois da 1.0.0, ver [`play-store.md`](play-store.md)), em criativos já aprovados e rodando.
 
 ## Vídeo
 

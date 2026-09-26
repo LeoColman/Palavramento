@@ -358,7 +358,9 @@ const COPY = {
   },
 }
 
-const BADGES = ['Sem anúncios', 'Sem compras', 'Código aberto']
+// Only claims that stay true: an in-app ad banner is planned after 1.0.0 (marketing/play-store.md),
+// so "no ads" would turn false the day it ships, in creatives already approved and running.
+const BADGES = ['Sem cadastro', 'Sem compras', 'Código aberto']
 
 function badges() {
   const box = el('div', 'badges')

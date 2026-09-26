@@ -337,6 +337,8 @@ class RoomSchedulerTest : FunSpec({
     scheduler.finishForTesting(state)
 
     scheduler.activeRound shouldBe null
+    // Still counted, as nobody: the metrics must not keep showing an older round's players.
+    RoundRepository(database).findPlayerCounts(generated.record.id) shouldBe RoundPlayerCounts(0, 0)
   }
 
   test("finishing a round with participants persists round_results, unlike the empty case above") {

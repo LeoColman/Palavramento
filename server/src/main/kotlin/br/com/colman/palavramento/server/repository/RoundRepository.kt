@@ -90,7 +90,10 @@ class RoundRepository(private val database: Database) {
       ?.toPlayerCounts()
   }
 
-  /** The counts of [roomId]'s most recently started round that has them: the metrics' "now". */
+  /**
+   * The counts of [roomId]'s most recently started round that has them: the metrics' "now". Every
+   * round finished since V5 has them, empty ones as zeros, so this is the last finished round.
+   */
   suspend fun findLatestPlayerCounts(roomId: String): RoundPlayerCounts? = suspendTransaction(database) {
     RoundsTable.select(RoundsTable.humanPlayers, RoundsTable.botPlayers)
       .where { (RoundsTable.roomId eq roomId) and RoundsTable.humanPlayers.isNotNull() }

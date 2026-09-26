@@ -247,14 +247,19 @@ class RoomScheduler(
     roundRepository.updateStatus(record.id, RoundStatus.Finished)
 
     val participantIds = state.participantSnapshot()
-    if (participantIds.isEmpty()) return
+    if (participantIds.isEmpty()) {
+      // Recorded all the same: the round-players gauge reads the latest round, and an empty one
+      // has to read as empty, not as the last round somebody happened to play.
+      roundRepository.recordPlayerCounts(record.id, RoundPlayerCounts(humans = 0, bots = 0))
+      return
+    }
 
     val perPlayerFound = participantIds.associateWith { playerId -> state.playerState(playerId).snapshot().found }
     val perPlayerEnteredAt = participantIds.associateWith { state.entryTimeOf(it) ?: record.startsAt }
     val result = roundFinalizer.finalize(record.id, perPlayerFound, perPlayerEnteredAt) { humans ->
       BotFiller.fill(humans, state.generated.solution, botRandom, config.minBots, config.maxBots)
     }
-    if (result.humans > 0) roundRepository.recordPlayerCounts(record.id, RoundPlayerCounts(result.humans, result.bots))
+    roundRepository.recordPlayerCounts(record.id, RoundPlayerCounts(result.humans, result.bots))
     val leaderboardRows = result.leaderboard
       .take(config.leaderboardSize)
       .map { LeaderboardRow(it.rank, it.entry.name, it.entry.score, it.entry.words) }

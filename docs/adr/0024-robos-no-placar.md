@@ -43,7 +43,10 @@ dá o tamanho do placar. Rodadas anteriores à `V5` têm as colunas nulas e o hi
 `round_results`, que naquela época era a sala inteira.
 
 **Métrica** `palavramento_round_players{kind="human","bot"}`, gauge com os números da última rodada
-encerrada da sala, atualizado no mesmo laço de 60 s das outras (ADR 0019). O Grafana ganha um painel
+encerrada da sala, atualizado no mesmo laço de 60 s das outras (ADR 0019). Toda rodada encerrada
+grava sua contagem, inclusive a que ninguém jogou, como zero e zero. A primeira versão só gravava
+rodada com gente, e o gauge passou horas mostrando 1 humano e 4 robôs de uma rodada de teste
+enquanto a sala estava vazia. O Grafana ganha um painel
 com a série empilhada de humanos e robôs por rodada e um com a última rodada.
 
 ## Consequências

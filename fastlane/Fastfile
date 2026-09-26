@@ -13,6 +13,15 @@ BUILD_FILE = "app/build.gradle.kts"
 AAB = "app/build/outputs/bundle/release/app-release.aab"
 METADATA_IMAGES = "fastlane/metadata/android/pt-BR/images"
 
+# The repository root. fastlane runs each lane from inside fastlane/ and only its actions from the
+# root, so plain Ruby file access below goes through this, or it looks for app/ inside fastlane/.
+# FastlaneFolder.path is "./fastlane/" from the root and "./" from inside, so this holds either way.
+ROOT = File.expand_path("..", FastlaneCore::FastlaneFolder.path)
+
+def at_root(path)
+  File.join(ROOT, path)
+end
+
 platform :android do
   desc "Builds the signed bundle and publishes it live on the production track."
   lane :release do
@@ -67,7 +76,7 @@ end
 # versionName and versionCode as the build file declares them. That file stays the single source
 # of truth for the version: nothing here derives, bumps or writes it.
 def read_version
-  build = File.read(BUILD_FILE)
+  build = File.read(at_root(BUILD_FILE))
   version_name = build[/versionName\s*=\s*"([^"]+)"/, 1]
   version_code = build[/versionCode\s*=\s*(\d+)/, 1]
   UI.user_error!("No versionName in #{BUILD_FILE}") if version_name.nil?
@@ -92,7 +101,7 @@ end
 # right for `check` on a fresh clone and wrong here: Google rejects it with an error that says
 # nothing about the cause. So this fails first, and says what to do.
 def require_signing_key
-  return if File.exist?("keystore.properties")
+  return if File.exist?(at_root("keystore.properties"))
 
   UI.user_error!(
     "keystore.properties is missing, so the bundle would come out unsigned. " \
@@ -103,10 +112,11 @@ end
 # Copies the store graphics out of marketing/, which is where they are made and reviewed. They are
 # not committed under fastlane/: one copy, one place to edit, no pair to drift apart.
 def stage_graphics
-  phone = "#{METADATA_IMAGES}/phoneScreenshots"
+  images = at_root(METADATA_IMAGES)
+  phone = "#{images}/phoneScreenshots"
   FileUtils.mkdir_p(phone)
   FileUtils.rm_f(Dir.glob("#{phone}/*.png"))
-  FileUtils.cp(Dir.glob("marketing/screenshots/*.png").sort, phone)
-  FileUtils.cp("marketing/ads/play-icone-512x512.png", "#{METADATA_IMAGES}/icon.png")
-  FileUtils.cp("marketing/ads/play-destaque-1024x500.png", "#{METADATA_IMAGES}/featureGraphic.png")
+  FileUtils.cp(Dir.glob(at_root("marketing/screenshots/*.png")).sort, phone)
+  FileUtils.cp(at_root("marketing/ads/play-icone-512x512.png"), "#{images}/icon.png")
+  FileUtils.cp(at_root("marketing/ads/play-destaque-1024x500.png"), "#{images}/featureGraphic.png")
 end

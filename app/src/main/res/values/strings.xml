@@ -34,6 +34,13 @@
   <string name="lobby_load_error">Não foi possível carregar seus dados. Verifique sua conexão.</string>
   <string name="lobby_retry_button">Tentar novamente</string>
 
+  <!-- Convite: abre o compartilhamento do Android com o link da Play Store (%1$s). -->
+  <string name="lobby_invite_title">Convide seus amigos para jogar</string>
+  <string name="lobby_invite_body">A sala fica melhor cheia: todo mundo joga a mesma grade, ao mesmo tempo.</string>
+  <string name="lobby_invite_button">Convidar</string>
+  <string name="lobby_invite_chooser_title">Convidar para o Palavramento</string>
+  <string name="lobby_invite_message">Bora jogar Palavramento? É um caça-palavras multijogador em português: todo mundo na mesma grade, rodadas de 2 minutos. %1$s</string>
+
   <!-- Exclusão de conta (ADR 0020, deliverable Play Store 1.0.0) -->
   <string name="lobby_delete_account_button">Excluir conta</string>
   <string name="lobby_delete_account_dialog_title">Excluir conta</string>

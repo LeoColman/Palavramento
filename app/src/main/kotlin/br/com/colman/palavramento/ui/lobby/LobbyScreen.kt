@@ -105,6 +105,7 @@ fun LobbyScreen(
     Button(onClick = onPlayClicked, modifier = Modifier.fillMaxWidth()) {
       Text(stringResource(R.string.lobby_play_button))
     }
+    InviteFriendsCard()
     DeleteAccountSection(
       isGuest = uiState.isGuest,
       isDeleting = uiState.isDeletingAccount,

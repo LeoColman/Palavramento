@@ -1,0 +1,6 @@
+Novidades desta versão:
+
+- O cronômetro da partida não termina mais antes da hora.
+- Os ajustes de som, música e vibração passam a valer na hora, sem reiniciar o app.
+- No fim da rodada, o placar aparece sozinho na metade da espera.
+- Convide seus amigos direto da tela inicial.

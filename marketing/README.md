@@ -19,8 +19,8 @@ módulos.
 
 ## O que já está pronto e o que falta
 
-Pronto: os textos, as sete imagens, os três cortes de vídeo, o ícone e a imagem de destaque da
-loja, e as seis capturas de tela.
+Pronto: os textos, as 20 imagens (o máximo que a campanha aceita), os três cortes de vídeo, o ícone
+e a imagem de destaque da loja, e as seis capturas de tela.
 
 O app está publicado na Google Play desde 2026-09-25
 (`br.com.colman.palavramento`), que era o que impedia criar a campanha.

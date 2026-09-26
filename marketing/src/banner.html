@@ -4,9 +4,9 @@
   Rendered by marketing/src/render.sh, which drives headless Chrome at the exact
   pixel size Google asks for, so nothing is ever resampled.
 
-  Query string: ?f=<square|wide|tall>&v=<a|b>
-    f  picks the aspect ratio (1:1, 1.91:1, 4:5)
-    v  picks the layout variant (a = drawn board, b = real app screenshot)
+  Query string: ?c=<creative id> for an ad image (see CREATIVES below: each one fixes its own
+  aspect ratio, copy and visual), or ?f=<icon|feature|backdrop> for the Play Store icon, the
+  Play Store feature graphic and the 16:9 video backdrop.
 
   Colors are the app's own palette (app/src/main/kotlin/.../ui/theme/PalavramentoColors.kt),
   so an ad and the screen it leads to look like the same product.
@@ -146,6 +146,8 @@
     background: var(--highlight);
     box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);
   }
+  /* A two-letter tile ("A/P") is set smaller, the way the app sets it. */
+  .tile.pair { font-size: calc(var(--board-size, 560px) / 4 * 0.28); }
 
   .board-wrap { position: relative; display: grid; }
   .board-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -187,6 +189,9 @@
     --toast-size: 32px;
   }
   body.square .stack { display: flex; flex-direction: column; align-items: center; gap: 30px; text-align: center; }
+  body.square .subline, body.tall .subline { text-align: center; }
+  /* A capture rises from the bottom edge and is cut by it (see the layout code). */
+  body.square .phone { width: 500px; --phone-radius: 40px; --phone-bezel: 9px; }
 
   body.wide .canvas {
     width: 1200px; height: 628px;
@@ -222,6 +227,8 @@
     --phone-bezel: 12px;
   }
   body.tall .stack { display: flex; flex-direction: column; align-items: center; gap: 28px; text-align: center; }
+  body.tall .phone { width: 620px; }
+  .phone.rising { margin-top: 40px; }
 
   /* Play Store icon: 512x512, full bleed, no transparency, the launcher's own orange tile. */
   body.icon .canvas {
@@ -275,29 +282,124 @@
 <body>
 <script>
 const params = new URLSearchParams(location.search)
-const format = params.get('f') || 'square'
-const variant = params.get('v') || 'a'
+
+// Letter values are the game's own (domain/src/main/resources/letter-values.json, version 2):
+// A E S 1, I N O R 2, C D L M T U 3, H P 4, B G 5, F V Z 6, J Q X 8, K W Y 10. A word scores
+// the sum of its tiles, which the real captures confirm ("runo +9" is 2+3+2+2). An ad that
+// scores a word differently from the game is an ad the first round contradicts.
+
+// PALAVRA over tiles 0,1,2,3,7,6,5 (eight-way adjacency, no tile reused): 4+1+3+1+6+2+1 = 18.
+const PALAVRA = {
+  tiles: [
+    ['P', 4], ['A', 1], ['L', 3], ['A', 1],
+    ['M', 3], ['A', 1], ['R', 2], ['V', 6],
+    ['E', 1], ['S', 1], ['O', 2], ['T', 3],
+    ['I', 2], ['N', 2], ['C', 3], ['D', 3],
+  ],
+  path: [0, 1, 2, 3, 7, 6, 5],
+}
+
+// The "Uma ou outra" theme: one tile plays as either letter and is worth 20, as it is in the
+// game (the real captures show "20 A/P", "20 I/S"). PATO over tiles 5,1,2,6, with the A/P tile
+// as P: 20+1+3+2 = 26.
+const UMA_OU_OUTRA = {
+  tiles: [
+    ['S', 1], ['A', 1], ['T', 3], ['E', 1],
+    ['M', 3], ['A/P', 20], ['O', 2], ['R', 2],
+    ['C', 3], ['U', 3], ['N', 2], ['I', 2],
+    ['L', 3], ['E', 1], ['D', 3], ['O', 2],
+  ],
+  path: [5, 1, 2, 6],
+}
+
+// The tiles carry no accent and no cedilla; the game matches "maçã" on M-A-C-A all the same.
+// That is the claim "Português de verdade" makes, so the board shows it: M,A,C,A over tiles
+// 4,5,0,1 is 3+1+3+1 = 8.
+const MACA = {
+  tiles: [
+    ['C', 3], ['A', 1], ['S', 1], ['O', 2],
+    ['M', 3], ['A', 1], ['R', 2], ['T', 3],
+    ['E', 1], ['N', 2], ['I', 2], ['D', 3],
+    ['L', 3], ['U', 3], ['O', 2], ['S', 1],
+  ],
+  path: [4, 5, 0, 1],
+}
+
+// Real captures, straight from the store screenshots, so an ad never shows a different app from
+// the one the listing shows. (A copy of one of them used to live here and went stale.)
+const SHOTS = {
+  partida: '../screenshots/3-partida.png',
+  resultados: '../screenshots/4-resultados.png',
+  placar: '../screenshots/5-placar.png',
+}
+
+const BADGES = ['Sem cadastro', 'Sem compras', 'Código aberto']
+
+// Every image the campaign gets: Google takes up to 20, across the three ratios, and learns which
+// combinations work, so each one pairs a different argument from google-ads.md with a different
+// visual. Only claims that stay true: an in-app ad banner is planned after 1.0.0
+// (marketing/play-store.md), so "no ads" would turn false the day it ships, in creatives already
+// approved and running.
+//
+//   format: wide 1200x628 (1.91:1), square 1200x1200 (1:1), tall 1200x1500 (4:5)
+//   visual: 'palavra' | 'uma-ou-outra' | 'maca' (drawn boards) or a key of SHOTS (real capture)
+//   extra:  'badges' | a toast text | undefined
+const TEMAS = 'Temas que mudam<br>as <em>regras</em>'
+const TEMAS_SUB = 'Nesta rodada, uma peça vale A ou P.'
+const CREATIVES = {
+  'wide-dois-minutos-grade': ['wide', 'palavra', 'Dois minutos.<br>Uma grade <em>só</em>.',
+    'Você e a sala inteira no mesmo 4x4, ao mesmo tempo.', 'badges'],
+  'wide-dois-minutos-partida': ['wide', 'partida', 'Dois minutos.<br>Uma grade <em>só</em>.',
+    'Você e a sala inteira no mesmo 4x4, ao mesmo tempo.', 'badges'],
+  'wide-placar': ['wide', 'placar', 'Placar <em>ao vivo</em><br>toda rodada',
+    'Acabou o tempo, o placar sai na hora.', 'badges'],
+  'wide-temas': ['wide', 'uma-ou-outra', TEMAS, TEMAS_SUB],
+  'wide-gratis': ['wide', 'palavra', '<em>Grátis</em> do<br>começo ao fim',
+    'Caça-palavras multijogador em português.', 'badges'],
+  'wide-quantas-partida': ['wide', 'partida', 'Quantas você acha<br>em <em>2 minutos</em>?',
+    'Trace com o dedo, some pontos, suba no placar.'],
+  'wide-que-eles-temas': ['wide', 'uma-ou-outra', 'Ache mais palavras<br><em>que eles</em>',
+    'Grade 4x4, 2 minutos, placar ao vivo.', 'badges'],
+
+  'square-mesma-grade': ['square', 'palavra', 'Todos na <em>mesma</em> grade',
+    'Caça-palavras multijogador em português.<br>Rodada de 2 minutos, placar na hora.', 'palavra +18'],
+  'square-placar': ['square', 'placar', 'Placar <em>ao vivo</em>',
+    'Toda rodada, quem achou mais sobe.'],
+  'square-temas': ['square', 'uma-ou-outra', 'Temas que mudam as <em>regras</em>', TEMAS_SUB, 'pato +26'],
+  'square-que-eles-partida': ['square', 'partida', 'Ache mais palavras <em>que eles</em>',
+    'Grade 4x4, 2 minutos, placar ao vivo.'],
+  'square-gratis': ['square', 'palavra', '<em>Grátis.</em> Sem cadastro.',
+    'Sem compras, sem assinatura, código aberto.', 'palavra +18'],
+  'square-portugues': ['square', 'maca', 'Português <em>de verdade</em>',
+    'Acento e cedilha como você espera, com dicionário pt-BR.', 'maçã +8'],
+  'square-resultados': ['square', 'resultados', 'Veja o que <em>ficou para trás</em>',
+    'No fim da rodada, todas as palavras que a grade tinha.'],
+
+  'tall-que-eles-grade': ['tall', 'palavra', 'Ache mais<br>palavras <em>que eles</em>',
+    'Grade 4x4, 2 minutos, placar ao vivo.', 'badges'],
+  'tall-que-eles-partida': ['tall', 'partida', 'Ache mais<br>palavras <em>que eles</em>',
+    'Grade 4x4, 2 minutos, placar ao vivo.'],
+  'tall-placar': ['tall', 'placar', 'Placar<br><em>ao vivo</em>', 'Acabou o tempo, o placar sai na hora.'],
+  'tall-resultados': ['tall', 'resultados', 'Veja o que<br><em>ficou para trás</em>',
+    'No fim da rodada, todas as palavras que a grade tinha.'],
+  'tall-temas': ['tall', 'uma-ou-outra', TEMAS, TEMAS_SUB, 'pato +26'],
+  'tall-gratis': ['tall', 'palavra', '<em>Grátis</em> do<br>começo ao fim',
+    'Sem compras, sem assinatura, código aberto.', 'badges'],
+}
+
+const creative = CREATIVES[params.get('c')]
+const format = creative ? creative[0] : (params.get('f') || 'square')
 document.body.className = format
 
-// A real-looking 4x4 with a real path: PALAVRA over tiles 0,1,2,3,7,6,5 (eight-way adjacency,
-// no tile reused), scoring 5+1+3+1+6+2+1 = 19 with the dossier's letter values.
-const BOARD = [
-  ['P', 5], ['A', 1], ['L', 3], ['A', 1],
-  ['M', 3], ['A', 1], ['R', 2], ['V', 6],
-  ['E', 1], ['S', 1], ['O', 2], ['T', 3],
-  ['I', 2], ['N', 2], ['C', 4], ['D', 2],
-]
-const PATH = [0, 1, 2, 3, 7, 6, 5]
-
-function board() {
-  const lit = new Set(PATH)
+function board(def) {
+  const lit = new Set(def.path)
   const wrap = document.createElement('div')
   wrap.className = 'board-wrap'
   const grid = document.createElement('div')
   grid.className = 'board'
-  BOARD.forEach(([letter, value], i) => {
+  def.tiles.forEach(([letter, value], i) => {
     const tile = document.createElement('div')
-    tile.className = 'tile' + (lit.has(i) ? ' lit' : '')
+    tile.className = 'tile' + (lit.has(i) ? ' lit' : '') + (letter.length > 1 ? ' pair' : '')
     tile.innerHTML = `<span class="value">${value}</span>${letter}`
     grid.appendChild(tile)
   })
@@ -305,15 +407,14 @@ function board() {
 
   // The traced path, drawn in the grid's own percentage space so it scales with --board-size.
   const cell = 100 / 4
-  const points = PATH.map(i => {
-    const col = i % 4, row = Math.floor(i / 4)
-    return `${(col + 0.5) * cell},${(row + 0.5) * cell}`
-  }).join(' ')
+  const centre = i => [((i % 4) + 0.5) * cell, (Math.floor(i / 4) + 0.5) * cell]
+  const points = def.path.map(i => centre(i).join(',')).join(' ')
+  const [x0, y0] = centre(def.path[0])
   wrap.insertAdjacentHTML('beforeend', `
     <svg viewBox="0 0 100 100" preserveAspectRatio="none">
       <polyline points="${points}" fill="none" stroke="#1A1005" stroke-opacity="0.55"
                 stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="${0.5 * cell}" cy="${0.5 * cell}" r="1.5" fill="#1A1005" fill-opacity="0.55"/>
+      <circle cx="${x0}" cy="${y0}" r="1.5" fill="#1A1005" fill-opacity="0.55"/>
     </svg>`)
   return wrap
 }
@@ -340,33 +441,21 @@ function phone(src) {
   return box
 }
 
-const canvas = el('div', 'canvas')
-document.body.appendChild(canvas)
-
-const COPY = {
-  square: {
-    headline: 'Todos na <em>mesma</em> grade',
-    subline: 'Caça-palavras multijogador em português.<br>Rodada de 2 minutos, placar na hora.',
-  },
-  wide: {
-    headline: 'Dois minutos.<br>Uma grade <em>só</em>.',
-    subline: 'Você e a sala inteira no mesmo 4x4, ao mesmo tempo.',
-  },
-  tall: {
-    headline: 'Ache mais<br>palavras <em>que eles</em>',
-    subline: 'Grade 4x4, 2 minutos, placar ao vivo.',
-  },
-}
-
-// Only claims that stay true: an in-app ad banner is planned after 1.0.0 (marketing/play-store.md),
-// so "no ads" would turn false the day it ships, in creatives already approved and running.
-const BADGES = ['Sem cadastro', 'Sem compras', 'Código aberto']
-
 function badges() {
   const box = el('div', 'badges')
   BADGES.forEach(text => box.appendChild(el('span', 'badge', text)))
   return box
 }
+
+function visual(key) {
+  if (key === 'palavra') return board(PALAVRA)
+  if (key === 'uma-ou-outra') return board(UMA_OU_OUTRA)
+  if (key === 'maca') return board(MACA)
+  return phone(SHOTS[key])
+}
+
+const canvas = el('div', 'canvas')
+document.body.appendChild(canvas)
 
 if (format === 'backdrop') {
   const left = el('div', 'left')
@@ -392,34 +481,39 @@ if (format === 'backdrop') {
   left.appendChild(el('h1', 'headline', 'Caça-palavras<br>multijogador'))
   left.appendChild(el('p', 'subline', 'Grade 4x4, dois minutos, todo mundo junto.'))
   canvas.appendChild(left)
-  canvas.appendChild(board())
-} else if (format === 'wide') {
-  const left = el('div', 'left')
-  left.appendChild(wordmark())
-  left.appendChild(el('h1', 'headline', COPY.wide.headline))
-  left.appendChild(el('p', 'subline', COPY.wide.subline))
-  left.appendChild(badges())
-  canvas.appendChild(left)
-  canvas.appendChild(variant === 'b' ? phone('match.png') : board())
+  canvas.appendChild(board(PALAVRA))
 } else {
-  const stack = el('div', 'stack')
-  stack.appendChild(wordmark())
-  stack.appendChild(el('h1', 'headline', COPY[format].headline))
-  canvas.appendChild(stack)
+  const [, key, headline, subline, extra] = creative
+  const isShot = key in SHOTS
+  const toast = extra && extra !== 'badges' ? el('div', 'toast', extra) : null
 
-  if (format === 'tall' && variant === 'b') {
-    canvas.appendChild(el('p', 'subline', COPY.tall.subline))
-    const shot = phone('match.png')
-    shot.style.width = '620px'
-    canvas.appendChild(shot)
+  if (format === 'wide') {
+    const left = el('div', 'left')
+    left.appendChild(wordmark())
+    left.appendChild(el('h1', 'headline', headline))
+    left.appendChild(el('p', 'subline', subline))
+    if (extra === 'badges') left.appendChild(badges())
+    if (toast) left.appendChild(toast)
+    canvas.appendChild(left)
+    canvas.appendChild(visual(key))
   } else {
-    canvas.appendChild(board())
-    if (format === 'square') {
-      canvas.appendChild(el('div', 'toast', 'palavra +19'))
-      canvas.appendChild(el('p', 'subline', COPY.square.subline))
+    const stack = el('div', 'stack')
+    stack.appendChild(wordmark())
+    stack.appendChild(el('h1', 'headline', headline))
+    canvas.appendChild(stack)
+    if (isShot) {
+      // The phone rises from the bottom edge and is cut by it: at these ratios a whole phone
+      // would be too small to read, and the top of the screen is where the game is. The subline
+      // joins the title block, so the phone gets room instead of butting against the text.
+      stack.appendChild(el('p', 'subline', subline))
+      const shot = visual(key)
+      shot.classList.add('rising')
+      canvas.appendChild(shot)
     } else {
-      canvas.appendChild(el('p', 'subline', COPY.tall.subline))
-      canvas.appendChild(badges())
+      canvas.appendChild(visual(key))
+      if (toast) canvas.appendChild(toast)
+      canvas.appendChild(el('p', 'subline', subline))
+      if (extra === 'badges') canvas.appendChild(badges())
     }
   }
 }

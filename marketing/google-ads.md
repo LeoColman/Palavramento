@@ -143,17 +143,28 @@ Descrições:
 
 ## Imagens
 
-Especificação do Google para campanha de App: `.jpg` ou `.png`, no máximo 5 MB, até 20 imagens de
-cada proporção.
+Especificação do Google para campanha de App: `.jpg` ou `.png`, no máximo 5 MB, e **até 20 imagens
+no total por grupo de anúncios**, somando as três proporções
+([requisitos](https://support.google.com/google-ads/answer/17091671)). O Google combina as imagens
+com os textos e aprende quais funcionam, então vale mandar as 20, e cada uma aqui carrega um
+argumento diferente com um visual diferente.
 
-| Proporção | Recomendado | Mínimo | Arquivo em [`ads/`](ads/) |
-|---|---|---|---|
-| Horizontal 1.91:1 | 1200x628 | 600x314 | `paisagem-1200x628-grade.png`, `paisagem-1200x628-tela.png` |
-| Quadrada 1:1 | 1200x1200 | 200x200 | `quadrado-1200x1200-grade.png` |
-| Vertical 4:5 | 1200x1500 | 320x400 | `retrato-1200x1500-grade.png`, `retrato-1200x1500-tela.png` |
+| Proporção | Tamanho | Arquivos em [`ads/`](ads/) |
+|---|---|---|
+| Horizontal 1.91:1 | 1200x628 | `paisagem-01` a `paisagem-07` |
+| Quadrada 1:1 | 1200x1200 | `quadrado-01` a `quadrado-07` |
+| Vertical 4:5 | 1200x1500 | `retrato-01` a `retrato-06` |
 
-As variantes `-grade` desenham o tabuleiro; as `-tela` usam uma captura real do app. Mandar as duas
-dá ao Google material para comparar tabuleiro estilizado contra produto real.
+Os visuais são cinco. Dois tabuleiros desenhados com os valores reais das letras
+(`domain/src/main/resources/letter-values.json`): PALAVRA, e um com o tema "Uma ou outra", onde a
+peça A/P vale 20 e forma PATO. Um terceiro tabuleiro traça MAÇÃ sobre peças sem acento, que é o que
+"Português de verdade" promete. E três capturas reais, de partida, placar e resultados, tiradas
+direto de [`screenshots/`](screenshots/), para que o anúncio nunca mostre um app diferente do que a
+ficha da loja mostra. A pontuação nos toasts é a soma das peças, como no jogo: um anúncio que conta
+diferente do jogo é desmentido pela primeira rodada.
+
+Cada imagem, com título, visual e argumento, está na tabela `CREATIVES` de
+[`src/banner.html`](src/banner.html).
 
 Todas saem de [`src/banner.html`](src/banner.html), renderizado por
 [`src/render.sh`](src/render.sh) com Chrome headless no tamanho exato, sem reamostragem. As cores

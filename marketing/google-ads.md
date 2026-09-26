@@ -184,13 +184,29 @@ para depois da 1.0.0, ver [`play-store.md`](play-store.md)), em criativos já ap
 
 ## Vídeo
 
-A campanha aceita até 20 vídeos de 10 a 60 segundos em 16:9, 9:16 e 1:1, e **eles precisam estar no
-YouTube** antes de entrar na campanha. Se você não mandar nenhum, o Google monta um vídeo sozinho a
-partir dos outros recursos, e o resultado costuma ser pior que uma captura de tela do jogo rodando.
+A campanha aceita **até 20 vídeos no total**, de 10 a 60 segundos, em 16:9, 9:16 e 1:1, e **eles
+precisam estar no YouTube** antes de entrar na campanha (como "não listado" já serve). Se você não
+mandar nenhum, o Google monta um vídeo sozinho a partir dos outros recursos, e o resultado costuma
+ser pior que o jogo rodando.
 
-Os cortes prontos estão em [`ads/video/`](ads/video/), gerados a partir de uma captura de tela real
-do emulador com [`src/render-video.sh`](src/render-video.sh). Falta subir ao YouTube (como "não
-listado" já serve) e colar as URLs na campanha.
+São 18 em [`ads/video/`](ads/video/): seis cortes, cada um nas três proporções.
+
+| Corte | Duração | O que mostra |
+|---|---|---|
+| `partida-1`, `partida-2`, `partida-3` | 30 s | Três rodadas de temas diferentes, jogadas do começo |
+| `fim-de-rodada` | 30 s | Os últimos segundos, os resultados e a virada para o placar |
+| `mesma-grade-15s` | 15 s | Cartela "Todos na mesma grade" e depois o jogo |
+| `temas-15s` | 15 s | Cartela "Cada rodada, um tema novo" e depois o jogo |
+
+Tudo sai de gravações reais de rodadas inteiras no emulador, em
+[`src/gravacoes/`](src/gravacoes/), contra o servidor local com a rodada de **120 s** e a
+intermissão de 25 s, que são as de produção. Com rodada mais longa, por conforto, o cronômetro
+mostra 02:53, e um anúncio que diz "2 minutos" não pode mostrar um relógio que o jogo nunca atinge.
+Para regerar os cortes depois de gravar de novo:
+
+```bash
+marketing/src/render-video.sh
+```
 
 ## Capturas
 

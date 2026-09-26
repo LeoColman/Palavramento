@@ -12,15 +12,15 @@ módulos.
 |---|---|
 | [`google-ads.md`](google-ads.md) | A campanha: estrutura, lance, orçamento, e os textos dos três grupos de anúncios |
 | [`play-store.md`](play-store.md) | A ficha da Play Store, que é o que a campanha de App usa para segmentar |
-| [`ads/`](ads/) | Imagens prontas para subir, nas proporções que o Google aceita |
-| [`ads/video/`](ads/video/) | Os três cortes de vídeo (falta subir ao YouTube) |
+| [`ads/`](ads/) | As 20 imagens prontas para subir, nas três proporções que o Google aceita |
+| [`ads/video/`](ads/video/) | Os 18 vídeos: seis cortes em três proporções (falta subir ao YouTube) |
 | [`screenshots/`](screenshots/) | Capturas do app, para a ficha da loja e para os banners |
 | [`src/`](src/) | O que gerou tudo isso |
 
 ## O que já está pronto e o que falta
 
-Pronto: os textos, as 20 imagens (o máximo que a campanha aceita), os três cortes de vídeo, o ícone
-e a imagem de destaque da loja, e as seis capturas de tela.
+Pronto: os textos, as 20 imagens e 18 vídeos (a campanha aceita até 20 de cada), o ícone e a
+imagem de destaque da loja, e as seis capturas de tela.
 
 O app está publicado na Google Play desde 2026-09-25
 (`br.com.colman.palavramento`), que era o que impedia criar a campanha.
@@ -36,7 +36,7 @@ Falta, e nada disso dá para fazer do repositório:
 ```bash
 node marketing/src/check-copy.js                           # limites de caractere dos textos
 marketing/src/render.sh                                    # imagens
-marketing/src/render-video.sh marketing/src/gravacao-bruta.mp4   # vídeo
+marketing/src/render-video.sh                              # vídeos, das gravações em src/gravacoes/
 ```
 
 As imagens saem de [`src/banner.html`](src/banner.html), renderizado pelo Chrome headless no
@@ -44,12 +44,21 @@ tamanho final, sem reamostragem. As cores vêm da paleta do app
 (`app/src/main/kotlin/br/com/colman/palavramento/ui/theme/PalavramentoColors.kt`), e o ícone é o
 mesmo desenho do `ic_launcher`, então anúncio, ícone e tela são o mesmo produto.
 
-## Refazer as capturas
+## Refazer as capturas e os vídeos
 
-Precisa do emulador, do servidor local e da sala cheia. [`src/capturar.sh`](src/capturar.sh)
-prepara a barra de status em modo demo, abre o app e imprime o resto da receita.
+Precisa do emulador, do servidor local **com a duração de rodada padrão** e da sala cheia.
+[`src/capturar.sh`](src/capturar.sh) prepara a barra de status em modo demo, abre o app e imprime o
+resto da receita. A duração importa: o servidor local já foi usado com rodada de 240 s por conforto,
+e as capturas e o vídeo saíram com 03:49 e 02:53 no cronômetro, que o jogo nunca mostra, num
+material que promete "2 minutos".
 
-As duas ferramentas que valem por si:
+- [`src/capturar-rodada.py`](src/capturar-rodada.py) tira as candidatas das capturas da loja numa
+  rodada, três quadros por momento, para escolher um sem dígito do cronômetro no meio da virada.
+- [`src/gravar-rodadas.py`](src/gravar-rodadas.py) grava rodadas inteiras em
+  [`src/gravacoes/`](src/gravacoes/), de onde [`src/render-video.sh`](src/render-video.sh) corta os
+  vídeos.
+
+E as duas ferramentas que valem por si:
 
 - [`src/jogadores-de-teste.js`](src/jogadores-de-teste.js) enche a sala com oito jogadores que
   jogam de verdade, cada um com uma habilidade diferente, para o placar não ser um jogador só.

@@ -38,6 +38,9 @@ SETTLE="${SETTLE:-1.2}"    # after the last tile: its highlight animates in, and
 AFTER="${AFTER:-0.5}"      # after lifting: long enough for the accepted-word flash to be at full
 HOLD="${HOLD:-0}"          # seconds to keep the finger down once the path is complete
 CAPTURE="${CAPTURE:-}"     # when set, the device captures each completed path to /sdcard/$CAPTURE-N.png
+# Frames per capture moment, 0.35 s apart. The countdown flips a digit every second, and a still
+# taken mid-flip shows a digit half drawn; with three, at least one lands between flips.
+FRAMES="${FRAMES:-1}"
 REMOTE=/data/local/tmp/palavramento-tracar.sh
 
 script="#!/system/bin/sh"$'\n'
@@ -61,13 +64,19 @@ while read -r -a path; do
   # The path is drawn and the finger is still down: this is the frame worth photographing.
   word=$((word + 1))
   script+="sleep $SETTLE"$'\n'
-  [[ -n "$CAPTURE" ]] && script+="screencap -p /sdcard/$CAPTURE-$word-tracando.png"$'\n'
+  if [[ -n "$CAPTURE" ]]; then
+    for frame in $(seq 1 "$FRAMES"); do
+      script+="screencap -p /sdcard/$CAPTURE-$word-tracando-$frame.png; sleep 0.35"$'\n'
+    done
+  fi
   [[ "$HOLD" != "0" ]] && script+="sleep $HOLD"$'\n'
   script+="input motionevent UP $prev_x $prev_y"$'\n'
   # The other frame worth having: the word is in, its tiles are flashing and the score has moved.
   if [[ -n "$CAPTURE" ]]; then
     script+="sleep $AFTER"$'\n'
-    script+="screencap -p /sdcard/$CAPTURE-$word-aceita.png"$'\n'
+    for frame in $(seq 1 "$FRAMES"); do
+      script+="screencap -p /sdcard/$CAPTURE-$word-aceita-$frame.png; sleep 0.35"$'\n'
+    done
   fi
   script+="sleep $PAUSE"$'\n'
 done

@@ -37,6 +37,9 @@ targets=(
   "c=tall-gratis:1200:1500:retrato-06-gratis.png"
   "f=icon:512:512:play-icone-512x512.png"
   "f=feature:1024:500:play-destaque-1024x500.png"
+  # Not an asset: the 16:9 video frame render-video.sh composites the game into. Rendered here so
+  # its badges never drift from the images' (it once kept a "Sem anúncios" the images had dropped).
+  "f=backdrop:1920:1080:../src/backdrop-16x9.png"
 )
 
 for target in "${targets[@]}"; do

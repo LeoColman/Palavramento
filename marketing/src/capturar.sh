@@ -33,48 +33,35 @@ cat <<'FIM'
 
   docker compose up -d postgres
   ./gradlew :server:installDist
-  ROUND_DURATION_SECONDS=240 INTERMISSION_DURATION_SECONDS=45 \
-    server/build/install/server/bin/server
+  server/build/install/server/bin/server
+
+  Sem ROUND_DURATION_SECONDS nem INTERMISSION_DURATION_SECONDS: os padrões são os de produção
+  (120 s de rodada, 25 s de intermissão), e é isso que o cronômetro precisa mostrar. Com rodada
+  mais longa, por conforto, as capturas saem com 03:49 ou 02:53 no relógio, que o jogo nunca atinge,
+  num material que promete "2 minutos".
 
   ./gradlew :app:installDebug -Ppalavramento.serverUrl=http://10.0.2.2:8080
 
   # enche a sala, senão o placar tem um jogador só
-  REPO=$PWD MINUTES=30 node marketing/src/jogadores-de-teste.js
+  REPO=$PWD MINUTES=40 node marketing/src/jogadores-de-teste.js
 
-  # para a tela de lobby com estatísticas: rode antes com rodada curta
-  # (ROUND_DURATION_SECONDS=25) e HERO/HERO_EMAIL/HERO_PASSWORD definidos, por uns 10 minutos,
-  # e depois entre com essa conta no app.
+  Depois entre na sala pelo "Jogar" e confira a tela antes de gravar ou capturar. Uma tela parada
+  (o app esquecido no Histórico, por exemplo) grava sem erro nenhum.
 
-== Capturas ==
+== Capturas da loja ==
 
-  Coordenadas das peças no Pixel 9a (1080x2424): x = 168 415 664 909, y = 719 970 1219 1467.
-  Índice da peça = linha * 4 + coluna.
+  python3 marketing/src/capturar-rodada.py      # candidatas de uma rodada, três quadros por momento
 
-  1. Lobby            logado, com estatísticas preenchidas
-  2. Traçando         marketing/src/tracar.sh e uma captura no meio do gesto
-  3. Partida          depois de umas 10 palavras aceitas, com peças verdes
-  4. Resultados       assim que a rodada acaba
-  5. Placar           aba "Placar" da mesma tela
-  6. Histórico        link "Histórico" no lobby
+  Escolha as sem dígito do cronômetro no meio da virada, copie para marketing/screenshots/ e rode
+  marketing/src/limpar-barra.sh nelas. Os banners leem direto de screenshots/: depois,
+  marketing/src/render.sh.
 
-  adb exec-out screencap -p > marketing/screenshots/N-nome.png
-  marketing/src/limpar-barra.sh marketing/screenshots/*.png
+  O lobby (1) e o histórico (6) precisam de uma conta com histórico de verdade, que a sala de bots
+  não produz: médias vitalícias e rodadas antigas saem ruins numa base local cheia de rodadas de bot.
 
 == Vídeo ==
 
-  RID=$(docker compose exec -T postgres psql -U palavramento -d palavramento -At \
-          -c "select id from rounds where status='ACTIVE'")
-  docker compose exec -T postgres psql -U palavramento -d palavramento -At -F' ' \
-    -c "select replace(replace(replace(path_json,'[',''),']',''),',',' ')
-        from round_words where round_id='$RID'
-         and json_array_length(path_json::json) between 4 and 7
-        order by score desc limit 11" > /tmp/caminhos.txt
-
-  adb shell "rm -f /sdcard/pala.mp4; \
-    (screenrecord --size 1080x2424 --bit-rate 12000000 --time-limit 58 /sdcard/pala.mp4 &)"
-  marketing/src/tracar.sh < /tmp/caminhos.txt
-  adb pull /sdcard/pala.mp4 marketing/src/gravacao-bruta.mp4
-
-  marketing/src/render-video.sh marketing/src/gravacao-bruta.mp4
+  python3 marketing/src/gravar-rodadas.py 3     # três rodadas inteiras em marketing/src/gravacoes/
+  marketing/src/render-video.sh                 # os cortes, nas três proporções
 
 FIM

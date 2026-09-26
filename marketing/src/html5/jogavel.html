@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<!--
+  Playable HTML5 ad for the Google Ads App campaign: one real round of Palavramento, in miniature.
+  build.py fills in the round (a real board and its solver's solution, from rodadas.json), the mode
+  and the rules (motor.js), and zips the result. Google's requirements for App campaigns: the
+  ad.orientation meta tag, ExitApi for the final URL, external resources only from Google's allow
+  list (Google Fonts here), no sound before interaction (none at all here), responsive full screen.
+-->
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="ad.orientation" content="portrait,landscape">
+<title>Palavramento</title>
+<!-- Only the stylesheet link: Google's validator allows Google Fonts, and rejects a preconnect to
+     fonts.gstatic.com as a call to a fourth party. -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script type="text/javascript" src="https://tpc.googlesyndication.com/pagead/gadgets/html5/api/exitapi.js"></script>
+<style>
+  /* The app's own palette (app/.../ui/theme/PalavramentoColors.kt). */
+  :root {
+    --match: #15315C;
+    --surface: #0B1B34;
+    --tile: #E08A2B;
+    --tile-text: #1A1005;
+    --tile-value: #4A2E05;
+    --text: #F5F0E6;
+    --text-2: #B9C2D0;
+    --highlight: #E0B84A;
+    --accepted: #4CAF7D;
+    --rejected: #D9534F;
+    --accent: #3E7BD6;
+    --b: min(90vw, 54vh);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%; overflow: hidden; background: var(--match); color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif; touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+
+  #app {
+    position: fixed; inset: 0; padding: 3vmin 4vmin;
+    display: grid; justify-content: center; align-content: center; justify-items: center; gap: 2vmin;
+    grid-template-areas: "head" "status" "board" "word" "hint";
+  }
+  @media (orientation: landscape) {
+    :root { --b: min(84vh, 48vw); }
+    #app {
+      grid-template-areas: "board head" "board status" "board word" "board hint";
+      grid-template-columns: auto minmax(0, 40vw); column-gap: 5vmin; align-content: center;
+      justify-items: start;
+    }
+  }
+
+  header { grid-area: head; display: flex; align-items: center; gap: 2.4vmin; width: 100%; }
+  .glyph {
+    width: 7vmin; height: 7vmin; border-radius: 1.6vmin; background: var(--tile); color: var(--tile-text);
+    display: grid; place-items: center; font-weight: 800; font-size: 4.2vmin; flex-shrink: 0;
+  }
+  .theme { display: flex; flex-direction: column; gap: 0.3vmin; min-width: 0; flex: 1; }
+  .theme b { font-size: 3.6vmin; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .theme span { font-size: 2.8vmin; color: var(--text-2); }
+  .cta-small {
+    border: 0; border-radius: 99px; background: var(--accent); color: #fff; font: 700 2.8vmin 'Inter', sans-serif;
+    padding: 1.6vmin 3vmin; cursor: pointer; flex-shrink: 0;
+  }
+
+  #status { grid-area: status; display: flex; justify-content: space-between; align-items: center; width: 100%; gap: 3vmin; }
+  #goal { font-size: 3.4vmin; font-weight: 700; }
+  #points { font-size: 3.4vmin; color: var(--text-2); }
+  #clock { display: flex; gap: 0.8vmin; }
+  #clock i {
+    font-style: normal; background: var(--surface); border-radius: 1vmin; font-weight: 800; font-size: 6vmin;
+    width: 6.4vmin; text-align: center; padding: 0.4vmin 0;
+  }
+  #clock i.sep { background: none; width: auto; }
+  #clock.urgent i { color: var(--rejected); }
+
+  #board { grid-area: board; position: relative; width: var(--b); height: var(--b); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--b) * 0.028); width: 100%; height: 100%; }
+  .tile {
+    position: relative; border-radius: 14%; background: var(--tile); color: var(--tile-text);
+    display: grid; place-items: center; font-weight: 600; font-size: calc(var(--b) / 4 * 0.44);
+    transition: background-color 120ms, transform 120ms;
+  }
+  .tile.two { font-size: calc(var(--b) / 4 * 0.3); }
+  .tile .v { position: absolute; top: 7%; left: 9%; font-size: calc(var(--b) / 4 * 0.16); font-weight: 600; color: var(--tile-value); }
+  .tile.lit { background: var(--highlight); transform: scale(1.04); }
+  .tile.ok { background: var(--accepted); }
+  .tile.bad { background: var(--rejected); }
+  #board svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  #word { grid-area: word; font-size: 4vmin; font-weight: 600; min-height: 5.4vmin; width: 100%; }
+  #word.ok { color: var(--accepted); }
+  #word.bad { color: var(--rejected); }
+  #hint { grid-area: hint; font-size: 3vmin; color: var(--text-2); width: 100%; }
+
+  #end {
+    position: fixed; inset: 0; background: rgba(11, 27, 52, 0.97); display: none;
+    flex-direction: column; align-items: center; justify-content: center; gap: 3.4vmin; padding: 6vmin;
+    text-align: center;
+  }
+  #end.on { display: flex; }
+  #end .wordmark { display: flex; align-items: center; gap: 2vmin; font-weight: 700; letter-spacing: 0.16em; font-size: 3.2vmin; }
+  #end h1 { font-size: 8.4vmin; font-weight: 800; line-height: 1.04; letter-spacing: -0.02em; }
+  #end h1 em { font-style: normal; color: var(--highlight); }
+  #end p { font-size: 3.6vmin; color: var(--text-2); line-height: 1.4; max-width: 80vmin; }
+  #end p b { color: var(--text); }
+  .cta {
+    border: 0; border-radius: 99px; background: var(--accent); color: #fff; font: 800 4.6vmin 'Inter', sans-serif;
+    padding: 2.8vmin 9vmin; cursor: pointer; margin-top: 1vmin;
+  }
+  .badges { display: flex; gap: 1.6vmin; flex-wrap: wrap; justify-content: center; }
+  .badges span { border: 1.5px solid rgba(185, 194, 208, 0.38); border-radius: 99px; padding: 1vmin 2.4vmin; font-size: 2.6vmin; color: var(--text-2); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="glyph">P</div>
+    <div class="theme"><b id="theme"></b><span id="subtitle"></span></div>
+    <button class="cta-small" id="cta-small">Jogar grátis</button>
+  </header>
+  <div id="status"><span id="goal"></span><span id="points"></span></div>
+  <div id="board"><div class="grid" id="grid"></div><svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline id="line" fill="none" stroke="#1A1005" stroke-opacity="0.45" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  <div id="word"></div>
+  <div id="hint">Arraste o dedo pelas letras vizinhas para formar palavras.</div>
+</div>
+<div id="end">
+  <div class="wordmark"><div class="glyph">P</div>PALAVRAMENTO</div>
+  <h1>Todos na <em>mesma</em> grade</h1>
+  <p id="summary"></p>
+  <p>No jogo, a rodada tem 2 minutos e a sala inteira joga a mesma grade, ao mesmo tempo, com placar ao vivo.</p>
+  <button class="cta" id="cta">Jogar grátis</button>
+  <div class="badges"><span>Sem cadastro</span><span>Sem compras</span><span>Código aberto</span></div>
+</div>
+
+<script>
+const ROUND = /*RODADA*/null
+const MODE = /*MODO*/'tres'
+</script>
+<script>/*MOTOR*/</script>
+<script>
+const board = ROUND.board
+const words = new Map(ROUND.words)
+const found = new Set()
+const GOAL_WORDS = 3
+const SECONDS = 30
+// The game's own texts (app/src/main/res/values/strings.xml).
+const REASONS = {
+  NotAWord: 'Palavra inválida',
+  AlreadyFound: 'Já encontrada',
+  InvalidPath: 'Caminho inválido',
+  TooShort: 'Palavra muito curta',
+}
+
+const $ = id => document.getElementById(id)
+let path = []
+let tracing = false
+let points = 0
+let clockStart = null
+let finished = false
+let demoTimer = null
+
+function exit() {
+  if (window.ExitApi) window.ExitApi.exit()
+}
+$('cta').addEventListener('click', exit)
+$('cta-small').addEventListener('click', exit)
+
+$('theme').textContent = ROUND.theme
+$('subtitle').textContent = ROUND.subtitle
+
+const tiles = board.map((tile, i) => {
+  const el = document.createElement('div')
+  el.className = 'tile' + (tile.letters.length > 1 ? ' two' : '')
+  el.innerHTML = `<span class="v">${tile.value}</span>${tile.letters}`
+  $('grid').appendChild(el)
+  return el
+})
+
+function centre(i) {
+  return [((i % 4) + 0.5) * 25, (Math.floor(i / 4) + 0.5) * 25]
+}
+
+function draw(highlight) {
+  tiles.forEach((el, i) => el.classList.toggle('lit', highlight.includes(i)))
+  $('line').setAttribute('points', highlight.length > 1 ? highlight.map(i => centre(i).join(',')).join(' ') : '')
+}
+
+// The app's in-progress label: the tiles' letters as traced and their running sum, "PALA (6)".
+function label(indices) {
+  const text = indices.map(i => board[i].letters).join('')
+  const sum = indices.reduce((s, i) => s + board[i].value, 0)
+  return `${text} (${sum})`
+}
+
+function status() {
+  $('points').textContent = `Pontos: ${points}`
+  if (MODE === 'tres') {
+    $('goal').textContent = `Ache ${GOAL_WORDS} palavras: ${found.size}/${GOAL_WORDS}`
+  } else {
+    const left = clockStart === null ? SECONDS : Math.max(0, SECONDS - Math.floor((Date.now() - clockStart) / 1000))
+    const ss = String(left).padStart(2, '0')
+    $('goal').innerHTML = `<span id="clock" class="${left <= 10 && clockStart !== null ? 'urgent' : ''}">` +
+      `<i>0</i><i>0</i><i class="sep">:</i><i>${ss[0]}</i><i>${ss[1]}</i></span>`
+    if (left === 0 && clockStart !== null) end()
+  }
+}
+
+function flash(indices, cls) {
+  indices.forEach(i => tiles[i].classList.add(cls))
+  setTimeout(() => indices.forEach(i => tiles[i].classList.remove(cls)), 650)
+}
+
+function submit() {
+  const traced = path.slice()
+  path = []
+  draw([])
+  if (traced.length === 0) return
+  const result = validate(board, words, found, traced)
+  const word = $('word')
+  if (result.rejected) {
+    word.className = 'bad'
+    word.textContent = REASONS[result.rejected]
+    flash(traced, 'bad')
+  } else {
+    found.add(result.normalized)
+    points += result.score
+    word.className = 'ok'
+    word.textContent = `${result.display} +${result.score}`
+    flash(traced, 'ok')
+    $('hint').textContent = MODE === 'tres' ? 'Isso! Continue.' : 'Isso! Ache mais antes do tempo acabar.'
+    status()
+    if (MODE === 'tres' && found.size >= GOAL_WORDS) setTimeout(end, 900)
+  }
+}
+
+// Only the inner part of a cell counts as touching it, so a diagonal move does not catch the
+// neighbours it brushes past: the same idea as the app's own tracer.
+function tileAt(event) {
+  const rect = $('board').getBoundingClientRect()
+  const x = event.clientX - rect.left
+  const y = event.clientY - rect.top
+  const cell = rect.width / 4
+  const col = Math.floor(x / cell)
+  const row = Math.floor(y / cell)
+  if (col < 0 || col > 3 || row < 0 || row > 3) return -1
+  const dx = x - (col + 0.5) * cell
+  const dy = y - (row + 0.5) * cell
+  return Math.hypot(dx, dy) <= cell * 0.42 ? row * 4 + col : -1
+}
+
+function extend(index) {
+  if (index < 0) return
+  const last = path[path.length - 1]
+  if (index === last) return
+  if (path.length >= 2 && index === path[path.length - 2]) {
+    path.pop() // moving back onto the previous tile undoes the last one, as in the app
+  } else if (path.length === 0 || (!path.includes(index) && areAdjacent(last, index))) {
+    path.push(index)
+  } else {
+    return
+  }
+  draw(path)
+  const word = $('word')
+  word.className = ''
+  word.textContent = label(path)
+}
+
+const boardEl = $('board')
+boardEl.addEventListener('pointerdown', event => {
+  if (finished) return
+  event.preventDefault()
+  stopDemo()
+  if (MODE === 'relogio' && clockStart === null) clockStart = Date.now()
+  boardEl.setPointerCapture(event.pointerId)
+  tracing = true
+  path = []
+  extend(tileAt(event))
+})
+boardEl.addEventListener('pointermove', event => {
+  if (tracing) extend(tileAt(event))
+})
+function release() {
+  if (!tracing) return
+  tracing = false
+  submit()
+  scheduleDemo()
+}
+boardEl.addEventListener('pointerup', release)
+boardEl.addEventListener('pointercancel', release)
+
+// The demonstration: one real common word of this board traced tile by tile, then cleared. It
+// shows the gesture without scoring anything, and plays again while nobody has found a word.
+function demo() {
+  const hint = ROUND.hint
+  let k = 0
+  $('hint').textContent = 'Arraste o dedo pelas letras vizinhas, assim:'
+  const step = () => {
+    if (k < hint.length) {
+      k++
+      draw(hint.slice(0, k))
+      $('word').className = ''
+      $('word').textContent = label(hint.slice(0, k))
+      demoTimer = setTimeout(step, 260)
+    } else {
+      demoTimer = setTimeout(() => {
+        draw([])
+        $('word').textContent = ''
+        $('hint').textContent = 'Agora é a sua vez. Ache outra palavra.'
+        scheduleDemo()
+      }, 1100)
+    }
+  }
+  step()
+}
+function stopDemo() {
+  clearTimeout(demoTimer)
+  demoTimer = null
+  if (!tracing) draw([])
+}
+function scheduleDemo() {
+  clearTimeout(demoTimer)
+  if (found.size === 0 && !finished) demoTimer = setTimeout(demo, 7000)
+}
+
+function end() {
+  if (finished) return
+  finished = true
+  stopDemo()
+  const n = found.size
+  const plural = n === 1 ? 'palavra' : 'palavras'
+  const intro = MODE === 'tres'
+    ? `Você achou <b>${n} ${plural}</b> e fez <b>${points} pontos</b>.`
+    : `Em 30 segundos, você achou <b>${n} ${plural}</b> e fez <b>${points} pontos</b>.`
+  $('summary').innerHTML = `${intro} Esta grade tinha ${ROUND.maxWords} palavras.`
+  $('end').classList.add('on')
+}
+
+status()
+if (MODE === 'relogio') setInterval(status, 250)
+demoTimer = setTimeout(demo, 900)
+</script>
+</body>
+</html>

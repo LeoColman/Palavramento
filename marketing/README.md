@@ -14,13 +14,14 @@ módulos.
 | [`play-store.md`](play-store.md) | A ficha da Play Store, que é o que a campanha de App usa para segmentar |
 | [`ads/`](ads/) | As 20 imagens prontas para subir, nas três proporções que o Google aceita |
 | [`ads/video/`](ads/video/) | Os 18 vídeos: seis cortes em três proporções (falta subir ao YouTube) |
+| [`ads/html5/`](ads/html5/) | Os 20 anúncios HTML5 jogáveis, validados pelo validador do Google |
 | [`screenshots/`](screenshots/) | Capturas do app, para a ficha da loja e para os banners |
 | [`src/`](src/) | O que gerou tudo isso |
 
 ## O que já está pronto e o que falta
 
-Pronto: os textos, as 20 imagens e 18 vídeos (a campanha aceita até 20 de cada), o ícone e a
-imagem de destaque da loja, e as seis capturas de tela.
+Pronto: os textos, as 20 imagens, os 18 vídeos e os 20 anúncios HTML5 jogáveis (a campanha aceita
+até 20 de cada), o ícone e a imagem de destaque da loja, e as seis capturas de tela.
 
 O app está publicado na Google Play desde 2026-09-25
 (`br.com.colman.palavramento`), que era o que impedia criar a campanha.

@@ -144,8 +144,11 @@ Descrições:
 ## Imagens
 
 Especificação do Google para campanha de App: `.jpg` ou `.png`, no máximo 5 MB, e **até 20 imagens
-no total por grupo de anúncios**, somando as três proporções
-([requisitos](https://support.google.com/google-ads/answer/17091671)). O Google combina as imagens
+no total por grupo de anúncios**, somando as três proporções. A frase do Google é "Upload 20 images
+and 20 videos with a variety of aspect ratios and image sizes"
+([dicas para campanhas de App](https://support.google.com/google-ads/answer/9176652)); a tabela de
+[requisitos](https://support.google.com/google-ads/answer/17091671) lista uma linha por proporção e
+dá margem para ler "20 de cada", mas não diz isso. O Google combina as imagens
 com os textos e aprende quais funcionam, então vale mandar as 20, e cada uma aqui carrega um
 argumento diferente com um visual diferente.
 
@@ -206,6 +209,43 @@ Para regerar os cortes depois de gravar de novo:
 
 ```bash
 marketing/src/render-video.sh
+```
+
+## HTML5 jogável
+
+A campanha aceita **até 20 arquivos .zip de HTML5 por grupo de anúncios**, de até 5 MB, que rodam em
+tela cheia ([HTML5/Playable para campanhas de App](https://support.google.com/google-ads/answer/9981650)).
+São 20 em [`ads/html5/`](ads/html5/), e cada um é uma rodada de verdade em miniatura: quem vê o
+anúncio traça palavras com o dedo numa grade real.
+
+| Modo | O que pede |
+|---|---|
+| `tres-*` | Ache 3 palavras |
+| `relogio-*` | Quantas você acha em 30 segundos (o cartão final diz que no jogo são 2 minutos) |
+
+Dez rodadas, uma por tema (Grade padrão, Dígrafos, três "Uma ou outra", três "de alto valor", dois
+"nos cantos"), vezes os dois modos. As rodadas não foram inventadas: são grades que o gerador do
+servidor fez, com os valores já com o tema aplicado e a solução inteira que o solver calculou
+([`src/html5/rodadas.json`](src/html5/rodadas.json)). As regras do anúncio
+([`src/html5/motor.js`](src/html5/motor.js)) são uma transcrição do `SubmissionValidator.kt`, e
+[`src/html5/teste-motor.js`](src/html5/teste-motor.js) confere que as 4870 palavras das dez grades
+são aceitas com a pontuação exata do servidor. Então o anúncio aceita, recusa e pontua como o jogo,
+com as mesmas mensagens ("Palavra inválida", "Já encontrada").
+
+Cada anúncio começa demonstrando o gesto com uma palavra comum da grade escolhida à mão (quinhão,
+cedilha, coesão...), passando pela peça especial do tema quando ela existe, e repete a demonstração se
+a pessoa ficar parada. O fim mostra quantas palavras e pontos a pessoa fez, quantas palavras a grade
+tinha, e o botão "Jogar grátis", que sai pela `ExitApi` do Google, como a especificação exige.
+
+Os 20 passaram no [validador de HTML5 do Google](https://h5validator.appspot.com/adwords/asset) em
+modo "App Campaigns", e o teste de clique do validador confirma a saída pela `ExitApi`. Fica um aviso,
+que não reprova: o validador recomenda carregamento preguiçoso, sem efeito num arquivo de 9 KB sem
+imagens. Para regerar:
+
+```bash
+python3 marketing/src/html5/extrair-rodadas.py   # só para trocar as rodadas; precisa do Postgres local
+node marketing/src/html5/teste-motor.js
+python3 marketing/src/html5/build.py
 ```
 
 ## Capturas

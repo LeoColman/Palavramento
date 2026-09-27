@@ -27,6 +27,18 @@ private fun board(): List<SolvedWord> =
     (1..10).map { word("CASARAO" + ('A' + it), 20 + it) } +
     (1..10).map { word("XIS" + ('A' + it), 30 + it, WordTier.Expert) }
 
+/** A big board: 80 common words, 60 of them short, and 20 expert ones. */
+private fun bigBoard(): List<SolvedWord> =
+  (1..60).map { word("C" + it.toString().padStart(3, '0'), 2) } +
+    (1..20).map { word("CASARAO" + it.toString().padStart(3, '0'), 12) } +
+    (1..20).map { word("X" + it.toString().padStart(3, '0'), 20, WordTier.Expert) }
+
+/** What [BotFiller.names] gives for six names from `Random(7)`: pins which coin side picks a nickname. */
+private val GoldenNames =
+  listOf("Ana", "Convidado 3944", "Convidado 2D94", "Convidado 0F3A", "Cris", "Paty")
+
+private fun List<BotPlayer>.good() = filter { it.words.size >= BotFiller.GoodMinWords }
+
 class BotFillerTest : FunSpec({
 
   test("a lone player gets between two and five robots, and sees every count in that range") {
@@ -56,10 +68,10 @@ class BotFillerTest : FunSpec({
     BotFiller.quota(Random(1), minBots = 3, maxBots = 3) shouldBe 3
   }
 
-  test("each robot finds a few distinct short common words from the board") {
+  test("each weak robot finds a few distinct short common words from the board") {
     checkAll(Arb.long()) { seed ->
       val solution = board()
-      BotFiller.fill(1, solution, Random(seed)).forEach { bot ->
+      BotFiller.fill(1, solution, Random(seed)).filter { it.words.size <= BotFiller.MaxWords }.forEach { bot ->
         bot.words.size shouldBeInRange BotFiller.MinWords..BotFiller.MaxWords
         bot.words.distinct() shouldBe bot.words
         bot.words.forEach { found ->
@@ -122,5 +134,73 @@ class BotFillerTest : FunSpec({
 
   test("the same seed gives the same robots") {
     BotFiller.fill(1, board(), Random(42)) shouldBe BotFiller.fill(1, board(), Random(42))
+  }
+
+  test("about one round in five with robots has a good one, and never more than one") {
+    val rounds = (1L..2000L).map { seed -> BotFiller.fill(1, bigBoard(), Random(seed)) }
+    rounds.forEach { it.good().size shouldBeInRange 0..1 }
+    val withGood = rounds.count { it.good().size == 1 }
+    withGood shouldBeInRange 330..470
+    BotFiller.GoodBotOdds shouldBe 5
+  }
+
+  test("a good robot finds 40 to 60 distinct common words, most often near 40") {
+    val good = (1L..3000L).flatMap { seed -> BotFiller.fill(1, bigBoard(), Random(seed)).good() }
+    good.forEach { bot ->
+      bot.words.size shouldBeInRange BotFiller.GoodMinWords..BotFiller.GoodMaxWords
+      bot.words.distinct() shouldBe bot.words
+      bot.words.forEach { it.tier shouldBe WordTier.Common }
+    }
+    val counts = good.map { it.words.size }.sorted()
+    counts[counts.size / 2] shouldBeInRange 43..47
+    counts.count { it <= 45 } shouldBeInRange counts.size * 45 / 100..counts.size * 62 / 100
+    counts.count { it > 58 } shouldBeInRange 0..counts.size / 10
+  }
+
+  test("the good word count spans its whole range and stays inside it") {
+    val counts = (1L..20_000L).map { BotFiller.goodWordCount(Random(it)) }
+    counts.min() shouldBe BotFiller.GoodMinWords
+    counts.max() shouldBe BotFiller.GoodMaxWords
+    BotFiller.GoodMinWords shouldBe 40
+    BotFiller.GoodMaxWords shouldBe 60
+  }
+
+  test("a good robot reaches past the common words only on a board without enough of them") {
+    val plenty = bigBoard()
+    BotFiller.goodWords(plenty) shouldBe plenty.filter { it.tier == WordTier.Common }
+
+    val scarce = board()
+    BotFiller.goodWords(scarce) shouldBe scarce
+
+    val exactly = (1..BotFiller.GoodMaxWords).map { word("C" + it.toString().padStart(3, '0'), 1) } +
+      word("XIS", 9, WordTier.Expert)
+    BotFiller.goodWords(exactly) shouldBe exactly.dropLast(1)
+  }
+
+  test("on a small board a good robot takes what there is") {
+    val good = (1L..500L).flatMap { seed -> BotFiller.fill(1, board(), Random(seed)) }
+      .filter { it.words.size > BotFiller.MaxWords }
+    good.shouldNotBeEmpty()
+    good.forEach { it.words.size shouldBe board().size }
+  }
+
+  test("a five-letter word still counts as short") {
+    val fiveLetters = (1..BotFiller.MaxWords).map { word("CASA" + ('A' + it), 1) } + word("CASARAO", 9)
+    BotFiller.easyWords(fiveLetters) shouldBe fiveLetters.dropLast(1)
+  }
+
+  test("exactly enough common words is enough, even when few of them are short") {
+    val common = (1..BotFiller.MaxWords).map { word("CASARAO" + ('A' + it), 9) } +
+      word("XIS", 9, WordTier.Expert)
+    BotFiller.easyWords(common) shouldBe common.dropLast(1)
+  }
+
+  test("a negative maximum turns robots off instead of failing") {
+    BotFiller.quota(Random(1), minBots = 2, maxBots = -1) shouldBe 0
+  }
+
+  test("names come out the same for the same seed, nickname or guest name alike") {
+    BotFiller.names(4, Random(42)) shouldBe BotFiller.names(4, Random(42))
+    BotFiller.names(6, Random(7)) shouldBe GoldenNames
   }
 })

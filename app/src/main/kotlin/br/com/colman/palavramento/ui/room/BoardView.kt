@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.systemGestureExclusion
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -135,6 +136,9 @@ fun BoardView(
         .fillMaxWidth()
         .aspectRatio(1f)
         .onSizeChanged { boxSize = it }
+        // Asks Android not to read a drag here as the back gesture. It honours only 200dp of height
+        // per edge, so MatchScreen also keeps the board out of the gesture strips altogether.
+        .systemGestureExclusion()
         .pointerInput(tiles, rotation) {
           awaitEachGesture {
             // No touch-slop gate (unlike detectDragGestures): the first tile is registered right

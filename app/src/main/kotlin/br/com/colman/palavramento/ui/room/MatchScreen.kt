@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.systemGestures
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
@@ -30,12 +31,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import br.com.colman.palavramento.R
 import br.com.colman.palavramento.clock.ServerClock
@@ -80,7 +84,7 @@ fun MatchScreen(
       .fillMaxSize()
       .background(colors.matchPrimary)
       .windowInsetsPadding(WindowInsets.safeDrawing)
-      .padding(16.dp),
+      .padding(ScreenPadding),
   ) {
     MatchHeader(round.themeTitle, round.themeSubtitle, onBack, onOpenSettings = { showSettings = true })
     FlipCountdown(remainingMs, digitSize = LargeDigitSize, modifier = Modifier.padding(vertical = 8.dp))
@@ -99,7 +103,9 @@ fun MatchScreen(
         val timestamp = clock?.nowMs() ?: System.currentTimeMillis()
         onSubmit(currentRound.value.roundId, path, timestamp)
       },
-      modifier = Modifier.padding(top = 16.dp),
+      // Kept clear of the system's back-gesture strips: on a tablet they are wide enough to swallow
+      // the edge columns, and a trace starting there left the match instead of spelling a word.
+      modifier = Modifier.padding(top = 16.dp).padding(horizontal = backGestureClearance()),
     )
 
     FeedbackRow(round.lastFeedback)
@@ -217,3 +223,23 @@ private fun rememberRotationController(): RotationController {
 
 private const val RotationStepDegrees = 90f
 private const val RotationAnimationMillis = 300
+
+/**
+ * How much further in than the screen's own [ScreenPadding] the board has to sit so no tile lies
+ * inside the left or right back-gesture strip. The strips are measured from the window edge, the
+ * screen padding from inside the safe-drawing area, so what the safe area already covers is
+ * discounted too. The same on both sides, so the board stays centred.
+ */
+@Composable
+private fun backGestureClearance(): Dp {
+  val density = LocalDensity.current
+  val direction = LocalLayoutDirection.current
+  val gestures = WindowInsets.systemGestures
+  val safe = WindowInsets.safeDrawing
+  val left = gestures.getLeft(density, direction) - safe.getLeft(density, direction)
+  val right = gestures.getRight(density, direction) - safe.getRight(density, direction)
+  val strip = with(density) { maxOf(left, right).toDp() }
+  return (strip - ScreenPadding).coerceAtLeast(0.dp)
+}
+
+private val ScreenPadding = 16.dp

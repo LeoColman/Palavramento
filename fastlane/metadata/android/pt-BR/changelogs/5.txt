@@ -1,0 +1,3 @@
+Novidades desta versão:
+
+- No tablet, começar uma palavra na borda do tabuleiro não faz mais o app voltar para a tela inicial.

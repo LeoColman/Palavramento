@@ -238,7 +238,7 @@ Aba 1, com contador "Próxima partida em MM:SS" no topo:
 - Percentil = `(N − rank) / (N − 1) × 100`, arredondado para baixo; `0%` quando `N = 1`.
 - Tabela "Jogadores Top" com rank, nome, pontuação, palavras; a linha do próprio jogador destacada.
 - Robôs entram no placar: de 2 a 5, sorteados por rodada, menos um para cada pessoa além da primeira.
-  Quase todos com pontuação baixa; uma rodada em cinco tem um robô bom, de 40 a 60 palavras. Contam em
+  Quase todos fracos, de 5 a 20 palavras curtas; uma rodada em cinco tem um robô bom, de 40 a 60. Contam em
   `N` e no rank (ADR 0024).
 
 ### 6.5 Estilo

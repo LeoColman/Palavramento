@@ -30,9 +30,9 @@ object BotFiller {
   const val DefaultMinBots = 2
   const val DefaultMaxBots = 5
 
-  /** A robot finds between these many words, inclusive. */
-  const val MinWords = 3
-  const val MaxWords = 10
+  /** A weak robot finds between these many words, inclusive, every count equally likely. */
+  const val MinWords = 5
+  const val MaxWords = 20
 
   /** Longest word a robot finds, when the board has enough of them. */
   const val MaxEasyLength = 5

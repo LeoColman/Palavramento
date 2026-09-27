@@ -21,11 +21,13 @@ pediu o sorteio: uma sala que tem sempre o mesmo tamanho não parece uma sala. E
 socket, não mandam palavra: durante a partida nada no app mostra os outros jogadores, então não há o
 que simular ali.
 
-**Robô é fraco quase sempre.** Cada um recebe de 3 a 10 palavras sorteadas entre as comuns de até 5
-letras da própria grade, as que um iniciante acha primeiro. Grade com menos de 10 dessas cai para
-qualquer palavra comum e, se ainda faltar, para qualquer palavra. Quem joga de verdade quase sempre
-termina acima deles, mas não sempre, e isso é intencional: um placar em que a pessoa sempre ganha
-de todos não parece uma sala.
+**Robô é fraco quase sempre.** Cada um recebe de 5 a 20 palavras, com o mesmo peso para cada
+número, sorteadas entre as comuns de até 5 letras da própria grade, as que um iniciante acha
+primeiro. Grade com menos de 20 dessas cai para qualquer palavra comum e, se ainda faltar, para
+qualquer palavra. A primeira versão dava de 3 a 10 palavras, e os robôs fracos ficavam parecidos
+demais entre si; o dono pediu a faixa maior. Quem joga de verdade costuma terminar acima deles
+(mediana de 27 palavras em produção), mas não sempre, e isso é intencional: um placar em que a
+pessoa sempre ganha de todos não parece uma sala.
 
 **Uma rodada em cinco tem um robô bom.** Pedido do dono no mesmo dia: um placar só de robôs fracos
 não dá a ninguém um adversário para bater. Em 20% das rodadas com robôs, um deles acha de 40 a 60

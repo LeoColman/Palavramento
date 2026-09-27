@@ -70,7 +70,7 @@ class BotFillerTest : FunSpec({
 
   test("each weak robot finds a few distinct short common words from the board") {
     checkAll(Arb.long()) { seed ->
-      val solution = board()
+      val solution = bigBoard()
       BotFiller.fill(1, solution, Random(seed)).filter { it.words.size <= BotFiller.MaxWords }.forEach { bot ->
         bot.words.size shouldBeInRange BotFiller.MinWords..BotFiller.MaxWords
         bot.words.distinct() shouldBe bot.words
@@ -85,15 +85,15 @@ class BotFillerTest : FunSpec({
   }
 
   test("a board with few short words falls back to common words, then to any word") {
-    val fewShort = (1..3).map { word("SO" + ('A' + it), 1) } + (1..10).map { word("CASARAO" + ('A' + it), 20) }
+    val fewShort = (1..3).map { word("SO" + ('A' + it), 1) } + (1..20).map { word("CASARAO" + ('A' + it), 20) }
     BotFiller.easyWords(fewShort) shouldBe fewShort
 
     val fewCommon = (1..3).map { word("SO" + ('A' + it), 1) } +
       (1..4).map { word("XIS" + ('A' + it), 9, WordTier.Expert) }
     BotFiller.easyWords(fewCommon) shouldBe fewCommon
 
-    val plenty = board()
-    BotFiller.easyWords(plenty) shouldBe plenty.take(10)
+    val plenty = bigBoard()
+    BotFiller.easyWords(plenty) shouldBe plenty.take(60)
   }
 
   test("a board with exactly enough short common words keeps to them") {
@@ -202,5 +202,16 @@ class BotFillerTest : FunSpec({
   test("names come out the same for the same seed, nickname or guest name alike") {
     BotFiller.names(4, Random(42)) shouldBe BotFiller.names(4, Random(42))
     BotFiller.names(6, Random(7)) shouldBe GoldenNames
+  }
+
+  test("weak robots find 5 to 20 words, every count about equally often") {
+    val counts = (1L..4000L).flatMap { seed -> BotFiller.fill(1, bigBoard(), Random(seed)) }
+      .map { it.words.size }
+      .filter { it <= BotFiller.MaxWords }
+    counts.toSet() shouldBe (5..20).toSet()
+    val expected = counts.size / 16
+    counts.groupingBy { it }.eachCount().values.forEach { it shouldBeInRange expected * 3 / 4..expected * 5 / 4 }
+    BotFiller.MinWords shouldBe 5
+    BotFiller.MaxWords shouldBe 20
   }
 })

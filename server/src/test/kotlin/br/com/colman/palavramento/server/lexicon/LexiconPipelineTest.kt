@@ -52,4 +52,19 @@ class LexiconPipelineTest : FunSpec({
 
     rows.count { it.canonical == "meninos" } shouldBe 1
   }
+
+  test("An added form becomes a row like a dictionary one, filters and frequency included") {
+    val dictionary = DicFileParser.parse(listOf("1", "casa"))
+    val affixes = AffixFileParser.parse(emptyList())
+    val frequency = FrequencyList.parse(listOf("casa 5", "emo 3"))
+
+    val rows = LexiconPipeline.buildRows(dictionary, affixes, frequency, listOf("emo", "ab", "casa"))
+
+    // "ab" is too short and "casa" is already in the dictionary: only "emo" is new.
+    rows shouldContainExactlyInAnyOrder listOf(FormRow("casa", "CASA", 1), FormRow("emo", "EMO", 2))
+  }
+
+  test("The real build adds emo and its plural") {
+    AddedCanonicalForms shouldBe listOf("emo", "emos")
+  }
 })

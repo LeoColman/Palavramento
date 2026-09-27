@@ -22,6 +22,16 @@ private val PunctuationToDrop = Apostrophes + setOf('-', '.')
 private val ExcludedNormalizedForms = setOf("MENAS")
 
 /**
+ * The other direction: words the game accepts although VERO does not list them, written as a player
+ * would (lowercase, accents and all). [LexiconPipeline] runs them through the same filters and the
+ * same frequency lookup as the dictionary's own forms.
+ *
+ * "emo" (and its plural), the music style and its fans: current Portuguese, missing from a
+ * dictionary built for spell checking (owner decision, 2026-09-27).
+ */
+val AddedCanonicalForms = listOf("emo", "emos")
+
+/**
  * Filters for a canonical form fresh out of [HunspellExpander] (dossier §2.2): hyphens, apostrophes
  * and dots rule out compounds and abbreviations, digits and uppercase letters rule out numbers,
  * units and proper nouns/acronyms, and the length bounds keep tile paths sane (board words are at

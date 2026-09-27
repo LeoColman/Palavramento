@@ -75,12 +75,15 @@ class LexiconCompilerMainTest : FunSpec({
       System.setOut(originalOut)
     }
 
-    tsvOut.readLines() shouldContainExactly listOf("casa\tCASA\t1")
+    // The added forms go in whatever the dictionary says; absent from this tiny frequency list,
+    // they come out unranked.
+    tsvOut.readLines() shouldContainExactly listOf("casa\tCASA\t1", "emo\tEMO\t2147483647", "emos\tEMOS\t2147483647")
 
     binOut.exists() shouldBe true
     val lexicon = FileInputStream(binOut).use { TrieLexicon.read(it) }
     lexicon.lookup("CASA").shouldNotBeNull().display shouldBe "casa"
+    lexicon.lookup("EMO").shouldNotBeNull().display shouldBe "emo"
 
-    capturedOut.toString() shouldContain "Lexicon compiled: 1 dic stems -> 1 surviving forms -> 1 normalized entries"
+    capturedOut.toString() shouldContain "Lexicon compiled: 1 dic stems -> 3 surviving forms -> 3 normalized entries"
   }
 })

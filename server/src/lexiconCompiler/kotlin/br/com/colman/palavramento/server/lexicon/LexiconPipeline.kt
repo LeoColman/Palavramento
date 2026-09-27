@@ -15,15 +15,20 @@ import br.com.colman.palavramento.domain.WordNormalizer
 data class FormRow(val canonical: String, val normalized: String, val rank: Int?)
 
 /**
- * Runs the whole build-time lexicon pipeline: expand the Hunspell dictionary, then keep only the
- * forms that pass every filter in [LexiconFilters], deduplicated by canonical spelling (the same
+ * Runs the whole build-time lexicon pipeline: expand the Hunspell dictionary, add [additions]
+ * ([AddedCanonicalForms] in the real build), then keep only the forms that pass every filter in [LexiconFilters], deduplicated by canonical spelling (the same
  * surface form can be reachable through more than one affix rule) and looked up in [frequency].
  */
 object LexiconPipeline {
-  fun buildRows(dictionary: List<DicEntry>, affixes: AffixFile, frequency: FrequencyList): List<FormRow> {
+  fun buildRows(
+    dictionary: List<DicEntry>,
+    affixes: AffixFile,
+    frequency: FrequencyList,
+    additions: List<String> = emptyList(),
+  ): List<FormRow> {
     val seenCanonicalForms = HashSet<String>()
     val rows = mutableListOf<FormRow>()
-    for (canonical in HunspellExpander.expand(dictionary, affixes)) {
+    for (canonical in HunspellExpander.expand(dictionary, affixes) + additions) {
       if (!LexiconFilters.isAcceptableCanonicalForm(canonical)) continue
       val normalized = WordNormalizer.normalize(canonical)
       if (!LexiconFilters.isAcceptableNormalizedForm(normalized)) continue

@@ -45,4 +45,11 @@ class LexiconLoaderArtifactTest : FunSpec({
     lexicon.lookup("MENAS").shouldBeNull()
     lexicon.lookup("MENOS").shouldNotBeNull()
   }
+
+  test("an added form is in the packaged artifact, though the dictionary lacks it") {
+    val lexicon = LexiconLoader.load()
+
+    lexicon.lookup("EMO").shouldNotBeNull().display shouldBe "emo"
+    lexicon.lookup("EMOS").shouldNotBeNull()
+  }
 })

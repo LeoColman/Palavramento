@@ -26,7 +26,7 @@ fun main(args: Array<String>) {
   val affixes = AffixFileParser.parse(File(affPath).readLexiconLines())
   val frequency = FrequencyList.parse(File(frequencyPath).readLexiconLines())
 
-  val rows = LexiconPipeline.buildRows(dictionary, affixes, frequency)
+  val rows = LexiconPipeline.buildRows(dictionary, affixes, frequency, AddedCanonicalForms)
   val tsvOut = File(tsvOutPath)
   FormsTsv.write(rows, tsvOut)
 

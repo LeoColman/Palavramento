@@ -26,7 +26,8 @@ a página antes e avisar dentro do app.
   libera na hora e nada aparece para o jogador. Se a distribuição abrir para esses países, basta criar
   a mensagem no AdMob; o formulário e o botão "Privacidade dos anúncios" do lobby já estão no app.
 - **IDs de teste em debug, sempre.** Quem desenvolve nunca toca anúncio real. O release usa os IDs
-  reais declarados em `app/build.gradle.kts`, que não são segredo (vão em todo APK), e a tarefa
+  reais declarados em `app/build.gradle.kts` (app `ca-app-pub-9745951044027822~3899170331`, banner
+  `ca-app-pub-9745951044027822/6207079952`), que não são segredo (vão em todo APK), e a tarefa
   `verifyAdmobIds` impede um `bundleRelease` com os IDs de teste.
 - **A política de privacidade muda antes do app.** A nova seção "Anúncios" diz o que o Google recebe,
   como funciona o consentimento e como limitar. Ela é servida pelo servidor, então é publicada com o

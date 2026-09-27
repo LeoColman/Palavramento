@@ -1,0 +1,5 @@
+Novidades desta versão:
+
+- Um banner de anúncio embaixo do lobby e da tela de resultados ajuda a manter o servidor no ar. Nunca durante a partida.
+- Os robôs do placar ficaram mais variados, e de vez em quando aparece um bom de verdade.
+- "emo" agora vale como palavra.

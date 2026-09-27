@@ -37,8 +37,8 @@ val serverUrl: String = providers.gradleProperty("palavramento.serverUrl").orNul
  */
 val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
 val admobTestBannerUnitId = "ca-app-pub-3940256099942544/9214589741"
-val admobRealAppId: String? = null
-val admobRealBannerUnitId: String? = null
+val admobRealAppId: String? = "ca-app-pub-9745951044027822~3899170331"
+val admobRealBannerUnitId: String? = "ca-app-pub-9745951044027822/6207079952"
 
 val keystoreProperties: Properties? = rootProject.file("keystore.properties")
   .takeIf { it.exists() }
@@ -53,8 +53,8 @@ android {
     applicationId = "br.com.colman.palavramento"
     minSdk = 26
     targetSdk = 36
-    versionCode = 5
-    versionName = "1.0.2"
+    versionCode = 6
+    versionName = "1.1.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

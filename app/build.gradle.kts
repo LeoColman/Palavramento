@@ -53,8 +53,8 @@ android {
     applicationId = "br.com.colman.palavramento"
     minSdk = 26
     targetSdk = 36
-    versionCode = 6
-    versionName = "1.1.0"
+    versionCode = 7
+    versionName = "1.1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -155,6 +155,10 @@ dependencies {
 
   implementation(libs.play.services.ads)
   implementation(libs.user.messaging.platform)
+  // The ads SDK pulls in WorkManager 2.7.0 on Room 2.2.5, whose R8 rules keep WorkDatabase_Impl but not
+  // its no-argument constructor. R8's full mode strips it, Room cannot instantiate the database, and
+  // the release build crashed on launch (1.1.0). A current WorkManager brings a Room with rules that hold.
+  implementation(libs.work.runtime)
 
   implementation(libs.sqldelight.android.driver)
   implementation(libs.sqldelight.coroutines)

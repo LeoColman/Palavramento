@@ -44,4 +44,9 @@ a página antes e avisar dentro do app.
   interações com o app e diagnóstico compartilhados com o Google para publicidade).
 - `GmsAds` e o `AdBanner` ficam fora do PIT: são chamadas ao SDK do Google, sem comportamento próprio
   que um teste na JVM alcance.
+- O SDK de anúncios traz o WorkManager 2.7.0 com o Room 2.2.5, cujas regras de R8 não guardam o
+  construtor de `WorkDatabase_Impl`. No modo completo do R8 o construtor sumia e a 1.1.0 fechava ao
+  abrir, só no build de release. O app declara um WorkManager atual (2.12.0) para puxar um Room com
+  regras corretas, e a 1.1.1 saiu com isso. Build de debug não pega esse tipo de erro: antes de uma
+  tag, instalar o `assembleRelease` num emulador e abrir o app.
 - Um fork que não queira anúncio remove o `AdsModule`, o `AdBanner` e as duas dependências.

@@ -27,6 +27,7 @@ lifecycle = "2.11.0"
 datastore = "1.2.1"
 playServicesAds = "25.5.0"
 userMessagingPlatform = "4.0.0"
+workRuntime = "2.12.0"
 androidx-test = "1.7.0"
 
 [libraries]
@@ -87,6 +88,7 @@ sqldelight-sqlite-dialect = { module = "app.cash.sqldelight:sqlite-3-25-dialect"
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 play-services-ads = { module = "com.google.android.gms:play-services-ads", version.ref = "playServicesAds" }
 user-messaging-platform = { module = "com.google.android.ump:user-messaging-platform", version.ref = "userMessagingPlatform" }
+work-runtime = { module = "androidx.work:work-runtime", version.ref = "workRuntime" }
 
 # Compose
 compose-ui = { module = "androidx.compose.ui:ui", version.ref = "compose" }

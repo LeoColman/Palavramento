@@ -1,0 +1,3 @@
+Novidades desta versão:
+
+- Corrige o app fechando sozinho ao abrir na versão 1.1.0.

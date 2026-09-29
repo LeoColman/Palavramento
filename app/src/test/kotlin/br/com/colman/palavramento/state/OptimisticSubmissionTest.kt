@@ -7,6 +7,7 @@ import br.com.colman.palavramento.domain.board.Tile
 import br.com.colman.palavramento.domain.mutator.Mutator
 import br.com.colman.palavramento.domain.protocol.FoundWord
 import br.com.colman.palavramento.domain.protocol.ValidWord
+import br.com.colman.palavramento.domain.submission.GuessGuard
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -145,5 +146,46 @@ class OptimisticSubmissionTest : FunSpec({
 
     decision.shouldBeInstanceOf<OptimisticSubmission.Decision.Reject>().newState.lastFeedback shouldBe
       SubmissionFeedback.Rejected(RejectionReason.AlreadyFound, listOf(0, 1, 2))
+  }
+
+  test("a non-word counts as a miss, and the fifth in a row locks the board for five seconds") {
+    var round = catRound()
+    repeat(GuessGuard.MaxMisses) {
+      val reject = OptimisticSubmission.decide(round, path = listOf(0, 1, 3), nowMs = 1_000)
+        .shouldBeInstanceOf<OptimisticSubmission.Decision.Reject>()
+      round = reject.newState
+    }
+
+    round.guessGuard.lockedUntilMs shouldBe 1_000 + GuessGuard.LockMs
+    OptimisticSubmission.decide(round, path = listOf(0, 1, 2), nowMs = 2_000) shouldBe
+      OptimisticSubmission.Decision.Locked
+    OptimisticSubmission.decide(round, path = listOf(0, 1, 2), nowMs = 1_000 + GuessGuard.LockMs)
+      .shouldBeInstanceOf<OptimisticSubmission.Decision.Accept>()
+  }
+
+  test("an accepted word clears the misses, and a repeat is not a miss") {
+    val missedFour = catRound().copy(guessGuard = GuessGuard(consecutiveMisses = 4))
+
+    val accept = OptimisticSubmission.decide(missedFour, path = listOf(0, 1, 2), nowMs = 1_000)
+      .shouldBeInstanceOf<OptimisticSubmission.Decision.Accept>()
+    accept.newState.guessGuard.consecutiveMisses shouldBe 0
+
+    val found = catRound(foundWords = listOf(FoundWord("cat", 7, listOf(0, 1, 2))))
+      .copy(guessGuard = GuessGuard(consecutiveMisses = 4))
+    val repeat = OptimisticSubmission.decide(found, path = listOf(0, 1, 2), nowMs = 1_000)
+      .shouldBeInstanceOf<OptimisticSubmission.Decision.Reject>()
+    repeat.newState.guessGuard shouldBe GuessGuard(consecutiveMisses = 4)
+  }
+
+  test("without a synced clock a miss goes uncounted and nothing is ever locked") {
+    val missedFour = catRound().copy(guessGuard = GuessGuard(consecutiveMisses = 4))
+
+    val reject = OptimisticSubmission.decide(missedFour, path = listOf(0, 1, 3), nowMs = null)
+      .shouldBeInstanceOf<OptimisticSubmission.Decision.Reject>()
+    reject.newState.guessGuard shouldBe GuessGuard(consecutiveMisses = 4)
+
+    val locked = catRound().copy(guessGuard = GuessGuard(lockedUntilMs = 10_000))
+    OptimisticSubmission.decide(locked, path = listOf(0, 1, 2), nowMs = null)
+      .shouldBeInstanceOf<OptimisticSubmission.Decision.Accept>()
   }
 })

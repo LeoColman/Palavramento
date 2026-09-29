@@ -43,6 +43,13 @@ object OptimisticSubmission {
      * wait, exactly like before this feature existed.
      */
     data object Defer : Decision
+
+    /**
+     * The board is locked for guessing ([MatchUiState.InRound.guessGuard]): drop the path without a
+     * verdict and without sending it. The screen already shows the lock and blocks the board, so
+     * this only catches a path released in the instant the lock began.
+     */
+    data object Locked : Decision
   }
 
   /**
@@ -50,12 +57,13 @@ object OptimisticSubmission {
    * or null when no clock sample has arrived yet; null never blocks a local verdict, since there is
    * no evidence the round has ended.
    */
-  // Two early-return guard clauses (no validWords, round already over) plus the validated outcome:
+  // Three early-return guard clauses (no validWords, round already over, board locked) plus the validated outcome:
   // the same guard-clause style SubmissionValidator.validate documents and suppresses for.
   @Suppress("ReturnCount")
   fun decide(round: MatchUiState.InRound, path: List<Int>, nowMs: Long?): Decision {
     if (round.validWords.isEmpty()) return Decision.Defer
     if (nowMs != null && nowMs > round.endsAt) return Decision.Defer
+    if (nowMs != null && round.guessGuard.isLocked(nowMs)) return Decision.Locked
 
     val board = boardOf(round.board)
     val lexicon = round.validWords.toLexicon()
@@ -69,11 +77,16 @@ object OptimisticSubmission {
           runningWords = round.runningWords + 1,
           lastFeedback = SubmissionFeedback.Accepted(result.word, result.score, path, round.nextFeedbackSerial()),
           pendingPaths = round.pendingPaths + setOf(path),
+          guessGuard = round.guessGuard.onAccepted(),
         ),
       )
 
       is SubmissionResult.Rejected -> Decision.Reject(
-        round.copy(lastFeedback = SubmissionFeedback.Rejected(result.reason, path, round.nextFeedbackSerial())),
+        round.copy(
+          lastFeedback = SubmissionFeedback.Rejected(result.reason, path, round.nextFeedbackSerial()),
+          // Without a synced clock there is no time to lock until, so the miss goes uncounted.
+          guessGuard = nowMs?.let { round.guessGuard.onRejected(result.reason, it) } ?: round.guessGuard,
+        ),
       )
     }
   }

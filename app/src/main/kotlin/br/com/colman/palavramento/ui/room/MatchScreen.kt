@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -93,20 +94,22 @@ fun MatchScreen(
       Text(stringResource(R.string.match_words_format, round.runningWords, round.maxWords), color = colors.textPrimary)
     }
 
-    BoardView(
-      tiles = round.board,
-      rotation = rotationController.rotation,
-      visualRotationDegrees = rotationController.visualDegrees,
-      feedback = round.lastFeedback,
-      hapticsEnabled = hapticsEnabled,
-      onSubmit = { path ->
-        val timestamp = clock?.nowMs() ?: System.currentTimeMillis()
-        onSubmit(currentRound.value.roundId, path, timestamp)
-      },
-      // Kept clear of the system's back-gesture strips: on a tablet they are wide enough to swallow
-      // the edge columns, and a trace starting there left the match instead of spelling a word.
-      modifier = Modifier.padding(top = 16.dp).padding(horizontal = backGestureClearance()),
-    )
+    // Kept clear of the system's back-gesture strips: on a tablet they are wide enough to swallow
+    // the edge columns, and a trace starting there left the match instead of spelling a word.
+    Box(Modifier.padding(top = 16.dp).padding(horizontal = backGestureClearance())) {
+      BoardView(
+        tiles = round.board,
+        rotation = rotationController.rotation,
+        visualRotationDegrees = rotationController.visualDegrees,
+        feedback = round.lastFeedback,
+        hapticsEnabled = hapticsEnabled,
+        onSubmit = { path ->
+          val timestamp = clock?.nowMs() ?: System.currentTimeMillis()
+          onSubmit(currentRound.value.roundId, path, timestamp)
+        },
+      )
+      GuessLockOverlay(round.guessGuard.lockedUntilMs, clock, Modifier.matchParentSize())
+    }
 
     FeedbackRow(round.lastFeedback)
 

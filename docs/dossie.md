@@ -219,6 +219,9 @@ O cliente envia **o caminho, não a palavra**. O servidor reconstrói a string, 
 - **Traçado por arrasto contínuo**: `pointerInput` com `detectDragGestures`; ao entrar no raio de um tile adjacente ao último, anexa; ao voltar sobre o penúltimo, remove o último (undo natural). Soltar submete.
 - Área abaixo da grade exibe a palavra em construção com sua pontuação parcial, e as últimas palavras aceitas/rejeitadas com feedback (cor + haptics).
 - Botão **Girar**.
+- **Bloqueio por chute**: 5 palavras inválidas seguidas travam a grade por 5 s, com "Muitos chutes
+  seguidos!" e contagem regressiva sobre ela. Palavra aceita zera a contagem; repetida, caminho
+  inválido e curta demais não contam. Não tira pontos (ADR 0026).
 
 ### 6.3 Resultados (tela 3)
 Aba 1, com contador "Próxima partida em MM:SS" no topo:

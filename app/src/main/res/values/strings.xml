@@ -80,6 +80,12 @@
   <string name="match_reason_already_found">Já encontrada</string>
   <string name="match_reason_invalid_path">Caminho inválido</string>
   <string name="match_reason_too_short">Palavra muito curta</string>
+  <!-- Bloqueio por chute (GuessGuard): 5 palavras inválidas seguidas travam o tabuleiro por 5 s. -->
+  <string name="match_guess_lock_title">Muitos chutes seguidos!</string>
+  <plurals name="match_guess_lock_wait">
+    <item quantity="one">Aguarde %1$d segundo</item>
+    <item quantity="other">Aguarde %1$d segundos</item>
+  </plurals>
 
   <!-- Results (dossie 6.3) -->
   <string name="results_tab_results">Resultados</string>

@@ -10,6 +10,7 @@ import br.com.colman.palavramento.domain.protocol.LabelledWord
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.domain.protocol.ValidWord
 import br.com.colman.palavramento.domain.stats.RoundStats
+import br.com.colman.palavramento.domain.submission.GuessGuard
 import br.com.colman.palavramento.domain.submission.RejectionReason
 
 /**
@@ -55,6 +56,9 @@ sealed interface MatchUiState {
     val lastFeedback: SubmissionFeedback? = null,
     val validWords: List<ValidWord> = emptyList(),
     val pendingPaths: Set<List<Int>> = emptySet(),
+    // Too many non-words in a row lock the board for a few seconds (GuessGuard). Starts fresh with
+    // every RoundStart, reconnects included.
+    val guessGuard: GuessGuard = GuessGuard(),
   ) : MatchUiState
 
   /**

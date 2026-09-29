@@ -10,6 +10,7 @@ import br.com.colman.palavramento.domain.protocol.ClientMessage
 import br.com.colman.palavramento.domain.protocol.FoundWord
 import br.com.colman.palavramento.domain.protocol.ServerMessage
 import br.com.colman.palavramento.domain.protocol.ValidWord
+import br.com.colman.palavramento.domain.submission.GuessGuard
 import br.com.colman.palavramento.domain.submission.RejectionReason
 import br.com.colman.palavramento.state.MatchUiState
 import br.com.colman.palavramento.state.SubmissionFeedback
@@ -305,6 +306,33 @@ class MultiplayerSessionTest : FunSpec({
       val state = session.state.value as MatchUiState.InRound
       state.foundWords shouldBe emptyList()
       state.lastFeedback shouldBe SubmissionFeedback.Rejected(RejectionReason.NotAWord, listOf(0, 1, 3))
+      transport.sent.none { it is ClientMessage.SubmitWord } shouldBe true
+
+      job.cancelAndJoin()
+    }
+  }
+
+  test("five non-words in a row lock the board: the next word, even a real one, is neither applied nor sent") {
+    runTest {
+      val transport = FakeMultiplayerTransport()
+      var ticks = 0L
+      val session = MultiplayerSession(transport, { "token" }, { ticks++ }, delay = {}, clockSyncSettings = SemResync)
+      val job = launch { session.run() }
+
+      completeHandshake(transport)
+      transport.push(sampleRoundStartWithValidWords())
+      advanceUntilIdle()
+
+      repeat(GuessGuard.MaxMisses) { session.submitWord("round-1", listOf(0, 1, 3), clientTimestampMs = 1_000) }
+      advanceUntilIdle()
+      val locked = session.state.value as MatchUiState.InRound
+      locked.guessGuard.lockedUntilMs.shouldNotBeNull()
+
+      // "cat" is in the solution, but the board is locked.
+      session.submitWord("round-1", listOf(0, 1, 2), clientTimestampMs = 1_000)
+      advanceUntilIdle()
+
+      session.state.value shouldBe locked
       transport.sent.none { it is ClientMessage.SubmitWord } shouldBe true
 
       job.cancelAndJoin()

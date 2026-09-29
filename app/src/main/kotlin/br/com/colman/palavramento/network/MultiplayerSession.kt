@@ -122,29 +122,33 @@ class MultiplayerSession(
    * or [OptimisticSubmission.Decision.Reject] applies its `newState` to [state] immediately (found
    * word/score/feedback, or just the rejection feedback), and only `Accept` still reaches
    * [sendSubmission] below; `Reject` never does, since the same validator running on the server would
-   * reject it too. [OptimisticSubmission.Decision.Defer] (no [MatchUiState.InRound.validWords] yet,
+   * reject it too. [OptimisticSubmission.Decision.Locked] (the board is locked for guessing) is
+   * neither applied nor sent. [OptimisticSubmission.Decision.Defer] (no [MatchUiState.InRound.validWords] yet,
    * or the round is already over) - and a submission for a round [state] does not currently show -
    * fall straight through to [sendSubmission], exactly as before this feature.
    */
   suspend fun submitWord(roundId: String, path: List<Int>, clientTimestampMs: Long) {
     val current = stateFlow.value
-    if (current is MatchUiState.InRound && current.roundId == roundId) {
+    val send = if (current is MatchUiState.InRound && current.roundId == roundId) {
       when (val decision = OptimisticSubmission.decide(current, path, clockFlow.value?.nowMs())) {
         is OptimisticSubmission.Decision.Accept -> {
           stateFlow.value = decision.newState
-          sendSubmission(roundId, path, clientTimestampMs)
-          return
+          true
         }
 
         is OptimisticSubmission.Decision.Reject -> {
           stateFlow.value = decision.newState
-          return
+          false
         }
 
-        OptimisticSubmission.Decision.Defer -> Unit
+        OptimisticSubmission.Decision.Locked -> false
+
+        OptimisticSubmission.Decision.Defer -> true
       }
+    } else {
+      true
     }
-    sendSubmission(roundId, path, clientTimestampMs)
+    if (send) sendSubmission(roundId, path, clientTimestampMs)
   }
 
   /**

@@ -1,0 +1,4 @@
+Novidades desta versão:
+
+- Chega de chute: cinco palavras inválidas seguidas travam a grade por cinco segundos.
+- No celular e no tablet, a grade fica longe da borda da tela, onde o gesto de voltar do Android atrapalhava.
